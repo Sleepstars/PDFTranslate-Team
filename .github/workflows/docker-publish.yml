@@ -8,6 +8,8 @@ on:
 
 env:
   REGISTRY: ghcr.io
+  PIXI_IMAGE: ghcr.io/prefix-dev/pixi:0.40.0
+  BACKEND_RUNTIME_IMAGE: ubuntu:24.04
 
 jobs:
   docker:
@@ -40,6 +42,9 @@ jobs:
         with:
           context: .
           file: Dockerfile.backend
+          build-args: |
+            PIXI_IMAGE=${{ env.PIXI_IMAGE }}
+            RUNTIME_IMAGE=${{ env.BACKEND_RUNTIME_IMAGE }}
           push: true
           tags: |
             ${{ env.BACKEND_IMAGE }}:latest
