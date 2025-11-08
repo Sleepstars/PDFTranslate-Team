@@ -26,6 +26,7 @@ class TaskManager:
         self.task_semaphore = asyncio.Semaphore(self.max_concurrent_tasks)
         # 优先级队列配置
         self.priority_weights = {"high": 3, "normal": 2, "low": 1}
+        self._monitor_task: Optional[asyncio.Task] = None
         
     async def _check_concurrent_limit(self) -> bool:
         """检查是否达到并发限制"""
@@ -90,7 +91,9 @@ class TaskManager:
 
     async def start_queue_monitor(self):
         """启动队列监控任务"""
-        asyncio.create_task(self._queue_monitor_loop())
+        if self._monitor_task and not self._monitor_task.done():
+            return
+        self._monitor_task = asyncio.create_task(self._queue_monitor_loop())
 
     async def _queue_monitor_loop(self):
         """队列监控循环"""
@@ -116,6 +119,40 @@ class TaskManager:
                 self._schedule(task_id)
             else:
                 break
+
+    async def resume_stalled_tasks(self) -> None:
+        """重启时将 processing 状态任务恢复到队列"""
+        async with AsyncSessionLocal() as db:
+            result = await db.execute(
+                select(TranslationTask).where(TranslationTask.status == "processing")
+            )
+            stalled_tasks = result.scalars().all()
+
+        if not stalled_tasks:
+            return
+
+        redis = await get_redis()
+        for task in stalled_tasks:
+            async with AsyncSessionLocal() as db:
+                result = await db.execute(
+                    select(TranslationTask).where(TranslationTask.id == task.id)
+                )
+                current_task = result.scalar_one_or_none()
+                if not current_task:
+                    continue
+
+                current_task.status = "queued"
+                current_task.progress = 0
+                current_task.progress_message = "系统重启自动恢复，已重新排队"
+                await db.commit()
+                await db.refresh(current_task)
+
+                await redis.invalidate_task_details_cache(task.id)
+                await redis.invalidate_user_tasks_cache(current_task.owner_id)
+                await redis.set_task_status(current_task.id, current_task.status)
+                await task_ws_manager.send_task_update(current_task.owner_id, current_task.to_dict())
+
+            await redis.enqueue_task(task.id, task.priority)
 
     def get_concurrent_status(self) -> dict:
         """获取并发状态信息"""

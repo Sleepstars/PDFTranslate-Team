@@ -9,6 +9,7 @@ from .auth import create_user
 from .database import AsyncSessionLocal
 from sqlalchemy import select
 from .models import User
+from .tasks import task_manager
 
 settings = get_settings()
 
@@ -24,6 +25,10 @@ async def lifespan(app: FastAPI):
         result = await db.execute(select(User).where(User.email == settings.admin_email))
         if not result.scalar_one_or_none():
             await create_user(db, "admin", settings.admin_email, settings.admin_name, settings.admin_password)
+
+    # Resume tasks that were running before a crash/restart
+    await task_manager.resume_stalled_tasks()
+    await task_manager.start_queue_monitor()
 
     yield
 

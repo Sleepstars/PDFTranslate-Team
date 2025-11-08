@@ -230,6 +230,8 @@ Get list of tasks for the current user.
 
 _Tip_: 前端仪表盘每隔 4 秒调用该接口刷新任务列表，因此也可用于 CLI 或 Postman 中的实时轮询。
 
+_2025-11-09 更新：后端重启后会自动将上次停在 `processing` 状态的任务重置为 `queued` 并重新入队。客户端无需额外操作即可在列表/WS 更新中看到任务继续执行。_
+
 **Query Parameters:**
 - `status` (optional): Filter by status (queued, processing, completed, failed, canceled)
 - `limit` (optional): Number of results (default: 50)
