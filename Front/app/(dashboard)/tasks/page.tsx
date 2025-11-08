@@ -1,31 +1,34 @@
-import { redirect } from "next/navigation";
-import { getCurrentUser } from "@/lib/auth/session";
-import { CreateTaskForm } from "@/components/dashboard/create-task-form";
-import { TaskList } from "@/components/dashboard/task-list";
+"use client";
 
-export default async function TasksPage() {
-  const user = await getCurrentUser();
-  if (!user) {
-    redirect("/login");
-  }
+import { useState } from 'react';
+import { PageHeader } from '@/components/shared/page-header';
+import { Button } from '@/components/ui/button';
+import { TaskList } from '@/components/user/task-list';
+import { TaskCreateDialog } from '@/components/user/task-create-dialog';
+import { Plus } from 'lucide-react';
+
+export default function TasksPage() {
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-3xl font-bold tracking-tight">我的任务</h2>
-        <p className="text-muted-foreground mt-1">
-          创建和管理翻译任务
-        </p>
-      </div>
+    <div>
+      <PageHeader
+        title="我的任务"
+        description="管理您的翻译任务"
+        action={
+          <Button onClick={() => setCreateDialogOpen(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            创建任务
+          </Button>
+        }
+      />
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-1">
-          <CreateTaskForm />
-        </div>
-        <div className="lg:col-span-2">
-          <TaskList />
-        </div>
-      </div>
+      <TaskList />
+
+      <TaskCreateDialog
+        open={createDialogOpen}
+        onOpenChange={setCreateDialogOpen}
+      />
     </div>
   );
 }

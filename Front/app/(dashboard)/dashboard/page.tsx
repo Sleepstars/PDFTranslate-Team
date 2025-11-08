@@ -1,48 +1,26 @@
-import { redirect } from 'next/navigation';
-import { TaskBoard } from '@/components/dashboard/task-board';
-import { getCurrentUser } from '@/lib/auth/session';
-import { fetchTasksServer } from '@/lib/tasks/server';
-import { QuotaWidget } from '@/components/dashboard/quota-widget';
+"use client";
 
-export default async function DashboardPage() {
-  const user = await getCurrentUser();
-  if (!user) {
-    redirect('/login');
-  }
+import { PageHeader } from '@/components/shared/page-header';
+import { QuotaDisplay } from '@/components/shared/quota-display';
+import { DashboardStats } from '@/components/user/dashboard-stats';
 
-  const initialTasks = await fetchTasksServer();
-
+export default function DashboardPage() {
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-lg border bg-card p-6">
-          <p className="text-sm font-medium text-muted-foreground">总任务</p>
-          <h3 className="text-2xl font-bold mt-2">{initialTasks.length}</h3>
-          <p className="text-xs text-muted-foreground mt-1">自启动以来提交的任务数量</p>
-        </div>
-        <div className="rounded-lg border bg-card p-6">
-          <p className="text-sm font-medium text-muted-foreground">待处理</p>
-          <h3 className="text-2xl font-bold mt-2">
-            {initialTasks.filter((task) => task.status === 'queued' || task.status === 'processing').length}
-          </h3>
-          <p className="text-xs text-muted-foreground mt-1">当前队列中的任务</p>
-        </div>
-        <div className="rounded-lg border bg-card p-6">
-          <p className="text-sm font-medium text-muted-foreground">成功率</p>
-          <h3 className="text-2xl font-bold mt-2">
-            {initialTasks.length
-              ? Math.round(
-                  (initialTasks.filter((task) => task.status === 'completed').length / initialTasks.length) * 100
-                )
-              : 0}
-            %
-          </h3>
-          <p className="text-xs text-muted-foreground mt-1">模拟 Worker 完成度</p>
-        </div>
-        <QuotaWidget />
-      </div>
+      <PageHeader
+        title="仪表盘"
+        description="查看您的任务统计和配额使用情况"
+      />
 
-      <TaskBoard initialTasks={initialTasks} />
+      <div className="grid gap-6 md:grid-cols-3">
+        <div className="md:col-span-2">
+          <DashboardStats />
+        </div>
+        <div>
+          <QuotaDisplay />
+        </div>
+      </div>
     </div>
   );
 }
+

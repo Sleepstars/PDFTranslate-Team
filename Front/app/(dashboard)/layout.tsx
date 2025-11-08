@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { getCurrentUser } from '@/lib/auth/session';
 import { LogoutButton } from '@/components/logout-button';
-import { SidebarNav } from '@/components/dashboard/sidebar-nav';
+import { SidebarNav } from '@/components/shared/sidebar-nav';
 import { Badge } from '@/components/ui/badge';
 
 export default async function DashboardLayout({
