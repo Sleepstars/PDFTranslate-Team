@@ -39,9 +39,16 @@ export function CreateTaskForm({ onSuccess }: CreateTaskFormProps) {
     documentName: "",
     sourceLang: "en",
     targetLang: "zh",
+    engine: "google",
     providerConfigId: "",
     priority: "normal",
     notes: "",
+  });
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [advancedConfig, setAdvancedConfig] = useState({
+    model: "",
+    threads: 4,
+    endpoint: "",
   });
   const [error, setError] = useState<string | null>(null);
   const [estimatedPages, setEstimatedPages] = useState<number | null>(null);
@@ -65,9 +72,19 @@ export function CreateTaskForm({ onSuccess }: CreateTaskFormProps) {
       formDataObj.append("documentName", data.documentName);
       formDataObj.append("sourceLang", data.sourceLang);
       formDataObj.append("targetLang", data.targetLang);
+      formDataObj.append("engine", data.engine);
       formDataObj.append("priority", data.priority);
       if (data.providerConfigId) formDataObj.append("providerConfigId", data.providerConfigId);
       if (data.notes) formDataObj.append("notes", data.notes);
+
+      // Add advanced config if any field is set
+      if (showAdvanced && (advancedConfig.model || advancedConfig.endpoint || advancedConfig.threads !== 4)) {
+        const modelConfig: Record<string, any> = {};
+        if (advancedConfig.model) modelConfig.model = advancedConfig.model;
+        if (advancedConfig.endpoint) modelConfig.endpoint = advancedConfig.endpoint;
+        if (advancedConfig.threads !== 4) modelConfig.threads = advancedConfig.threads;
+        formDataObj.append("modelConfig", JSON.stringify(modelConfig));
+      }
 
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/tasks`, {
         method: "POST",
@@ -90,10 +107,17 @@ export function CreateTaskForm({ onSuccess }: CreateTaskFormProps) {
         documentName: "",
         sourceLang: "en",
         targetLang: "zh",
+        engine: "google",
         providerConfigId: "",
         priority: "normal",
         notes: "",
       });
+      setAdvancedConfig({
+        model: "",
+        threads: 4,
+        endpoint: "",
+      });
+      setShowAdvanced(false);
       setEstimatedPages(null);
       setError(null);
       onSuccess?.();
@@ -206,16 +230,45 @@ export function CreateTaskForm({ onSuccess }: CreateTaskFormProps) {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="provider">翻译服务</Label>
+            <Label htmlFor="engine">翻译引擎</Label>
+            <Select
+              value={formData.engine}
+              onValueChange={(value) => setFormData({ ...formData, engine: value })}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="google">Google Translate</SelectItem>
+                <SelectItem value="deepl">DeepL</SelectItem>
+                <SelectItem value="openai">OpenAI</SelectItem>
+                <SelectItem value="azure-openai">Azure OpenAI</SelectItem>
+                <SelectItem value="ollama">Ollama</SelectItem>
+                <SelectItem value="deepseek">DeepSeek</SelectItem>
+                <SelectItem value="gemini">Google Gemini</SelectItem>
+                <SelectItem value="zhipu">智谱 AI</SelectItem>
+                <SelectItem value="siliconflow">SiliconFlow</SelectItem>
+                <SelectItem value="tencent">腾讯翻译</SelectItem>
+                <SelectItem value="grok">Grok</SelectItem>
+                <SelectItem value="groq">Groq</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              或使用下方的"预配置服务"选择管理员配置的服务
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="provider">预配置服务（可选）</Label>
             <Select
               value={formData.providerConfigId}
               onValueChange={(value) => setFormData({ ...formData, providerConfigId: value })}
             >
               <SelectTrigger>
-                <SelectValue placeholder="选择翻译服务（留空使用默认）" />
+                <SelectValue placeholder="选择预配置服务（留空使用上方引擎）" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">使用默认服务</SelectItem>
+                <SelectItem value="">不使用预配置服务</SelectItem>
                 {providers?.map((provider) => (
                   <SelectItem key={provider.id} value={provider.id}>
                     {provider.name} ({provider.providerType})
@@ -223,7 +276,69 @@ export function CreateTaskForm({ onSuccess }: CreateTaskFormProps) {
                 ))}
               </SelectContent>
             </Select>
+            <p className="text-xs text-muted-foreground">
+              预配置服务会覆盖上方的引擎选择和高级配置
+            </p>
           </div>
+
+          {/* Advanced Configuration Toggle */}
+          <div className="pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setShowAdvanced(!showAdvanced)}
+              className="w-full"
+            >
+              {showAdvanced ? "隐藏高级配置" : "显示高级配置"}
+            </Button>
+          </div>
+
+          {/* Advanced Configuration Fields */}
+          {showAdvanced && (
+            <div className="space-y-4 p-4 border rounded-lg bg-muted/50">
+              <div className="space-y-2">
+                <Label htmlFor="endpoint">API Endpoint（可选）</Label>
+                <Input
+                  id="endpoint"
+                  value={advancedConfig.endpoint}
+                  onChange={(e) => setAdvancedConfig({ ...advancedConfig, endpoint: e.target.value })}
+                  placeholder="如: https://api.openai.com/v1"
+                />
+                <p className="text-xs text-muted-foreground">
+                  自定义 API 地址，留空使用默认值
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="model">模型名称（可选）</Label>
+                <Input
+                  id="model"
+                  value={advancedConfig.model}
+                  onChange={(e) => setAdvancedConfig({ ...advancedConfig, model: e.target.value })}
+                  placeholder="如: gpt-4, gemma2 等"
+                />
+                <p className="text-xs text-muted-foreground">
+                  仅 OpenAI/Ollama 等需要指定模型
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="threads">并发线程数</Label>
+                <Input
+                  id="threads"
+                  type="number"
+                  min="1"
+                  max="16"
+                  value={advancedConfig.threads}
+                  onChange={(e) => setAdvancedConfig({ ...advancedConfig, threads: parseInt(e.target.value) || 4 })}
+                />
+                <p className="text-xs text-muted-foreground">
+                  推荐 4-8，过高可能导致 API 限流
+                </p>
+              </div>
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor="priority">优先级</Label>
