@@ -1,10 +1,14 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status
 from typing import List
+from sqlalchemy.ext.asyncio import AsyncSession
 import json
 from ..config import PublicUser
-from ..dependencies import get_current_user
+from ..dependencies import get_current_user, get_current_user_from_db
 from ..schemas import TaskActionRequest
 from ..tasks import task_manager
+from ..database import get_db
+from ..models import User
+from ..quota import check_quota, consume_quota, count_pdf_pages
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
@@ -75,9 +79,29 @@ async def create_task(
     priority: str = Form("normal"),
     notes: str = Form(None),
     modelConfig: str = Form(None),
-    user: PublicUser = Depends(get_current_user)
+    providerConfigId: str = Form(None),
+    user_obj: User = Depends(get_current_user_from_db),
+    db: AsyncSession = Depends(get_db)
 ):
+    # Read file and count pages
     file_data = await file.read()
+    page_count = count_pdf_pages(file_data)
+
+    # Check quota
+    has_quota, error_msg = await check_quota(user_obj, page_count, db)
+    if not has_quota:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=error_msg
+        )
+
+    # Consume quota
+    await consume_quota(user_obj, page_count, db)
+
+    # Create PublicUser for task manager
+    from ..config import PublicUser
+    user = PublicUser(id=user_obj.id, name=user_obj.name, email=user_obj.email)
+
     payload = {
         "documentName": documentName,
         "sourceLang": sourceLang,
@@ -85,10 +109,19 @@ async def create_task(
         "engine": engine,
         "priority": priority,
         "notes": notes,
-        "modelConfig": modelConfig
+        "modelConfig": modelConfig,
+        "providerConfigId": providerConfigId,
+        "pageCount": page_count
     }
-    task = await task_manager.create_task(user, payload, file_data)
-    return {"task": task.to_dict()}
+
+    try:
+        task = await task_manager.create_task(user, payload, file_data)
+        return {"task": task.to_dict()}
+    except Exception as e:
+        # Refund quota if task creation fails
+        from ..quota import refund_quota
+        await refund_quota(user_obj, page_count, db)
+        raise
 
 
 @router.get("/{task_id}")

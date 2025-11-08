@@ -19,6 +19,74 @@ class UserResponse(BaseModel):
     id: str
     name: str
     email: EmailStr
+    role: str
+    isActive: bool
+    dailyPageLimit: int
+    dailyPageUsed: int
+    lastQuotaReset: datetime
+    createdAt: datetime
+
+
+class CreateUserRequest(BaseModel):
+    email: EmailStr
+    name: str = Field(..., min_length=1)
+    password: str = Field(..., min_length=8)
+    role: Literal['admin', 'user'] = 'user'
+    dailyPageLimit: int = Field(default=50, ge=0)
+
+
+class UpdateUserRequest(BaseModel):
+    name: Optional[str] = Field(default=None, min_length=1)
+    role: Optional[Literal['admin', 'user']] = None
+    isActive: Optional[bool] = None
+    dailyPageLimit: Optional[int] = Field(default=None, ge=0)
+
+
+class UpdateQuotaRequest(BaseModel):
+    dailyPageLimit: int = Field(..., ge=0)
+
+
+class ProviderConfigResponse(BaseModel):
+    id: str
+    name: str
+    providerType: str
+    description: Optional[str]
+    isActive: bool
+    isDefault: bool
+    settings: dict
+    createdAt: datetime
+    updatedAt: datetime
+
+
+class CreateProviderConfigRequest(BaseModel):
+    name: str = Field(..., min_length=1)
+    providerType: str = Field(..., min_length=1)
+    description: Optional[str] = None
+    isActive: bool = True
+    isDefault: bool = False
+    settings: dict = Field(default_factory=dict)
+
+
+class UpdateProviderConfigRequest(BaseModel):
+    name: Optional[str] = Field(default=None, min_length=1)
+    description: Optional[str] = None
+    isActive: Optional[bool] = None
+    isDefault: Optional[bool] = None
+    settings: Optional[dict] = None
+
+
+class UserProviderAccessResponse(BaseModel):
+    id: str
+    userId: str
+    providerConfigId: str
+    isDefault: bool
+    createdAt: datetime
+
+
+class GrantProviderAccessRequest(BaseModel):
+    userId: str
+    providerConfigId: str
+    isDefault: bool = False
 
 
 class CreateTaskRequest(BaseModel):
@@ -28,6 +96,7 @@ class CreateTaskRequest(BaseModel):
     engine: str = Field(..., min_length=1)
     priority: Literal['normal', 'high'] = 'normal'
     notes: Optional[str] = Field(default=None, max_length=500)
+    providerConfigId: Optional[str] = None
 
 
 class TaskActionRequest(BaseModel):
@@ -51,6 +120,8 @@ class TaskResponse(BaseModel):
     completedAt: Optional[datetime]
     outputUrl: Optional[str]
     error: Optional[str]
+    pageCount: int
+    providerConfigId: Optional[str]
 
 
 class TasksEnvelope(BaseModel):

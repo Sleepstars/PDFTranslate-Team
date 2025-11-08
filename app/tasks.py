@@ -61,7 +61,9 @@ class TaskManager:
                 status='queued',
                 progress=0,
                 input_s3_key=input_s3_key,
-                model_config=json.dumps(payload.get('modelConfig', ))
+                model_config=json.dumps(payload.get('modelConfig', {})),
+                page_count=payload.get('pageCount', 0),
+                provider_config_id=payload.get('providerConfigId')
             )
             db.add(task)
             await db.commit()

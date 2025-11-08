@@ -2,7 +2,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .config import get_settings
-from .routes import auth, tasks, settings as settings_route
+from .routes import auth, tasks, settings as settings_route, admin_users, admin_providers, users
 from .redis_client import redis_client
 from .database import engine, Base
 from .auth import create_user
@@ -42,6 +42,9 @@ app.add_middleware(
 app.include_router(auth.router, prefix=settings.api_prefix)
 app.include_router(tasks.router, prefix=settings.api_prefix)
 app.include_router(settings_route.router, prefix=settings.api_prefix)
+app.include_router(admin_users.router)
+app.include_router(admin_providers.router)
+app.include_router(users.router)
 
 
 @app.get("/health")

@@ -25,11 +25,16 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     except (VerifyMismatchError, InvalidHash):
         return False
 
-async def create_session(user: PublicUser) -> str:
+async def create_session(user: User) -> str:
     settings = get_settings()
     redis = await get_redis()
     token = token_urlsafe(32)
-    session_data = {"id": user.id, "name": user.name, "email": user.email}
+    session_data = {
+        "id": user.id,
+        "name": user.name,
+        "email": user.email,
+        "role": user.role
+    }
     await redis.redis.setex(f"session:{token}", settings.session_ttl_seconds, json.dumps(session_data))
     return token
 
@@ -60,8 +65,27 @@ async def authenticate_user(db: AsyncSession, email: str, password: str) -> Opti
         return None
     return user
 
-async def create_user(db: AsyncSession, user_id: str, email: str, name: str, password: str) -> User:
-    user = User(id=user_id, email=email, name=name, password_hash=hash_password(password))
+async def create_user(
+    db: AsyncSession,
+    user_id: str,
+    email: str,
+    name: str,
+    password: str,
+    role: str = "admin",
+    daily_page_limit: int = 50
+) -> User:
+    user = User(
+        id=user_id,
+        email=email,
+        name=name,
+        password_hash=hash_password(password),
+        role=role,
+        is_active=True,
+        daily_page_limit=daily_page_limit,
+        daily_page_used=0,
+        last_quota_reset=datetime.now(timezone.utc).replace(tzinfo=None),
+        created_at=datetime.now(timezone.utc).replace(tzinfo=None)
+    )
     db.add(user)
     await db.commit()
     await db.refresh(user)

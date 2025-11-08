@@ -52,6 +52,7 @@ class PublicUser(BaseModel):
     id: str
     name: str
     email: EmailStr
+    role: str = "user"
 
 
 @lru_cache
