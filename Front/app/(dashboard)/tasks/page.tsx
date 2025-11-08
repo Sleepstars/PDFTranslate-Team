@@ -144,7 +144,7 @@ export default function TasksPage() {
         </div>
       )}
 
-      <div className="bg-card rounded-lg shadow border border-border overflow-hidden">
+      <div className="bg-card rounded-lg shadow border border-border overflow-x-auto">
         <table className="min-w-full divide-y divide-border">
           <thead className="bg-muted">
             <tr>
@@ -164,6 +164,7 @@ export default function TasksPage() {
               <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Progress</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Pages</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Actions</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Created At</th>
             </tr>
           </thead>
           <tbody className="bg-card divide-y divide-border">
@@ -179,18 +180,12 @@ export default function TasksPage() {
                 </td>
                 <td className="px-6 py-4">
                   <div className="font-medium">{task.documentName}</div>
-                  <div className="text-sm text-muted-foreground">{new Date(task.createdAt).toLocaleString()}</div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   {task.sourceLang} → {task.targetLang}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <Badge variant="info">{providerMap.get(task.providerConfigId || '')?.name || task.engine}</Badge>
-                  {providerMap.get(task.providerConfigId || '') && (
-                    <div className="text-xs text-muted-foreground">
-                      {providerMap.get(task.providerConfigId || '')?.providerType}
-                    </div>
-                  )}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <Badge variant={
@@ -204,7 +199,7 @@ export default function TasksPage() {
                   </Badge>
                 </td>
               <td className="px-6 py-4 whitespace-nowrap">
-                <div className="max-w-[220px]">
+                <div className="max-w-[140px]">
                   <div className="w-full bg-muted rounded-full h-2">
                     <div
                       className="bg-primary h-2 rounded-full"
@@ -260,6 +255,9 @@ export default function TasksPage() {
                       Retry
                     </Button>
                   )}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
+                  {new Date(task.createdAt).toLocaleString()}
                 </td>
               </tr>
             ))}
