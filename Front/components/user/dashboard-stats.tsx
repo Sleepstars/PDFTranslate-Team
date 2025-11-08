@@ -26,19 +26,19 @@ export function DashboardStats() {
     },
     {
       title: '已完成',
-      value: stats?.completed || 0,
+      value: stats?.by_status?.completed || 0,
       icon: CheckCircle,
       color: 'text-green-600',
     },
     {
       title: '处理中',
-      value: stats?.processing || 0,
+      value: stats?.by_status?.processing || 0,
       icon: Clock,
       color: 'text-yellow-600',
     },
     {
       title: '失败',
-      value: stats?.failed || 0,
+      value: stats?.by_status?.failed || 0,
       icon: XCircle,
       color: 'text-red-600',
     },
