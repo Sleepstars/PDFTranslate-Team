@@ -49,6 +49,7 @@ export const tasksAPI = {
     formData.append('priority', data.priority);
     if (data.notes) formData.append('notes', data.notes);
     if (data.modelConfig) formData.append('modelConfig', data.modelConfig);
+    if (data.providerConfigId) formData.append('providerConfigId', data.providerConfigId);
 
     const res = await fetch('/api/tasks/batch', {
       method: 'POST',

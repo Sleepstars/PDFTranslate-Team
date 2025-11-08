@@ -207,6 +207,8 @@ notes: "Optional notes"
 modelConfig: "{\"api_key\": \"...\"}" (optional JSON string)
 ```
 
+_2025-11-09 更新：批量上传会正确携带 `providerConfigId`，确保所选翻译服务（含第三方 OpenAI 代理）与单任务行为保持一致。_
+
 **Response (201 Created):**
 ```json
 {
