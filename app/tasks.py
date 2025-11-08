@@ -1,17 +1,21 @@
 import asyncio
 import json
-import random
+import logging
 from datetime import datetime
+from pathlib import Path
 from secrets import token_urlsafe
 from typing import Dict, List, Optional
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from .config import PublicUser
-from .models import TranslationTask
+from .models import TranslationTask, TranslationProviderConfig
 from .database import AsyncSessionLocal
 from .redis_client import get_redis
 from .s3_client import get_s3
-from .settings_manager import get_s3_config
+from .settings_manager import get_s3_config, MissingS3Configuration
+from .websocket_manager import task_ws_manager
+
+logger = logging.getLogger(__name__)
 
 
 class TaskManager:
@@ -44,10 +48,15 @@ class TaskManager:
         input_s3_key = None
         async with AsyncSessionLocal() as db:
             if file_data:
-                s3_config = await get_s3_config(db)
+                s3_config = await get_s3_config(db, strict=True)
                 s3 = get_s3(s3_config)
                 input_s3_key = f"uploads/{owner.id}/{task_id}/input.pdf"
                 s3.upload_file(file_data, input_s3_key)
+
+            model_config_dict = payload.get('modelConfig') or {}
+            if model_config_dict and not isinstance(model_config_dict, dict):
+                raise ValueError("modelConfig must be a dictionary")
+            model_config_json = json.dumps(model_config_dict) if model_config_dict else None
             task = TranslationTask(
                 id=task_id,
                 owner_id=owner.id,
@@ -61,13 +70,15 @@ class TaskManager:
                 status='queued',
                 progress=0,
                 input_s3_key=input_s3_key,
-                model_config=json.dumps(payload.get('modelConfig', {})),
+                model_config=model_config_json,
                 page_count=payload.get('pageCount', 0),
                 provider_config_id=payload.get('providerConfigId')
             )
             db.add(task)
             await db.commit()
             await db.refresh(task)
+
+        await task_ws_manager.send_task_update(owner.id, task.to_dict())
 
         redis = await get_redis()
         await redis.enqueue_task(task_id, task.priority)
@@ -192,7 +203,15 @@ class TaskManager:
             task.status = 'queued'
             task.progress = 0
             task.error = None
+            task.progress_message = "等待重新处理"
             task.output_url = None
+            task.output_s3_key = None
+            task.mono_output_s3_key = None
+            task.mono_output_url = None
+            task.dual_output_s3_key = None
+            task.dual_output_url = None
+            task.glossary_output_s3_key = None
+            task.glossary_output_url = None
             task.completed_at = None
             await db.commit()
             await db.refresh(task)
@@ -210,6 +229,7 @@ class TaskManager:
             if task:
                 task.status = 'canceled'
                 task.progress = 0
+                task.progress_message = "任务已取消"
                 await db.commit()
                 await db.refresh(task)
             return task
@@ -240,6 +260,7 @@ class TaskManager:
         await redis.invalidate_task_details_cache(task_id)
         await redis.invalidate_user_tasks_cache(owner_id)
         await redis.set_task_status(task_id, task.status)
+        await task_ws_manager.send_task_update(owner_id, task.to_dict())
         
         return task
 
@@ -278,7 +299,17 @@ class TaskManager:
             if not task:
                 return
 
-            s3 = get_s3()
+            async with AsyncSessionLocal() as db:
+                s3_config = await get_s3_config(db, strict=True)
+                provider_config = None
+                if task.provider_config_id:
+                    result = await db.execute(
+                        select(TranslationProviderConfig).where(
+                            TranslationProviderConfig.id == task.provider_config_id
+                        )
+                    )
+                    provider_config = result.scalar_one_or_none()
+            s3 = get_s3(s3_config)
             settings = get_settings()
 
             # 创建临时目录
@@ -289,27 +320,93 @@ class TaskManager:
 
             # 步骤1：下载和准备文件 (10%)
             if task.input_s3_key:
-                response = s3.s3.get_object(Bucket=s3.bucket, Key=task.input_s3_key)
-                with open(input_path, 'wb') as f:
-                    f.write(response['Body'].read())
+                def _download_input():
+                    response = s3.s3.get_object(Bucket=s3.bucket, Key=task.input_s3_key)
+                    with open(input_path, 'wb') as f:
+                        f.write(response['Body'].read())
+
+                await asyncio.to_thread(_download_input)
             else:
                 raise Exception("输入文件不存在")
 
             await self._update_task(task_id, progress=15)
 
             # 步骤2：解析模型配置 (20%)
-            model_config = json.loads(task.model_config) if task.model_config else {}
-            service = task.engine if task.engine != 'babeldoc' else settings.babeldoc_service
+            provider_settings = {}
+            provider_service = None
+            if task.provider_config_id:
+                if not provider_config:
+                    raise RuntimeError("选择的翻译服务不存在或已被删除，请重新配置。")
+                if not provider_config.is_active:
+                    raise RuntimeError("选择的翻译服务已被禁用，请联系管理员或更换服务。")
+                try:
+                    provider_settings = json.loads(provider_config.settings or "{}") or {}
+                except json.JSONDecodeError:
+                    logger.error(
+                        "Invalid provider settings JSON for provider %s",
+                        provider_config.id,
+                    )
+                    provider_settings = {}
+                if not isinstance(provider_settings, dict):
+                    provider_settings = {}
+                provider_service = provider_config.provider_type
+
+            task_model_config = {}
+            if task.model_config:
+                try:
+                    task_model_config = json.loads(task.model_config) or {}
+                except json.JSONDecodeError:
+                    logger.warning("Task %s has invalid model_config, ignoring overrides.", task_id)
+                    task_model_config = {}
+                if not isinstance(task_model_config, dict):
+                    task_model_config = {}
+
+            model_config = {**provider_settings, **task_model_config}
+            service = provider_service or (task.engine if task.engine != 'babeldoc' else settings.babeldoc_service)
             model = model_config.get('model') or settings.babeldoc_model or None
-            threads = model_config.get('threads', settings.babeldoc_threads)
+            try:
+                threads = int(model_config.get('threads', settings.babeldoc_threads))
+            except (TypeError, ValueError):
+                threads = settings.babeldoc_threads
 
             await self._update_task(task_id, progress=25)
 
             # 步骤3：开始翻译 (30%)
-            await self._update_task(task_id, progress=30)
+            await self._update_task(task_id, progress=30, progress_message="准备翻译…")
 
-            # 翻译 PDF
-            success, error, output_file = await translate_pdf(
+            last_progress = 30
+            last_message = None
+
+            async def handle_progress(event: dict) -> None:
+                nonlocal last_progress, last_message
+                overall = event.get("overall_progress") or 0
+                try:
+                    overall_value = max(0.0, min(100.0, float(overall)))
+                except (TypeError, ValueError):
+                    overall_value = 0.0
+                target_progress = 30 + int(50 * (overall_value / 100))
+                stage = (event.get("stage") or "").strip() or "翻译中"
+                part_index = event.get("part_index")
+                total_parts = event.get("total_parts")
+                stage_current = event.get("stage_current")
+                stage_total = event.get("stage_total")
+                segments = [stage]
+                if part_index and total_parts:
+                    segments.append(f"Part {part_index}/{total_parts}")
+                if stage_current and stage_total:
+                    segments.append(f"{stage_current}/{stage_total}")
+                message = " · ".join(seg for seg in segments if seg)
+                if target_progress <= last_progress and message == last_message:
+                    return
+                last_progress = max(last_progress, target_progress)
+                last_message = message
+                await self._update_task(
+                    task_id,
+                    progress=last_progress,
+                    progress_message=message,
+                )
+
+            success, error, result_files = await translate_pdf(
                 input_path=input_path,
                 output_dir=output_dir,
                 service=service,
@@ -317,51 +414,109 @@ class TaskManager:
                 lang_to=task.target_lang,
                 model=model,
                 threads=threads,
-                model_config=model_config
+                model_config=model_config,
+                progress_callback=handle_progress,
             )
 
             if not success:
-                await self._update_task(task_id, status='failed', error=error, progress=0)
+                logger.error("Task %s translation failed: %s", task_id, error)
+                await self._update_task(
+                    task_id,
+                    status='failed',
+                    error=error,
+                    progress=0,
+                    progress_message=error,
+                )
                 # 清理临时文件
                 import shutil
                 shutil.rmtree(temp_dir, ignore_errors=True)
                 return
 
-            # 步骤4：上传结果文件 (80-90%)
-            if output_file and os.path.exists(output_file):
-                with open(output_file, 'rb') as f:
-                    output_data = f.read()
+            await self._update_task(
+                task_id,
+                progress=80,
+                progress_message="翻译完成，准备上传结果…",
+            )
 
-                # 文件上传进度
-                await self._update_task(task_id, progress=85)
+            async def upload_variant(kind: str, local_path: Optional[str], content_type: str = "application/pdf"):
+                if not local_path or not os.path.exists(local_path):
+                    return None, None
+                file_path = Path(local_path)
+                key_name = f"{kind}_{file_path.name}"
+                s3_key = f"outputs/{task.owner_id}/{task_id}/{key_name}"
 
-                output_s3_key = f"outputs/{task.owner_id}/{task_id}/output.pdf"
-                s3.upload_file(output_data, output_s3_key)
-                output_url = s3.get_presigned_url(output_s3_key, expiration=86400)
+                def _read_bytes() -> bytes:
+                    with open(file_path, 'rb') as fp:
+                        return fp.read()
 
-                # 步骤5：完成 (100%)
-                await self._update_task(
-                    task_id,
-                    status='completed',
-                    output_s3_key=output_s3_key,
-                    output_url=output_url,
-                    error=None,
-                )
-            else:
+                file_bytes = await asyncio.to_thread(_read_bytes)
+                await asyncio.to_thread(s3.upload_file, file_bytes, s3_key, content_type)
+                url = s3.get_presigned_url(s3_key, expiration=86400)
+                return s3_key, url
+
+            mono_key, mono_url = await upload_variant("mono", result_files.get("mono"))
+            dual_key, dual_url = await upload_variant("dual", result_files.get("dual"))
+            glossary_key, glossary_url = await upload_variant(
+                "glossary",
+                result_files.get("glossary"),
+                content_type="text/csv",
+            )
+
+            if not any([mono_key, dual_key]):
+                logger.error("Task %s finished without output file", task_id)
                 await self._update_task(
                     task_id,
                     status='failed',
                     error="翻译完成但未找到输出文件",
                     progress=0,
+                    progress_message="翻译完成但未找到输出文件",
                 )
+                import shutil
+                shutil.rmtree(temp_dir, ignore_errors=True)
+                return
+
+            await self._update_task(
+                task_id,
+                progress=85,
+                progress_message="结果上传完成",
+            )
+
+            primary_key = dual_key or mono_key
+            primary_url = dual_url or mono_url
+
+            await self._update_task(
+                task_id,
+                status='completed',
+                output_s3_key=primary_key,
+                output_url=primary_url,
+                mono_output_s3_key=mono_key,
+                mono_output_url=mono_url,
+                dual_output_s3_key=dual_key,
+                dual_output_url=dual_url,
+                glossary_output_s3_key=glossary_key,
+                glossary_output_url=glossary_url,
+                error=None,
+                progress_message="翻译完成",
+            )
 
             # 清理临时文件
             import shutil
             shutil.rmtree(temp_dir, ignore_errors=True)
 
+        except MissingS3Configuration as exc:
+            logger.error("Task %s aborted due to missing S3 config: %s", task_id, exc)
+            await self._update_task(
+                task_id,
+                status='failed',
+                error=str(exc),
+                progress=0,
+            )
+            return
         except asyncio.CancelledError:
+            logger.info("Task %s cancelled", task_id)
             return
         except Exception as e:
+            logger.exception("Task %s crashed with unexpected error", task_id)
             await self._update_task(
                 task_id,
                 status='failed',

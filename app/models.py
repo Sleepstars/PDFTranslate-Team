@@ -70,6 +70,7 @@ class TranslationTask(Base):
     output_url: Mapped[Optional[str]] = mapped_column(String(1000), nullable=True)
     error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     model_config: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    progress_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     # Quota tracking and provider association
     page_count: Mapped[int] = mapped_column(Integer, server_default="0")
@@ -78,6 +79,12 @@ class TranslationTask(Base):
         ForeignKey("translation_provider_configs.id", ondelete="SET NULL"),
         nullable=True
     )
+    mono_output_s3_key: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    mono_output_url: Mapped[Optional[str]] = mapped_column(String(1000), nullable=True)
+    dual_output_s3_key: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    dual_output_url: Mapped[Optional[str]] = mapped_column(String(1000), nullable=True)
+    glossary_output_s3_key: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    glossary_output_url: Mapped[Optional[str]] = mapped_column(String(1000), nullable=True)
 
     def to_dict(self) -> dict:
         return {
@@ -96,6 +103,10 @@ class TranslationTask(Base):
             "updatedAt": self.updated_at.isoformat(),
             "completedAt": self.completed_at.isoformat() if self.completed_at else None,
             "outputUrl": self.output_url,
+            "progressMessage": self.progress_message,
+            "monoOutputUrl": self.mono_output_url,
+            "dualOutputUrl": self.dual_output_url,
+            "glossaryOutputUrl": self.glossary_output_url,
             "error": self.error,
             "pageCount": self.page_count,
             "providerConfigId": self.provider_config_id,

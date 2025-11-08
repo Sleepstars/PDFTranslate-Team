@@ -18,7 +18,7 @@ async def login(payload: LoginRequest, response: Response, db: AsyncSession = De
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
 
-    public_user = PublicUser(id=user.id, name=user.name, email=user.email)
+    public_user = PublicUser(id=user.id, name=user.name, email=user.email, role=user.role)
     token = await create_session(public_user)
 
     response.set_cookie(

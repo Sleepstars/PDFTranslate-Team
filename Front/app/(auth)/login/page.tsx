@@ -16,12 +16,12 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-50">
-      <div className="w-full max-w-md p-8 space-y-6 bg-white rounded-lg shadow">
-        <h1 className="text-2xl font-bold text-center">PDF Translate</h1>
+    <div className="flex items-center justify-center min-h-screen bg-background">
+      <div className="w-full max-w-md p-8 space-y-6 bg-card rounded-lg shadow border">
+        <h1 className="text-2xl font-bold text-center text-foreground">PDF Translate</h1>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium mb-1">Email</label>
+            <label className="block text-sm font-medium mb-1 text-foreground">Email</label>
             <Input
               type="email"
               value={email}
@@ -30,7 +30,7 @@ export default function LoginPage() {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1">Password</label>
+            <label className="block text-sm font-medium mb-1 text-foreground">Password</label>
             <Input
               type="password"
               value={password}

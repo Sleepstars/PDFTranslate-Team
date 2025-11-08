@@ -34,14 +34,6 @@ services:
       PDF_APP_CORS_ORIGINS: '["http://localhost:3000"]'
       PDF_APP_DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/pdftranslate
       PDF_APP_REDIS_URL: redis://redis:6379/0
-      
-      # S3 兼容服务配置（请根据实际情况修改）
-      PDF_APP_S3_ENDPOINT: https://your-s3-service.com
-      PDF_APP_S3_ACCESS_KEY: YOUR_ACCESS_KEY
-      PDF_APP_S3_SECRET_KEY: YOUR_SECRET_KEY
-      PDF_APP_S3_BUCKET: translate
-      PDF_APP_S3_REGION: auto
-      PDF_APP_S3_FILE_TTL_DAYS: 3
     ports:
       - "8000:8000"
     depends_on:

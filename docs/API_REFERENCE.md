@@ -60,6 +60,8 @@ Logout and invalidate session.
 }
 ```
 
+Fields `monoOutputUrl`, `dualOutputUrl`, and `glossaryOutputUrl` provide direct download links for the mono, dual, and glossary artifacts. `progressMessage` surfaces the live stage text that now drives the finer-grained progress bar (values come from BabelDOC events).
+
 ---
 
 ### GET /auth/me
@@ -187,9 +189,44 @@ notes: "Translation notes" (optional)
 
 ---
 
+### POST /api/tasks/batch
+
+Upload multiple PDFs at once. Every file becomes its own task but shares the same language/provider settings.
+
+**Request (multipart/form-data):**
+```
+files[]: <PDF file 1>
+files[]: <PDF file 2>
+documentNames: ["Doc 1", "Doc 2"]
+sourceLang: "en"
+targetLang: "zh"
+engine: "openai"
+providerConfigId: "<provider UUID>"
+priority: "normal"
+notes: "Optional notes"
+modelConfig: "{\"api_key\": \"...\"}" (optional JSON string)
+```
+
+**Response (201 Created):**
+```json
+{
+  "count": 2,
+  "tasks": [
+    { "id": "task_a1", "...": "..." },
+    { "id": "task_b2", "...": "..." }
+  ]
+}
+```
+
+If any validation fails (e.g., mismatch between `files[]` and `documentNames` length), the entire request is rejected so you can fix inputs in one go.
+
+---
+
 ### GET /api/tasks
 
 Get list of tasks for the current user.
+
+_Tip_: 前端仪表盘每隔 4 秒调用该接口刷新任务列表，因此也可用于 CLI 或 Postman 中的实时轮询。
 
 **Query Parameters:**
 - `status` (optional): Filter by status (queued, processing, completed, failed, canceled)
@@ -207,7 +244,11 @@ Get list of tasks for the current user.
     "status": "completed",
     "progress": 100,
     "pageCount": 10,
+    "progressMessage": "段落排版 · Part 2/3",
     "outputUrl": "https://s3.../translated.pdf",
+    "dualOutputUrl": "https://s3.../dual.pdf",
+    "monoOutputUrl": "https://s3.../mono.pdf",
+    "glossaryOutputUrl": "https://s3.../glossary.csv",
     "createdAt": "2025-11-08T12:00:00Z",
     "updatedAt": "2025-11-08T12:30:00Z"
   }
@@ -219,6 +260,8 @@ Get list of tasks for the current user.
 ### GET /api/tasks/{id}
 
 Get details of a specific task.
+
+_Use case_: 在前端“任务详情”面板或调试工具中，结合轮询可以获取单个任务的实时进度与错误信息。
 
 **Response (200 OK):**
 ```json
@@ -232,7 +275,11 @@ Get details of a specific task.
   "pageCount": 10,
   "priority": "normal",
   "notes": "Translation notes",
+  "progressMessage": "结果上传完成",
   "outputUrl": "https://s3.../translated.pdf",
+  "dualOutputUrl": "https://s3.../dual.pdf",
+  "monoOutputUrl": "https://s3.../mono.pdf",
+  "glossaryOutputUrl": "https://s3.../glossary.csv",
   "createdAt": "2025-11-08T12:00:00Z",
   "updatedAt": "2025-11-08T12:30:00Z"
 }
@@ -240,6 +287,33 @@ Get details of a specific task.
 
 **Errors:**
 - `404 Not Found`: Task not found or not owned by user
+
+---
+
+### WS /api/tasks/ws
+
+建立 WebSocket 连接以获取属于当前登录用户的任务实时更新。握手时需要携带认证 Cookie（或在查询参数 `token` 中附带后端签发的 Session Token）。
+
+**Event Payload:**
+```json
+{
+  "type": "task.update",
+  "task": {
+    "id": "task_456",
+    "documentName": "My Document",
+    "status": "processing",
+    "progress": 45,
+    "progressMessage": "分段排版 · Part 1/3",
+    "dualOutputUrl": null,
+    "monoOutputUrl": null
+  }
+}
+```
+
+**Notes:**
+- 服务端会在任务创建、状态/进度变化、完成、失败、取消时推送 `task.update`。
+- 客户端无需发送任何消息即可保持连接；若断开可按需重连，后端仍会推送最新状态。
+- 在没有 WebSocket 能力的环境下，仍可使用 `GET /api/tasks` 做轮询。
 
 ---
 
@@ -284,7 +358,7 @@ Cancel a queued or processing task.
 
 ### GET /api/tasks/{id}/download
 
-Download the translated PDF file.
+Download the translated PDF file (defaults to the dual-language output when available). Prefer the `monoOutputUrl` / `dualOutputUrl` fields from task responses for direct downloads of the specific variant.
 
 **Response (200 OK):**
 - Content-Type: `application/pdf`
@@ -488,15 +562,53 @@ Create a new provider configuration.
 **Request:**
 ```json
 {
-  "id": "deepl-pro",
-  "name": "DeepL Pro",
-  "providerType": "deepl",
-  "description": "DeepL Pro API",
+  "name": "OpenAI GPT-4",
+  "providerType": "openai",
+  "description": "OpenAI GPT-4 translation service",
   "isActive": true,
   "isDefault": false,
-  "settings": "{\"api_key\": \"your-api-key\"}"
+  "settings": {
+    "api_key": "sk-...",
+    "base_url": "https://api.openai.com/v1",
+    "model": "gpt-4",
+    "max_concurrency": 4
+  }
 }
 ```
+
+**Provider Settings by Type:**
+
+All providers support these common settings:
+- `max_concurrency` (optional, 1-100, default: 4): Maximum concurrent translation tasks
+- `requests_per_minute` (optional, 1-10000): API rate limit in requests per minute
+- `model` (optional): Model name to use for translation
+
+Provider-specific settings:
+- **openai**: `api_key`, `base_url`, `model`, `max_concurrency`, `requests_per_minute`
+- **azure_openai**: `api_key`, `endpoint`, `deployment_name`, `model`, `max_concurrency`, `requests_per_minute`
+- **deepl**: `api_key`, `endpoint`, `max_concurrency`, `requests_per_minute`
+- **ollama**: `endpoint`, `model`, `max_concurrency`, `requests_per_minute`
+- **tencent**: `secret_id`, `secret_key`, `max_concurrency`, `requests_per_minute`
+- **gemini, deepseek, zhipu, siliconflow, grok, groq**: `api_key`, `endpoint`, `model`, `max_concurrency`, `requests_per_minute`
+
+> **2025-11-09** – The backend now feeds these credentials directly into pdf2zh-next's mandatory `translate_engine_settings`. Provider settings saved in **Admin → Provider** are automatically merged with any per-task `modelConfig` overrides (task-level keys win). Always include the required keys (or set the matching environment variables such as `OPENAI_API_KEY`, `DEEPL_AUTH_KEY`, `AZURE_OPENAI_API_KEY`, `TENCENT_SECRET_ID`, `TENCENT_SECRET_KEY`) to avoid validation errors like `translate_engine_settings -> Field required`.
+>
+> Example payload that satisfies the new requirement:
+> ```json
+> {
+>   "name": "OpenAI GPT-4",
+>   "providerType": "openai",
+>   "description": "OpenAI GPT-4 translation service",
+>   "isActive": true,
+>   "isDefault": false,
+>   "settings": {
+>     "api_key": "sk-***",
+>     "base_url": "https://api.openai.com/v1",
+>     "model": "gpt-4o-mini",
+>     "max_concurrency": 4
+>   }
+> }
+> ```
 
 **Response (201 Created):**
 ```json
@@ -576,6 +688,98 @@ Delete a provider configuration.
 **Errors:**
 - `404 Not Found`: Provider not found
 - `400 Bad Request`: Cannot delete provider with active users
+
+---
+
+## Admin - System Settings
+
+**All endpoints require `admin` role.**
+
+### GET /api/admin/settings/s3
+
+Get S3 storage configuration.
+
+> **Note:** The backend now reads S3 configuration exclusively from the database. Environment variables such as `PDF_APP_S3_*` are ignored, so use this endpoint (or the Admin UI) to inspect/update the active values.
+
+**Response (200 OK):**
+```json
+{
+  "endpoint": "https://s3.amazonaws.com",
+  "access_key": "AKIA****",
+  "bucket": "pdftranslate",
+  "region": "us-east-1",
+  "ttl_days": 7
+}
+```
+
+**Note:** The `access_key` is masked for security (only first 4 characters shown). The `secret_key` is never returned.
+
+---
+
+### PUT /api/admin/settings/s3
+
+Update S3 storage configuration.
+
+**Request:**
+```json
+{
+  "endpoint": "https://s3.amazonaws.com",
+  "access_key": "AKIAIOSFODNN7EXAMPLE",
+  "secret_key": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+  "bucket": "pdftranslate",
+  "region": "us-east-1",
+  "ttl_days": 7
+}
+```
+
+**Fields:**
+- `endpoint` (optional): S3 endpoint URL. Leave empty for AWS S3, or provide custom endpoint for S3-compatible services
+- `access_key` (required): AWS Access Key ID or equivalent
+- `secret_key` (required): AWS Secret Access Key or equivalent
+- `bucket` (required): S3 bucket name
+- `region` (optional, default: "us-east-1"): AWS region
+- `ttl_days` (optional, default: 7, range: 1-365): Number of days before files are automatically deleted (computed from each object's `LastModified` timestamp + TTL; no S3 object tagging required, works with MinIO and other compatible services)
+
+**Response (200 OK):**
+```json
+{
+  "message": "S3 configuration updated successfully"
+}
+```
+
+---
+
+### POST /api/admin/settings/s3/test
+
+Test S3 connection with provided credentials.
+
+**Request:**
+```json
+{
+  "endpoint": "https://s3.amazonaws.com",
+  "access_key": "AKIAIOSFODNN7EXAMPLE",
+  "secret_key": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+  "bucket": "pdftranslate",
+  "region": "us-east-1",
+  "ttl_days": 7
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "message": "S3 connection successful"
+}
+```
+
+**Response (200 OK - Failed):**
+```json
+{
+  "success": false,
+  "message": "S3 connection failed: The specified bucket does not exist"
+}
+```
 
 ---
 
@@ -678,4 +882,3 @@ All error responses follow this format:
 
 **API Reference Version:** 1.0  
 **Last Updated:** 2025-11-08
-

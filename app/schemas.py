@@ -46,6 +46,42 @@ class UpdateQuotaRequest(BaseModel):
     dailyPageLimit: int = Field(..., ge=0)
 
 
+class BaseProviderSettings(BaseModel):
+    max_concurrency: Optional[int] = Field(default=4, ge=1, le=100)
+    requests_per_minute: Optional[int] = Field(default=None, ge=1, le=10000)
+    model: Optional[str] = None
+
+
+class OpenAIProviderSettings(BaseProviderSettings):
+    api_key: Optional[str] = None
+    base_url: Optional[str] = None
+
+
+class AzureOpenAIProviderSettings(BaseProviderSettings):
+    api_key: Optional[str] = None
+    endpoint: Optional[str] = None
+    deployment_name: Optional[str] = None
+
+
+class DeepLProviderSettings(BaseProviderSettings):
+    api_key: Optional[str] = None
+    endpoint: Optional[str] = None
+
+
+class OllamaProviderSettings(BaseProviderSettings):
+    endpoint: Optional[str] = None
+
+
+class TencentProviderSettings(BaseProviderSettings):
+    secret_id: Optional[str] = None
+    secret_key: Optional[str] = None
+
+
+class GenericProviderSettings(BaseProviderSettings):
+    api_key: Optional[str] = None
+    endpoint: Optional[str] = None
+
+
 class ProviderConfigResponse(BaseModel):
     id: str
     name: str
@@ -119,6 +155,10 @@ class TaskResponse(BaseModel):
     updatedAt: datetime
     completedAt: Optional[datetime]
     outputUrl: Optional[str]
+    monoOutputUrl: Optional[str]
+    dualOutputUrl: Optional[str]
+    glossaryOutputUrl: Optional[str]
+    progressMessage: Optional[str]
     error: Optional[str]
     pageCount: int
     providerConfigId: Optional[str]

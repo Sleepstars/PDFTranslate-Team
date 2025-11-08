@@ -1,21 +1,44 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { tasksAPI } from '@/lib/api/tasks';
 import { usersAPI } from '@/lib/api/users';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Task } from '@/lib/types/task';
 import { ProviderConfig } from '@/lib/types/provider';
+import { useTaskUpdates } from '@/lib/hooks/use-task-updates';
 
 export default function TasksPage() {
   const queryClient = useQueryClient();
   const [showDialog, setShowDialog] = useState(false);
+  const [showBatchDialog, setShowBatchDialog] = useState(false);
+  const isRealtimeConnected = useTaskUpdates();
+  const refetchOnWindowFocus = !isRealtimeConnected;
+  const refetchInterval = isRealtimeConnected ? false : 4000;
 
   const { data: tasksData, isLoading } = useQuery({
     queryKey: ['tasks'],
     queryFn: () => tasksAPI.list(),
+    refetchOnWindowFocus,
+    refetchInterval,
   });
+
+  const { data: providersData = [] } = useQuery({
+    queryKey: ['users', 'providers'],
+    queryFn: usersAPI.getProviders,
+  });
+
+  const providers = (providersData as ProviderConfig[]) || [];
+
+  const providerMap = useMemo(() => {
+    const map = new Map<string, ProviderConfig>();
+    providers.forEach((provider) => {
+      map.set(provider.id, provider);
+    });
+    return map;
+  }, [providers]);
 
   const cancelMutation = useMutation({
     mutationFn: tasksAPI.cancel,
@@ -38,71 +61,113 @@ export default function TasksPage() {
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">My Tasks</h1>
-        <Button onClick={() => setShowDialog(true)}>Create Task</Button>
+        <div>
+          <h1 className="text-2xl font-bold">My Tasks</h1>
+          <p className="text-sm text-muted-foreground">
+            Realtime status: {isRealtimeConnected ? <span className="text-green-600 dark:text-green-400">connected</span> : <span className="text-yellow-600 dark:text-yellow-400">reconnecting...</span>}
+          </p>
+        </div>
+        <div className="space-x-2">
+          <Button variant="outline" onClick={() => setShowBatchDialog(true)}>Batch Upload</Button>
+          <Button onClick={() => setShowDialog(true)}>Create Task</Button>
+        </div>
       </div>
 
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
+      <div className="bg-card rounded-lg shadow border border-border overflow-hidden">
+        <table className="min-w-full divide-y divide-border">
+          <thead className="bg-muted">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Document</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Languages</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Engine</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Progress</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Pages</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Document</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Languages</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Engine</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Status</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Progress</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Pages</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Actions</th>
             </tr>
           </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
+          <tbody className="bg-card divide-y divide-border">
             {tasks.map((task: Task) => (
               <tr key={task.id}>
                 <td className="px-6 py-4">
                   <div className="font-medium">{task.documentName}</div>
-                  <div className="text-sm text-gray-500">{new Date(task.createdAt).toLocaleString()}</div>
+                  <div className="text-sm text-muted-foreground">{new Date(task.createdAt).toLocaleString()}</div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   {task.sourceLang} → {task.targetLang}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
-                  <span className="px-2 py-1 text-xs rounded bg-blue-100 text-blue-800">
-                    {task.engine}
-                  </span>
+                  <Badge variant="info">{providerMap.get(task.providerConfigId || '')?.name || task.engine}</Badge>
+                  {providerMap.get(task.providerConfigId || '') && (
+                    <div className="text-xs text-muted-foreground">
+                      {providerMap.get(task.providerConfigId || '')?.providerType}
+                    </div>
+                  )}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
-                  <span className={`px-2 py-1 text-xs rounded ${
-                    task.status === 'completed' ? 'bg-green-100 text-green-800' :
-                    task.status === 'failed' ? 'bg-red-100 text-red-800' :
-                    task.status === 'processing' ? 'bg-blue-100 text-blue-800' :
-                    task.status === 'cancelled' ? 'bg-gray-100 text-gray-800' :
-                    'bg-yellow-100 text-yellow-800'
-                  }`}>
+                  <Badge variant={
+                    task.status === 'completed' ? 'success' :
+                    task.status === 'failed' ? 'error' :
+                    task.status === 'processing' ? 'info' :
+                    task.status === 'cancelled' ? 'secondary' :
+                    'warning'
+                  }>
                     {task.status}
-                  </span>
+                  </Badge>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="w-full bg-gray-200 rounded-full h-2">
+              <td className="px-6 py-4 whitespace-nowrap">
+                <div className="max-w-[220px]">
+                  <div className="w-full bg-muted rounded-full h-2">
                     <div
-                      className="bg-blue-600 h-2 rounded-full"
+                      className="bg-primary h-2 rounded-full"
                       style={{ width: `${task.progress}%` }}
                     />
                   </div>
-                  <span className="text-xs text-gray-500">{task.progress}%</span>
-                </td>
+                  <span className="text-xs text-muted-foreground">{task.progress}%</span>
+                  {task.progressMessage &&
+                    task.status !== 'completed' &&
+                    task.status !== 'canceled' &&
+                    task.status !== 'cancelled' && (
+                    <div className="text-xs text-muted-foreground mt-1">
+                      <span
+                        className="block w-full truncate"
+                        title={task.progressMessage}
+                      >
+                        {task.progressMessage}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </td>
                 <td className="px-6 py-4 whitespace-nowrap">{task.pageCount}</td>
                 <td className="px-6 py-4 whitespace-nowrap space-x-2">
-                  {task.status === 'completed' && task.outputUrl && (
-                    <Button variant="outline" size="sm" onClick={() => window.open(task.outputUrl, '_blank')}>
-                      Download
-                    </Button>
+                  {task.status === 'completed' && (task.dualOutputUrl || task.monoOutputUrl || task.outputUrl) && (
+                    <div className="flex flex-wrap gap-2">
+                      {task.dualOutputUrl && (
+                        <Button variant="outline" size="sm" onClick={() => window.open(task.dualOutputUrl!, '_blank')}>
+                          Dual PDF
+                        </Button>
+                      )}
+                      {task.monoOutputUrl && (
+                        <Button variant="outline" size="sm" onClick={() => window.open(task.monoOutputUrl!, '_blank')}>
+                          Mono PDF
+                        </Button>
+                      )}
+                      {!task.dualOutputUrl && !task.monoOutputUrl && task.outputUrl && (
+                        <Button variant="outline" size="sm" onClick={() => window.open(task.outputUrl!, '_blank')}>
+                          Download
+                        </Button>
+                      )}
+                    </div>
                   )}
                   {task.status === 'processing' && (
                     <Button variant="outline" size="sm" onClick={() => cancelMutation.mutate(task.id)}>
                       Cancel
                     </Button>
                   )}
-                  {task.status === 'failed' && (
+                  {(task.status === 'failed' ||
+                    task.status === 'canceled' ||
+                    task.status === 'cancelled') && (
                     <Button variant="outline" size="sm" onClick={() => retryMutation.mutate(task.id)}>
                       Retry
                     </Button>
@@ -114,12 +179,13 @@ export default function TasksPage() {
         </table>
       </div>
 
-      {showDialog && <CreateTaskDialog onClose={() => setShowDialog(false)} />}
+      {showDialog && <CreateTaskDialog providers={providers} onClose={() => setShowDialog(false)} />}
+      {showBatchDialog && <BatchUploadDialog providers={providers} onClose={() => setShowBatchDialog(false)} />}
     </div>
   );
 }
 
-function CreateTaskDialog({ onClose }: { onClose: () => void }) {
+function CreateTaskDialog({ onClose, providers }: { onClose: () => void; providers: ProviderConfig[] }) {
   const queryClient = useQueryClient();
   const [file, setFile] = useState<File | null>(null);
   const [formData, setFormData] = useState({
@@ -130,11 +196,6 @@ function CreateTaskDialog({ onClose }: { onClose: () => void }) {
     priority: 'normal' as 'normal' | 'high',
     notes: '',
     providerConfigId: '',
-  });
-
-  const { data: providers = [] } = useQuery({
-    queryKey: ['users', 'providers'],
-    queryFn: usersAPI.getProviders,
   });
 
   const createMutation = useMutation({
@@ -167,8 +228,8 @@ function CreateTaskDialog({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center overflow-y-auto">
-      <div className="bg-white rounded-lg p-6 w-full max-w-2xl my-8">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center overflow-y-auto z-50">
+      <div className="bg-card rounded-lg p-6 w-full max-w-2xl my-8 border border-border">
         <h2 className="text-xl font-bold mb-4">Create Translation Task</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -177,7 +238,7 @@ function CreateTaskDialog({ onClose }: { onClose: () => void }) {
               type="file"
               accept=".pdf"
               onChange={handleFileChange}
-              className="w-full border rounded px-3 py-2"
+              className="w-full border border-input rounded px-3 py-2 bg-background"
               required
             />
           </div>
@@ -186,7 +247,7 @@ function CreateTaskDialog({ onClose }: { onClose: () => void }) {
             <label className="block text-sm font-medium mb-1">Document Name</label>
             <input
               type="text"
-              className="w-full border rounded px-3 py-2"
+              className="w-full border border-input rounded px-3 py-2 bg-background"
               value={formData.documentName}
               onChange={(e) => setFormData({ ...formData, documentName: e.target.value })}
               required
@@ -197,7 +258,7 @@ function CreateTaskDialog({ onClose }: { onClose: () => void }) {
             <div>
               <label className="block text-sm font-medium mb-1">Source Language</label>
               <select
-                className="w-full border rounded px-3 py-2"
+                className="w-full border border-input rounded px-3 py-2 bg-background"
                 value={formData.sourceLang}
                 onChange={(e) => setFormData({ ...formData, sourceLang: e.target.value })}
               >
@@ -214,7 +275,7 @@ function CreateTaskDialog({ onClose }: { onClose: () => void }) {
             <div>
               <label className="block text-sm font-medium mb-1">Target Language</label>
               <select
-                className="w-full border rounded px-3 py-2"
+                className="w-full border border-input rounded px-3 py-2 bg-background"
                 value={formData.targetLang}
                 onChange={(e) => setFormData({ ...formData, targetLang: e.target.value })}
               >
@@ -232,10 +293,10 @@ function CreateTaskDialog({ onClose }: { onClose: () => void }) {
           <div>
             <label className="block text-sm font-medium mb-1">Translation Provider</label>
             <select
-              className="w-full border rounded px-3 py-2"
+              className="w-full border border-input rounded px-3 py-2 bg-background"
               value={formData.providerConfigId}
               onChange={(e) => {
-                const provider = (providers as ProviderConfig[]).find((p) => p.id === e.target.value);
+                const provider = providers.find((p) => p.id === e.target.value);
                 setFormData({
                   ...formData,
                   providerConfigId: e.target.value,
@@ -245,7 +306,7 @@ function CreateTaskDialog({ onClose }: { onClose: () => void }) {
               required
             >
               <option value="">Select provider...</option>
-              {(providers as ProviderConfig[]).map((provider) => (
+              {providers.map((provider) => (
                 <option key={provider.id} value={provider.id}>
                   {provider.name} ({provider.providerType})
                   {provider.isDefault && ' - Default'}
@@ -257,7 +318,7 @@ function CreateTaskDialog({ onClose }: { onClose: () => void }) {
           <div>
             <label className="block text-sm font-medium mb-1">Priority</label>
             <select
-              className="w-full border rounded px-3 py-2"
+              className="w-full border border-input rounded px-3 py-2 bg-background"
               value={formData.priority}
               onChange={(e) => setFormData({ ...formData, priority: e.target.value as 'normal' | 'high' })}
             >
@@ -269,7 +330,7 @@ function CreateTaskDialog({ onClose }: { onClose: () => void }) {
           <div>
             <label className="block text-sm font-medium mb-1">Notes (Optional)</label>
             <textarea
-              className="w-full border rounded px-3 py-2"
+              className="w-full border border-input rounded px-3 py-2 bg-background"
               value={formData.notes}
               onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
               rows={3}
@@ -281,6 +342,213 @@ function CreateTaskDialog({ onClose }: { onClose: () => void }) {
             <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
             <Button type="submit" disabled={createMutation.isPending}>
               {createMutation.isPending ? 'Creating...' : 'Create Task'}
+            </Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function BatchUploadDialog({ onClose, providers }: { onClose: () => void; providers: ProviderConfig[] }) {
+  const queryClient = useQueryClient();
+  const [entries, setEntries] = useState<Array<{ id: string; file: File; documentName: string }>>([]);
+  const [formData, setFormData] = useState({
+    sourceLang: 'en',
+    targetLang: 'zh',
+    engine: 'openai',
+    priority: 'normal' as 'normal' | 'high',
+    notes: '',
+    providerConfigId: '',
+  });
+  const [error, setError] = useState<string | null>(null);
+
+  const batchMutation = useMutation({
+    mutationFn: tasksAPI.createBatch,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['users', 'quota'] });
+      onClose();
+    },
+  });
+
+  const handleFilesSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []).filter((file) => file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf'));
+    if (!files.length) {
+      return;
+    }
+    setEntries((prev) => [
+      ...prev,
+      ...files.map((file, index) => ({
+        id: `${file.name}-${Date.now()}-${index}`,
+        file,
+        documentName: file.name.replace(/\.pdf$/i, ''),
+      })),
+    ]);
+    e.target.value = '';
+  };
+
+  const updateDocumentName = (id: string, value: string) => {
+    setEntries((prev) => prev.map((entry) => (entry.id === id ? { ...entry, documentName: value } : entry)));
+  };
+
+  const removeEntry = (id: string) => {
+    setEntries((prev) => prev.filter((entry) => entry.id !== id));
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!entries.length) {
+      setError('Please select at least one PDF file.');
+      return;
+    }
+    if (entries.some((entry) => !entry.documentName.trim())) {
+      setError('Each file requires a document name.');
+      return;
+    }
+    setError(null);
+    batchMutation.mutate({
+      files: entries.map((entry) => entry.file),
+      documentNames: entries.map((entry) => entry.documentName.trim()),
+      sourceLang: formData.sourceLang,
+      targetLang: formData.targetLang,
+      engine: formData.engine,
+      priority: formData.priority,
+      notes: formData.notes || undefined,
+      providerConfigId: formData.providerConfigId || undefined,
+    });
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center overflow-y-auto z-50">
+      <div className="bg-card rounded-lg p-6 w-full max-w-3xl my-8 border border-border">
+        <h2 className="text-xl font-bold mb-4">Batch Upload PDFs</h2>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium mb-1">Select PDF Files</label>
+            <input
+              type="file"
+              multiple
+              accept=".pdf"
+              onChange={handleFilesSelected}
+              className="w-full border border-input rounded px-3 py-2 bg-background"
+            />
+            <p className="text-xs text-muted-foreground mt-1">You can add multiple files. Each file will become an individual task.</p>
+          </div>
+
+          {entries.length > 0 && (
+            <div className="border border-border rounded max-h-60 overflow-auto divide-y divide-border">
+              {entries.map((entry, index) => (
+                <div key={entry.id} className="flex items-center p-3 gap-3">
+                  <div className="text-sm font-medium w-10">{index + 1}.</div>
+                  <div className="flex-1">
+                    <div className="text-xs text-muted-foreground">{entry.file.name}</div>
+                    <input
+                      type="text"
+                      className="w-full border border-input rounded px-3 py-2 bg-background mt-1"
+                      value={entry.documentName}
+                      onChange={(e) => updateDocumentName(entry.id, e.target.value)}
+                      placeholder="Document name"
+                      required
+                    />
+                  </div>
+                  <Button type="button" variant="outline" size="sm" onClick={() => removeEntry(entry.id)}>
+                    Remove
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium mb-1">Source Language</label>
+              <select
+                className="w-full border border-input rounded px-3 py-2 bg-background"
+                value={formData.sourceLang}
+                onChange={(e) => setFormData({ ...formData, sourceLang: e.target.value })}
+              >
+                <option value="en">English</option>
+                <option value="zh">Chinese</option>
+                <option value="ja">Japanese</option>
+                <option value="ko">Korean</option>
+                <option value="fr">French</option>
+                <option value="de">German</option>
+                <option value="es">Spanish</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Target Language</label>
+              <select
+                className="w-full border border-input rounded px-3 py-2 bg-background"
+                value={formData.targetLang}
+                onChange={(e) => setFormData({ ...formData, targetLang: e.target.value })}
+              >
+                <option value="zh">Chinese</option>
+                <option value="en">English</option>
+                <option value="ja">Japanese</option>
+                <option value="ko">Korean</option>
+                <option value="fr">French</option>
+                <option value="de">German</option>
+                <option value="es">Spanish</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium mb-1">Translation Provider</label>
+              <select
+                className="w-full border border-input rounded px-3 py-2 bg-background"
+                value={formData.providerConfigId}
+                onChange={(e) => {
+                  const provider = providers.find((p) => p.id === e.target.value);
+                  setFormData({
+                    ...formData,
+                    providerConfigId: e.target.value,
+                    engine: provider?.providerType || formData.engine,
+                  });
+                }}
+                required
+              >
+                <option value="">Select provider...</option>
+                {providers.map((provider) => (
+                  <option key={provider.id} value={provider.id}>
+                    {provider.name} ({provider.providerType}){provider.isDefault ? ' - Default' : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Priority</label>
+              <select
+                className="w-full border border-input rounded px-3 py-2 bg-background"
+                value={formData.priority}
+                onChange={(e) => setFormData({ ...formData, priority: e.target.value as 'normal' | 'high' })}
+              >
+                <option value="normal">Normal</option>
+                <option value="high">High</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1">Notes (Optional)</label>
+            <textarea
+              className="w-full border border-input rounded px-3 py-2 bg-background"
+              value={formData.notes}
+              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+              rows={3}
+              maxLength={500}
+            />
+          </div>
+
+          {error && <div className="text-sm text-red-600">{error}</div>}
+
+          <div className="flex justify-end space-x-2">
+            <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+            <Button type="submit" disabled={batchMutation.isPending || entries.length === 0}>
+              {batchMutation.isPending ? 'Creating...' : 'Create Tasks'}
             </Button>
           </div>
         </form>

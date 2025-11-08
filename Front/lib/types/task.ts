@@ -14,6 +14,10 @@ export interface Task {
   updatedAt: string;
   completedAt?: string;
   outputUrl?: string;
+  monoOutputUrl?: string;
+  dualOutputUrl?: string;
+  glossaryOutputUrl?: string;
+  progressMessage?: string;
   error?: string;
   pageCount: number;
   providerConfigId?: string;
@@ -31,6 +35,18 @@ export interface CreateTaskRequest {
   providerConfigId?: string;
 }
 
+export interface CreateBatchTasksRequest {
+  files: File[];
+  documentNames: string[];
+  sourceLang: string;
+  targetLang: string;
+  engine: string;
+  priority: 'normal' | 'high';
+  notes?: string;
+  modelConfig?: string;
+  providerConfigId?: string;
+}
+
 export interface TaskStats {
   total: number;
   by_status: Record<string, number>;
@@ -38,3 +54,22 @@ export interface TaskStats {
   by_priority: Record<string, number>;
   recent_activity: Task[];
 }
+
+export interface TasksListResponse {
+  tasks: Task[];
+  total: number;
+  limit: number;
+  offset: number;
+  filters: {
+    status?: string | null;
+    engine?: string | null;
+    priority?: string | null;
+    date_from?: string | null;
+    date_to?: string | null;
+  };
+}
+
+export type TaskSocketMessage = {
+  type: 'task.update';
+  task: Task;
+};

@@ -196,12 +196,7 @@ docker compose logs -f
 | `PDF_APP_PORT` | 后端服务端口 | `8000` |
 
 #### 存储配置
-| 变量 | 说明 | 默认值 |
-| --- | --- | --- |
-| `PDF_APP_S3_ENDPOINT` | S3 服务地址 | `https://your-s3-service.com` |
-| `PDF_APP_S3_ACCESS_KEY` | S3 访问密钥 | - |
-| `PDF_APP_S3_SECRET_KEY` | S3 密钥 | - |
-| `PDF_APP_S3_BUCKET` | S3 存储桶名称 | `pdftranslate` |
+> ⚠️ **重要：** S3 相关配置（Endpoint、Access Key、Secret、Bucket、Region、TTL）现已全部存储在数据库中，只能通过后台 `Admin → Settings → S3` 页面管理。环境变量 `PDF_APP_S3_*` 不再生效，部署后请立即登录后台填写，以便任务能够正确上传/下载文件。
 
 #### 翻译引擎配置（已弃用，请使用服务配置界面）
 | 变量 | 说明 | 默认值 |
@@ -415,7 +410,7 @@ pixi run python scripts/test_e2e_flow.py
 - **PostgreSQL**：存储任务元数据和状态
 - **Redis**：缓存和任务队列
 - **MinIO S3**：存储原始PDF和翻译结果文件
-- **文件TTL**：自动清理过期的翻译文件
+- **文件TTL**：根据对象最近修改时间 + TTL 天数自动清理，无需依赖 S3 Tagging，兼容本地 MinIO
 
 ## 监控与维护
 
@@ -439,6 +434,12 @@ pixi run python scripts/test_e2e_flow.py
 ## 使用指南
 
 ### 管理员操作
+
+#### 初始化对象存储配置（必做）
+1. 以管理员身份登录
+2. 进入 **Admin → Settings → S3**
+3. 填写对象存储 Endpoint、Access Key、Secret、Bucket、Region、TTL
+4. 点击“保存”后，配置会写入数据库，所有后端服务统一读取
 
 #### 1. 创建用户
 1. 登录管理后台
@@ -473,7 +474,8 @@ pixi run python scripts/test_e2e_flow.py
 7. 点击"创建任务"
 
 #### 2. 查看任务进度
-- 任务列表自动刷新（4秒间隔）
+- 任务列表通过 WebSocket (`ws(s)://<后端>/api/tasks/ws`) 实时同步，连接断开时自动退回 4 秒轮询
+- 可在详情抽屉或调试工具中调用 `GET /api/tasks/{task_id}` 查看更细粒度状态
 - 查看任务状态：排队中、处理中、已完成、失败
 - 查看进度百分比
 
@@ -506,7 +508,7 @@ echo $PDF_APP_REDIS_URL
 #### 3. 翻译任务失败
 - 检查翻译服务配置是否正确
 - 验证 API 密钥是否有效
-- 查看后端日志：`docker compose logs backend`
+- 查看后端日志：`docker compose logs backend`。从现在起所有翻译异常都会输出 `Task <id> translation failed/...` 的错误日志，方便快速定位问题
 
 #### 4. 配额不足
 - 管理员可在"用户管理"中调整用户配额

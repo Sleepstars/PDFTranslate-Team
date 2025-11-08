@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminProvidersAPI } from '@/lib/api/admin-providers';
 import { adminUsersAPI } from '@/lib/api/admin-users';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { UserProviderAccess } from '@/lib/types/access';
 import { User } from '@/lib/types/user';
 import { ProviderConfig } from '@/lib/types/provider';
@@ -47,24 +48,24 @@ export default function AdminAccessPage() {
         <Button onClick={() => setShowDialog(true)}>Grant Access</Button>
       </div>
 
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
+      <div className="bg-card border border-border rounded-lg shadow overflow-hidden">
+        <table className="min-w-full divide-y divide-border">
+          <thead className="bg-muted">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">User</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Provider</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Default</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Granted At</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">User</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Provider</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Default</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Granted At</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Actions</th>
             </tr>
           </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
+          <tbody className="bg-card divide-y divide-border">
             {accesses.map((access: UserProviderAccess) => (
               <tr key={access.id}>
                 <td className="px-6 py-4 whitespace-nowrap">{getUserName(access.userId)}</td>
                 <td className="px-6 py-4 whitespace-nowrap">{getProviderName(access.providerConfigId)}</td>
                 <td className="px-6 py-4 whitespace-nowrap">
-                  {access.isDefault && <span className="px-2 py-1 text-xs rounded bg-yellow-100 text-yellow-800">Default</span>}
+                  {access.isDefault && <Badge variant="warning">Default</Badge>}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">{new Date(access.createdAt).toLocaleDateString()}</td>
                 <td className="px-6 py-4 whitespace-nowrap">
@@ -105,14 +106,14 @@ function GrantAccessDialog({ users, providers, onClose }: { users: User[]; provi
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-      <div className="bg-white rounded-lg p-6 w-full max-w-md">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center">
+      <div className="bg-card border border-border rounded-lg p-6 w-full max-w-md">
         <h2 className="text-xl font-bold mb-4">Grant Provider Access</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium mb-1">User</label>
             <select
-              className="w-full border rounded px-3 py-2"
+              className="w-full border-input bg-background border rounded px-3 py-2"
               value={formData.userId}
               onChange={(e) => setFormData({ ...formData, userId: e.target.value })}
               required
@@ -126,7 +127,7 @@ function GrantAccessDialog({ users, providers, onClose }: { users: User[]; provi
           <div>
             <label className="block text-sm font-medium mb-1">Provider</label>
             <select
-              className="w-full border rounded px-3 py-2"
+              className="w-full border-input bg-background border rounded px-3 py-2"
               value={formData.providerConfigId}
               onChange={(e) => setFormData({ ...formData, providerConfigId: e.target.value })}
               required

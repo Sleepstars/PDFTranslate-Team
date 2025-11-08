@@ -1,7 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status, WebSocket, WebSocketDisconnect
 from typing import List
 from sqlalchemy.ext.asyncio import AsyncSession
 import json
+import time
+from pathlib import Path
 from ..config import PublicUser
 from ..dependencies import get_current_user, get_current_user_from_db
 from ..schemas import TaskActionRequest
@@ -9,8 +11,26 @@ from ..tasks import task_manager
 from ..database import get_db
 from ..models import User
 from ..quota import check_quota, consume_quota, count_pdf_pages
+from ..auth import get_session
+from ..config import get_settings
+from ..websocket_manager import task_ws_manager
+from ..s3_client import get_s3
+from ..settings_manager import get_s3_config, MissingS3Configuration
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
+settings = get_settings()
+
+
+def _parse_model_config_field(raw: str):
+    if not raw:
+        return {}
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="modelConfig must be valid JSON")
+    if not isinstance(data, dict):
+        raise HTTPException(status_code=400, detail="modelConfig must be a JSON object")
+    return data
 
 
 @router.get("")
@@ -102,6 +122,8 @@ async def create_task(
     from ..config import PublicUser
     user = PublicUser(id=user_obj.id, name=user_obj.name, email=user_obj.email)
 
+    model_config_dict = _parse_model_config_field(modelConfig) if modelConfig else {}
+
     payload = {
         "documentName": documentName,
         "sourceLang": sourceLang,
@@ -109,7 +131,7 @@ async def create_task(
         "engine": engine,
         "priority": priority,
         "notes": notes,
-        "modelConfig": modelConfig,
+        "modelConfig": model_config_dict,
         "providerConfigId": providerConfigId,
         "pageCount": page_count
     }
@@ -117,7 +139,11 @@ async def create_task(
     try:
         task = await task_manager.create_task(user, payload, file_data)
         return {"task": task.to_dict()}
-    except Exception as e:
+    except MissingS3Configuration as exc:
+        from ..quota import refund_quota
+        await refund_quota(user_obj, page_count, db)
+        raise HTTPException(status_code=503, detail=str(exc))
+    except Exception:
         # Refund quota if task creation fails
         from ..quota import refund_quota
         await refund_quota(user_obj, page_count, db)
@@ -142,6 +168,7 @@ async def create_batch_tasks(
     priority: str = Form("normal"),
     notes: str = Form(None),
     modelConfig: str = Form(None),
+    providerConfigId: str = Form(None),
     user: PublicUser = Depends(get_current_user)
 ):
     """批量创建翻译任务"""
@@ -150,6 +177,8 @@ async def create_batch_tasks(
         if len(files) != len(document_names):
             raise HTTPException(status_code=400, detail="Files count must match document names count")
         
+        model_config_dict = _parse_model_config_field(modelConfig) if modelConfig else {}
+
         tasks = []
         for i, file in enumerate(files):
             file_data = await file.read()
@@ -160,7 +189,8 @@ async def create_batch_tasks(
                 "engine": engine,
                 "priority": priority,
                 "notes": notes,
-                "modelConfig": modelConfig
+                "modelConfig": model_config_dict,
+                "providerConfigId": providerConfigId,
             }
             task = await task_manager.create_task(user, payload, file_data)
             tasks.append(task.to_dict())
@@ -229,7 +259,17 @@ async def download_batch_tasks(
         
         for task_id in task_ids:
             task = await task_manager.get_task(task_id)
-            if task and task.owner_id == user.id and task.status == "completed" and task.output_url:
+            has_outputs = (
+                task
+                and task.owner_id == user.id
+                and task.status == "completed"
+                and (
+                    task.dual_output_url
+                    or task.mono_output_url
+                    or task.output_url
+                )
+            )
+            if has_outputs:
                 valid_tasks.append(task)
             else:
                 invalid_task_ids.append(task_id)
@@ -241,7 +281,20 @@ async def download_batch_tasks(
         download_info = {
             "batch_id": f"batch_{int(time.time())}",
             "tasks": [task.to_dict() for task in valid_tasks],
-            "download_urls": [task.output_url for task in valid_tasks],
+            "download_urls": [
+                task.dual_output_url or task.mono_output_url or task.output_url
+                for task in valid_tasks
+            ],
+            "results": [
+                {
+                    "taskId": task.id,
+                    "documentName": task.document_name,
+                    "dual": task.dual_output_url,
+                    "mono": task.mono_output_url,
+                    "glossary": task.glossary_output_url,
+                }
+                for task in valid_tasks
+            ],
             "invalid_task_ids": invalid_task_ids,
             "total_count": len(task_ids),
             "valid_count": len(valid_tasks),
@@ -255,7 +308,11 @@ async def download_batch_tasks(
 
 
 @router.get("/download/zip/{task_ids}")
-async def download_zip_package(task_ids: str, user: PublicUser = Depends(get_current_user)):
+async def download_zip_package(
+    task_ids: str,
+    user: PublicUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
     """下载ZIP打包的翻译结果"""
     import zipfile
     import tempfile
@@ -269,7 +326,8 @@ async def download_zip_package(task_ids: str, user: PublicUser = Depends(get_cur
         task_id_list = task_ids.split(",")
         
         # 获取S3客户端
-        s3 = get_s3()
+        s3_config = await get_s3_config(db, strict=True)
+        s3 = get_s3(s3_config)
         
         # 创建内存中的ZIP文件
         zip_buffer = io.BytesIO()
@@ -279,19 +337,34 @@ async def download_zip_package(task_ids: str, user: PublicUser = Depends(get_cur
             
             for task_id in task_id_list:
                 task = await task_manager.get_task(task_id.strip())
-                if task and task.owner_id == user.id and task.status == "completed" and task.output_s3_key:
+                if not task or task.owner_id != user.id or task.status != "completed":
+                    continue
+
+                variants = []
+                if task.dual_output_s3_key:
+                    variants.append(("dual", task.dual_output_s3_key, "application/pdf", ".pdf"))
+                if task.mono_output_s3_key and task.mono_output_s3_key != task.dual_output_s3_key:
+                    variants.append(("mono", task.mono_output_s3_key, "application/pdf", ".pdf"))
+                if not variants and task.output_s3_key:
+                    variants.append(("result", task.output_s3_key, "application/pdf", ".pdf"))
+                if task.glossary_output_s3_key:
+                    variants.append(("glossary", task.glossary_output_s3_key, "text/csv", ".csv"))
+
+                if not variants:
+                    continue
+
+                base_name = task.document_name.replace('/', '_').replace(' ', '_') or task.id
+
+                for variant_name, key, _, default_suffix in variants:
                     try:
-                        # 从S3下载文件
-                        response = s3.s3.get_object(Bucket=s3.bucket, Key=task.output_s3_key)
+                        response = s3.s3.get_object(Bucket=s3.bucket, Key=key)
                         file_content = response['Body'].read()
-                        
-                        # 添加到ZIP文件，使用文档名作为文件名
-                        safe_filename = f"{task.document_name.replace('/', '_').replace(' ', '_')}.pdf"
+                        suffix = Path(key).suffix or default_suffix
+                        safe_filename = f"{base_name}_{variant_name}{suffix}"
                         zip_file.writestr(safe_filename, file_content)
                         valid_files += 1
-                        
                     except Exception as e:
-                        print(f"Failed to add file for task {task_id}: {e}")
+                        print(f"Failed to add file for task {task_id} ({variant_name}): {e}")
                         continue
             
             if valid_files == 0:
@@ -308,6 +381,8 @@ async def download_zip_package(task_ids: str, user: PublicUser = Depends(get_cur
             headers={"Content-Disposition": f"attachment; filename={filename}"}
         )
         
+    except MissingS3Configuration as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"ZIP download failed: {str(e)}")
 
@@ -332,3 +407,21 @@ async def mutate_task(task_id: str, payload: TaskActionRequest, user: PublicUser
     if not rerun:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
     return {"task": rerun.to_dict()}
+
+
+@router.websocket("/ws")
+async def task_updates(websocket: WebSocket):
+    token = websocket.cookies.get(settings.session_cookie_name) or websocket.query_params.get("token")
+    session = await get_session(token)
+    if not session:
+        await websocket.close(code=1008)
+        return
+
+    await task_ws_manager.connect(session.id, websocket)
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        pass
+    finally:
+        await task_ws_manager.disconnect(session.id, websocket)

@@ -14,7 +14,13 @@ from app.schemas import (
     UpdateProviderConfigRequest,
     ProviderConfigResponse,
     UserProviderAccessResponse,
-    GrantProviderAccessRequest
+    GrantProviderAccessRequest,
+    OpenAIProviderSettings,
+    AzureOpenAIProviderSettings,
+    DeepLProviderSettings,
+    OllamaProviderSettings,
+    TencentProviderSettings,
+    GenericProviderSettings,
 )
 
 router = APIRouter(prefix="/api/admin/providers", tags=["admin-providers"])
@@ -47,6 +53,32 @@ async def list_providers(
     ]
 
 
+def validate_provider_settings(provider_type: str, settings: dict) -> dict:
+    """Validate provider settings based on provider type"""
+    try:
+        if provider_type == "openai":
+            validated = OpenAIProviderSettings(**settings)
+        elif provider_type == "azure_openai":
+            validated = AzureOpenAIProviderSettings(**settings)
+        elif provider_type == "deepl":
+            validated = DeepLProviderSettings(**settings)
+        elif provider_type == "ollama":
+            validated = OllamaProviderSettings(**settings)
+        elif provider_type == "tencent":
+            validated = TencentProviderSettings(**settings)
+        elif provider_type in ["gemini", "deepseek", "zhipu", "siliconflow", "grok", "groq"]:
+            validated = GenericProviderSettings(**settings)
+        else:
+            validated = GenericProviderSettings(**settings)
+        
+        return validated.model_dump(exclude_none=True)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid settings for provider type {provider_type}: {str(e)}"
+        )
+
+
 @router.post("", response_model=ProviderConfigResponse, status_code=status.HTTP_201_CREATED)
 async def create_provider(
     request: CreateProviderConfigRequest,
@@ -54,6 +86,9 @@ async def create_provider(
     db: AsyncSession = Depends(get_db)
 ):
     """Create a new provider config (admin only)"""
+    # Validate settings
+    validated_settings = validate_provider_settings(request.providerType, request.settings)
+    
     # If setting as default, unset other defaults
     if request.isDefault:
         result = await db.execute(
@@ -72,7 +107,7 @@ async def create_provider(
         description=request.description,
         is_active=request.isActive,
         is_default=request.isDefault,
-        settings=json.dumps(request.settings),
+        settings=json.dumps(validated_settings),
         created_at=datetime.utcnow(),
         updated_at=datetime.utcnow()
     )
@@ -164,7 +199,8 @@ async def update_provider(
     if request.isDefault is not None:
         provider.is_default = request.isDefault
     if request.settings is not None:
-        provider.settings = json.dumps(request.settings)
+        validated_settings = validate_provider_settings(provider.provider_type, request.settings)
+        provider.settings = json.dumps(validated_settings)
     
     provider.updated_at = datetime.utcnow()
     

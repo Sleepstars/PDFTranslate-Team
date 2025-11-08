@@ -1,27 +1,23 @@
 import boto3
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 from botocore.exceptions import ClientError
-from sqlalchemy.ext.asyncio import AsyncSession
-from app.config import get_settings
 
-settings = get_settings()
 
 class S3Client:
+    REQUIRED_FIELDS = ("access_key", "secret_key", "bucket", "region")
+
     def __init__(self, config: Optional[dict] = None):
         if config is None:
-            config = {
-                "endpoint": settings.s3_endpoint,
-                "access_key": settings.s3_access_key,
-                "secret_key": settings.s3_secret_key,
-                "bucket": settings.s3_bucket,
-                "region": settings.s3_region,
-                "ttl_days": settings.s3_file_ttl_days
-            }
+            raise ValueError("S3 configuration is required")
+
+        missing = [field for field in self.REQUIRED_FIELDS if not config.get(field)]
+        if missing:
+            raise ValueError(f"S3 configuration missing required fields: {', '.join(missing)}")
 
         self.s3 = boto3.client(
             's3',
-            endpoint_url=config["endpoint"] if config["endpoint"] else None,
+            endpoint_url=config.get("endpoint") or None,
             aws_access_key_id=config["access_key"],
             aws_secret_access_key=config["secret_key"],
             region_name=config["region"]
@@ -34,8 +30,7 @@ class S3Client:
             Bucket=self.bucket,
             Key=key,
             Body=file_data,
-            ContentType=content_type,
-            Tagging=f"expires_at={int((datetime.utcnow() + timedelta(days=self.ttl_days)).timestamp())}"
+            ContentType=content_type
         )
         return key
 
@@ -62,21 +57,25 @@ class S3Client:
             if 'Contents' not in response:
                 return
 
-            now = int(datetime.utcnow().timestamp())
+            if self.ttl_days <= 0:
+                return
+
+            now = datetime.now(timezone.utc)
+            ttl_delta = timedelta(days=self.ttl_days)
             for obj in response['Contents']:
-                try:
-                    tags = self.s3.get_object_tagging(Bucket=self.bucket, Key=obj['Key'])
-                    for tag in tags.get('TagSet', []):
-                        if tag['Key'] == 'expires_at' and int(tag['Value']) < now:
-                            self.delete_file(obj['Key'])
-                except ClientError:
-                    pass
+                last_modified = obj.get('LastModified')
+                if not isinstance(last_modified, datetime):
+                    continue
+
+                if last_modified.tzinfo is None:
+                    last_modified = last_modified.replace(tzinfo=timezone.utc)
+
+                if last_modified + ttl_delta <= now:
+                    self.delete_file(obj['Key'])
         except ClientError:
             pass
 
-s3_client = S3Client()
-
 def get_s3(config: Optional[dict] = None):
-    if config:
-        return S3Client(config)
-    return s3_client
+    if not config:
+        raise ValueError("Please provide an S3 configuration from the database")
+    return S3Client(config)

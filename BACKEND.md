@@ -105,10 +105,14 @@ class Task(Base):
     # 文件信息
     original_file_key = Column(String, nullable=False)
     translated_file_key = Column(String)
+    mono_output_s3_key = Column(String)
+    dual_output_s3_key = Column(String)
+    glossary_output_s3_key = Column(String)
     file_size = Column(Integer)
     
     # 处理信息
     progress = Column(Integer, default=0)
+    progress_message = Column(Text)
     error_message = Column(Text)
     started_at = Column(DateTime)
     completed_at = Column(DateTime)
@@ -396,12 +400,6 @@ PDF_APP_DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/pdftr
 # Redis
 PDF_APP_REDIS_URL=redis://localhost:6379/0
 
-# S3 存储
-PDF_APP_S3_ENDPOINT=https://your-s3-service.com
-PDF_APP_S3_ACCESS_KEY=your-access-key
-PDF_APP_S3_SECRET_KEY=your-secret-key
-PDF_APP_S3_BUCKET=pdftranslate
-
 # 翻译引擎
 PDF_APP_BABELDOC_SERVICE=google
 PDF_APP_BABELDOC_LANG_FROM=en
@@ -413,10 +411,9 @@ PDF_APP_BABELDOC_LANG_TO=zh
 ```bash
 PDF_APP_DATABASE_URL=postgresql+asyncpg://user:pass@prod-db:5432/pdftranslate
 PDF_APP_REDIS_URL=redis://prod-redis:6379/0
-PDF_APP_S3_ENDPOINT=https://your-s3-service.com
-PDF_APP_S3_ACCESS_KEY=your-access-key
-PDF_APP_S3_SECRET_KEY=your-secret-key
 ```
+
+> 💡 **S3 配置**：所有对象存储参数现仅存放在数据库 `SystemSetting` 表中，并通过后台 **Admin → Settings → S3** 管理。环境变量 `PDF_APP_S3_*` 不再生效。
 
 ## 开发指南
 

@@ -86,13 +86,6 @@ PDF_APP_SESSION_SECRET=GENERATE_RANDOM_SECRET_HERE
 PDF_APP_PORT=8000
 PDF_APP_HOST=0.0.0.0
 
-# S3 Storage Configuration
-PDF_APP_S3_ENDPOINT=https://s3.your-domain.com
-PDF_APP_S3_ACCESS_KEY=YOUR_ACCESS_KEY
-PDF_APP_S3_SECRET_KEY=YOUR_SECRET_KEY
-PDF_APP_S3_BUCKET=pdftranslate
-PDF_APP_S3_REGION=us-east-1
-
 # Frontend Configuration
 NEXT_PUBLIC_API_BASE_URL=https://api.your-domain.com
 
@@ -102,6 +95,8 @@ PDF_APP_CORS_ORIGINS=https://your-domain.com,https://www.your-domain.com
 # Logging
 PDF_APP_LOG_LEVEL=INFO
 ```
+
+> ⚠️ **Object Storage**: All S3 credentials are now stored inside the database. After the stack is up, log in as an admin and configure them via **Admin → Settings → S3**. The legacy `PDF_APP_S3_*` environment variables are ignored.
 
 ### 4. Generate Secure Secrets
 
@@ -164,7 +159,14 @@ docker compose ps
 docker compose exec backend pixi run alembic upgrade head
 ```
 
-### 3. Initialize Default Data
+### 3. Configure Object Storage
+
+1. Visit the frontend (default `http://localhost:3000`) and sign in with the admin account.
+2. Navigate to **Admin → Settings → S3**.
+3. Fill in the endpoint, access key, secret, bucket, region, and TTL values.
+4. Save the form to persist the configuration into the database; the backend immediately starts using these values for uploads/downloads.
+
+### 4. Initialize Default Data
 
 ```bash
 docker compose exec backend pixi run python scripts/init_db.py
@@ -176,7 +178,7 @@ This creates:
 
 **⚠️ IMPORTANT: Change the default admin password immediately!**
 
-### 4. Verify Deployment
+### 5. Verify Deployment
 
 ```bash
 # Check backend health
@@ -189,7 +191,7 @@ curl http://localhost:3000
 docker compose logs -f
 ```
 
-### 5. Configure Reverse Proxy (Nginx)
+### 6. Configure Reverse Proxy (Nginx)
 
 Create `/etc/nginx/sites-available/pdftranslate`:
 
@@ -205,6 +207,9 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
     }
 }
 
@@ -230,7 +235,7 @@ sudo nginx -t
 sudo systemctl reload nginx
 ```
 
-### 6. Setup SSL with Let's Encrypt
+### 7. Setup SSL with Let's Encrypt
 
 ```bash
 # Install Certbot
@@ -555,4 +560,3 @@ docker compose restart
 
 **Deployment Guide Version:** 1.0  
 **Last Updated:** 2025-11-08
-

@@ -9,11 +9,7 @@ const nextConfig = {
       },
       {
         source: '/auth/:path*',
-        destination: 'http://localhost:8000/auth/:path*',
-      },
-      {
-        source: '/tasks/:path*',
-        destination: 'http://localhost:8000/tasks/:path*',
+        destination: 'http://localhost:8000/api/auth/:path*',
       },
     ];
   },
