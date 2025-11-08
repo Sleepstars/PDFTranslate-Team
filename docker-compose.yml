@@ -37,8 +37,8 @@ services:
       
       # S3 兼容服务配置（请根据实际情况修改）
       PDF_APP_S3_ENDPOINT: https://your-s3-service.com
-      PDF_APP_S3_ACCESS_KEY: 9f3f6fba958bbab267068212d98b84f7
-      PDF_APP_S3_SECRET_KEY: c566128ec2c5941b00084408d37bbcc5758c7e13b10a579d061f60566e8036d0
+      PDF_APP_S3_ACCESS_KEY: YOUR_ACCESS_KEY
+      PDF_APP_S3_SECRET_KEY: YOUR_SECRET_KEY
       PDF_APP_S3_BUCKET: translate
       PDF_APP_S3_REGION: auto
       PDF_APP_S3_FILE_TTL_DAYS: 3
