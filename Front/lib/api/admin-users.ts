@@ -1,23 +1,40 @@
-import { clientApi } from '@/lib/http/client';
-import type { User, CreateUserRequest, UpdateUserRequest, UpdateQuotaRequest } from '@/lib/types/user';
+import { User, CreateUserRequest, UpdateUserRequest } from '../types/user';
 
-export const adminUsersApi = {
-  listUsers: () =>
-    clientApi.get<User[]>('/api/admin/users'),
+async function fetchAPI(url: string, options?: RequestInit) {
+  const res = await fetch(url, { ...options, credentials: 'include' });
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({ detail: 'Request failed' }));
+    throw new Error(error.detail || 'Request failed');
+  }
+  return res.json();
+}
 
-  getUser: (userId: string) =>
-    clientApi.get<User>(`/api/admin/users/${userId}`),
+export const adminUsersAPI = {
+  list: () => fetchAPI('/api/admin/users'),
 
-  createUser: (data: CreateUserRequest) =>
-    clientApi.post<User>('/api/admin/users', data),
+  create: (data: CreateUserRequest) =>
+    fetchAPI('/api/admin/users', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    }),
 
-  updateUser: (userId: string, data: UpdateUserRequest) =>
-    clientApi.patch<User>(`/api/admin/users/${userId}`, data),
+  get: (id: string) => fetchAPI(`/api/admin/users/${id}`),
 
-  deleteUser: (userId: string) =>
-    clientApi.delete<void>(`/api/admin/users/${userId}`),
+  update: (id: string, data: UpdateUserRequest) =>
+    fetchAPI(`/api/admin/users/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    }),
 
-  updateQuota: (userId: string, data: UpdateQuotaRequest) =>
-    clientApi.patch<User>(`/api/admin/users/${userId}/quota`, data),
+  delete: (id: string) =>
+    fetchAPI(`/api/admin/users/${id}`, { method: 'DELETE' }),
+
+  updateQuota: (id: string, dailyPageLimit: number) =>
+    fetchAPI(`/api/admin/users/${id}/quota`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dailyPageLimit }),
+    }),
 };
-

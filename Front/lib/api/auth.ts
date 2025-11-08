@@ -1,14 +1,27 @@
-import { clientApi } from '@/lib/http/client';
-import type { LoginRequest, LoginResponse, SessionResponse } from '@/lib/types/auth';
+import { User } from '../types/user';
 
-export const authApi = {
-  login: (data: LoginRequest) =>
-    clientApi.post<LoginResponse>('/auth/login', data),
+export async function login(email: string, password: string): Promise<User> {
+  const res = await fetch('/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+    credentials: 'include',
+  });
+  if (!res.ok) throw new Error('Login failed');
+  const data = await res.json();
+  return data.user;
+}
 
-  logout: () =>
-    clientApi.post<{ ok: boolean }>('/auth/logout'),
+export async function logout(): Promise<void> {
+  await fetch('/auth/logout', {
+    method: 'POST',
+    credentials: 'include',
+  });
+}
 
-  getSession: () =>
-    clientApi.get<SessionResponse>('/auth/me'),
-};
-
+export async function getCurrentUser(): Promise<User | null> {
+  const res = await fetch('/auth/me', { credentials: 'include' });
+  if (!res.ok) return null;
+  const data = await res.json();
+  return data.user;
+}

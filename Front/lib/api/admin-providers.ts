@@ -1,20 +1,46 @@
-import { clientApi } from '@/lib/http/client';
-import type { ProviderConfig, CreateProviderConfigRequest, UpdateProviderConfigRequest } from '@/lib/types/provider';
+import { ProviderConfig, CreateProviderRequest, UpdateProviderRequest } from '../types/provider';
+import { UserProviderAccess, GrantAccessRequest } from '../types/access';
 
-export const adminProvidersApi = {
-  listProviders: () =>
-    clientApi.get<ProviderConfig[]>('/api/admin/providers'),
+async function fetchAPI(url: string, options?: RequestInit) {
+  const res = await fetch(url, { ...options, credentials: 'include' });
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({ detail: 'Request failed' }));
+    throw new Error(error.detail || 'Request failed');
+  }
+  return res.json();
+}
 
-  getProvider: (providerId: string) =>
-    clientApi.get<ProviderConfig>(`/api/admin/providers/${providerId}`),
+export const adminProvidersAPI = {
+  list: () => fetchAPI('/api/admin/providers'),
 
-  createProvider: (data: CreateProviderConfigRequest) =>
-    clientApi.post<ProviderConfig>('/api/admin/providers', data),
+  create: (data: CreateProviderRequest) =>
+    fetchAPI('/api/admin/providers', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    }),
 
-  updateProvider: (providerId: string, data: UpdateProviderConfigRequest) =>
-    clientApi.patch<ProviderConfig>(`/api/admin/providers/${providerId}`, data),
+  get: (id: string) => fetchAPI(`/api/admin/providers/${id}`),
 
-  deleteProvider: (providerId: string) =>
-    clientApi.delete<void>(`/api/admin/providers/${providerId}`),
+  update: (id: string, data: UpdateProviderRequest) =>
+    fetchAPI(`/api/admin/providers/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    }),
+
+  delete: (id: string) =>
+    fetchAPI(`/api/admin/providers/${id}`, { method: 'DELETE' }),
+
+  listAccess: () => fetchAPI('/api/admin/providers/access/all'),
+
+  grantAccess: (data: GrantAccessRequest) =>
+    fetchAPI('/api/admin/providers/access', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    }),
+
+  revokeAccess: (id: string) =>
+    fetchAPI(`/api/admin/providers/access/${id}`, { method: 'DELETE' }),
 };
-

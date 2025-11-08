@@ -1,35 +1,22 @@
-export type TaskStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled';
-export type TaskPriority = 'low' | 'normal' | 'high';
-
 export interface Task {
   id: string;
+  ownerId: string;
+  ownerEmail: string;
   documentName: string;
   sourceLang: string;
   targetLang: string;
   engine: string;
-  status: TaskStatus;
-  priority: TaskPriority;
+  priority: 'normal' | 'high';
   notes?: string;
-  pageCount?: number;
-  progress?: number;
-  errorMessage?: string;
-  inputUrl?: string;
-  outputUrl?: string;
+  status: string;
+  progress: number;
   createdAt: string;
   updatedAt: string;
-  ownerId: string;
+  completedAt?: string;
+  outputUrl?: string;
+  error?: string;
+  pageCount: number;
   providerConfigId?: string;
-  modelConfig?: string;
-}
-
-export interface ModelConfig {
-  api_key?: string;
-  model?: string;
-  threads?: number;
-  endpoint?: string;
-  deployment?: string;
-  secret_id?: string;
-  secret_key?: string;
 }
 
 export interface CreateTaskRequest {
@@ -38,35 +25,16 @@ export interface CreateTaskRequest {
   sourceLang: string;
   targetLang: string;
   engine: string;
-  priority?: TaskPriority;
+  priority: 'normal' | 'high';
   notes?: string;
-  modelConfig?: ModelConfig;
+  modelConfig?: string;
   providerConfigId?: string;
-}
-
-export interface TaskActionRequest {
-  action: 'cancel' | 'retry';
 }
 
 export interface TaskStats {
   total: number;
-  by_status: Record<TaskStatus, number>;
+  by_status: Record<string, number>;
   by_engine: Record<string, number>;
-  by_priority: Record<TaskPriority, number>;
+  by_priority: Record<string, number>;
   recent_activity: Task[];
 }
-
-export interface TaskListResponse {
-  tasks: Task[];
-  total: number;
-  limit: number;
-  offset: number;
-  filters: {
-    status?: string;
-    engine?: string;
-    priority?: string;
-    date_from?: string;
-    date_to?: string;
-  };
-}
-

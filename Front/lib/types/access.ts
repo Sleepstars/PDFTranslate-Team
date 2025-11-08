@@ -4,19 +4,10 @@ export interface UserProviderAccess {
   providerConfigId: string;
   isDefault: boolean;
   createdAt: string;
-  user?: {
-    email: string;
-    name: string;
-  };
-  provider?: {
-    name: string;
-    providerType: string;
-  };
 }
 
-export interface GrantProviderAccessRequest {
+export interface GrantAccessRequest {
   userId: string;
   providerConfigId: string;
   isDefault: boolean;
 }
-

@@ -1,22 +1,48 @@
-import { redirect } from 'next/navigation';
-import { getCurrentUser } from '@/lib/auth/session';
-import { LoginForm } from './login-form';
+'use client';
 
-export default async function LoginPage() {
-  const user = await getCurrentUser();
-  if (user) {
-    redirect('/dashboard');
-  }
+import { useState } from 'react';
+import { useAuth } from '@/lib/hooks/use-auth';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+
+export default function LoginPage() {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const { login, isLoggingIn } = useAuth();
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    login({ email, password });
+  };
 
   return (
-    <main className="auth-screen">
-      <section className="auth-card">
-        <div>
-          <h1>PDFTranslate 管理后台</h1>
-          <p className="auth-subtitle">使用管理员账号登录以管理 BabelDOC 翻译任务。</p>
-        </div>
-        <LoginForm />
-      </section>
-    </main>
+    <div className="flex items-center justify-center min-h-screen bg-gray-50">
+      <div className="w-full max-w-md p-8 space-y-6 bg-white rounded-lg shadow">
+        <h1 className="text-2xl font-bold text-center">PDF Translate</h1>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium mb-1">Email</label>
+            <Input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Password</label>
+            <Input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+          </div>
+          <Button type="submit" className="w-full" disabled={isLoggingIn}>
+            {isLoggingIn ? 'Logging in...' : 'Login'}
+          </Button>
+        </form>
+      </div>
+    </div>
   );
 }

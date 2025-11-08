@@ -1,26 +1,81 @@
-"use client";
+'use client';
 
-import { PageHeader } from '@/components/shared/page-header';
-import { QuotaDisplay } from '@/components/shared/quota-display';
-import { DashboardStats } from '@/components/user/dashboard-stats';
+import { useQuery } from '@tanstack/react-query';
+import { usersAPI } from '@/lib/api/users';
+import { tasksAPI } from '@/lib/api/tasks';
 
 export default function DashboardPage() {
-  return (
-    <div className="space-y-6">
-      <PageHeader
-        title="仪表盘"
-        description="查看您的任务统计和配额使用情况"
-      />
+  const { data: quota } = useQuery({
+    queryKey: ['users', 'quota'],
+    queryFn: usersAPI.getQuota,
+  });
 
-      <div className="grid gap-6 md:grid-cols-3">
-        <div className="md:col-span-2">
-          <DashboardStats />
+  const { data: stats } = useQuery({
+    queryKey: ['tasks', 'stats'],
+    queryFn: tasksAPI.getStats,
+  });
+
+  return (
+    <div>
+      <h1 className="text-2xl font-bold mb-6">Dashboard</h1>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+        <div className="bg-white rounded-lg shadow p-6">
+          <h3 className="text-sm font-medium text-gray-500 mb-2">Daily Quota</h3>
+          <div className="text-3xl font-bold">{quota?.dailyPageUsed || 0}/{quota?.dailyPageLimit || 0}</div>
+          <p className="text-sm text-gray-500 mt-1">{quota?.remaining || 0} pages remaining</p>
         </div>
-        <div>
-          <QuotaDisplay />
+
+        <div className="bg-white rounded-lg shadow p-6">
+          <h3 className="text-sm font-medium text-gray-500 mb-2">Total Tasks</h3>
+          <div className="text-3xl font-bold">{stats?.total || 0}</div>
+        </div>
+
+        <div className="bg-white rounded-lg shadow p-6">
+          <h3 className="text-sm font-medium text-gray-500 mb-2">Completed</h3>
+          <div className="text-3xl font-bold text-green-600">{stats?.by_status?.completed || 0}</div>
         </div>
       </div>
+
+      {stats?.by_status && (
+        <div className="bg-white rounded-lg shadow p-6 mb-6">
+          <h2 className="text-lg font-semibold mb-4">Tasks by Status</h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {Object.entries(stats.by_status).map(([status, count]) => (
+              <div key={status} className="text-center">
+                <div className="text-2xl font-bold">{count as number}</div>
+                <div className="text-sm text-gray-500 capitalize">{status}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {stats?.recent_activity && stats.recent_activity.length > 0 && (
+        <div className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-lg font-semibold mb-4">Recent Activity</h2>
+          <div className="space-y-3">
+            {stats.recent_activity.slice(0, 5).map((task: any) => (
+              <div key={task.id} className="flex justify-between items-center border-b pb-3">
+                <div>
+                  <div className="font-medium">{task.documentName}</div>
+                  <div className="text-sm text-gray-500">
+                    {task.sourceLang} → {task.targetLang}
+                  </div>
+                </div>
+                <span className={`px-2 py-1 text-xs rounded ${
+                  task.status === 'completed' ? 'bg-green-100 text-green-800' :
+                  task.status === 'failed' ? 'bg-red-100 text-red-800' :
+                  task.status === 'processing' ? 'bg-blue-100 text-blue-800' :
+                  'bg-gray-100 text-gray-800'
+                }`}>
+                  {task.status}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
-

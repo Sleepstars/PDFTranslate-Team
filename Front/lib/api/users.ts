@@ -1,15 +1,14 @@
-import { clientApi } from '@/lib/http/client';
-import type { User, QuotaStatus } from '@/lib/types/user';
-import type { ProviderConfig } from '@/lib/types/provider';
+import { User, QuotaStatus } from '../types/user';
+import { ProviderConfig } from '../types/provider';
 
-export const usersApi = {
-  getCurrentUser: () =>
-    clientApi.get<User>('/api/users/me'),
+async function fetchAPI(url: string, options?: RequestInit) {
+  const res = await fetch(url, { ...options, credentials: 'include' });
+  if (!res.ok) throw new Error('Request failed');
+  return res.json();
+}
 
-  getQuota: () =>
-    clientApi.get<QuotaStatus>('/api/users/me/quota'),
-
-  getAvailableProviders: () =>
-    clientApi.get<ProviderConfig[]>('/api/users/me/providers'),
+export const usersAPI = {
+  getMe: (): Promise<User> => fetchAPI('/api/users/me'),
+  getQuota: (): Promise<QuotaStatus> => fetchAPI('/api/users/me/quota'),
+  getProviders: (): Promise<ProviderConfig[]> => fetchAPI('/api/users/me/providers'),
 };
-
