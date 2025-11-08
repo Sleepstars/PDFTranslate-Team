@@ -177,26 +177,58 @@ async def create_batch_tasks(
         document_names = json.loads(documentNames)
         if len(files) != len(document_names):
             raise HTTPException(status_code=400, detail="Files count must match document names count")
-        
+
         model_config_dict = _parse_model_config_field(modelConfig) if modelConfig else {}
 
-        tasks = []
+        # 预先计算所有文件的页数
+        file_page_counts = []
+        total_pages = 0
+
         for i, file in enumerate(files):
             file_data = await file.read()
-            payload = {
-                "documentName": document_names[i],
-                "sourceLang": sourceLang,
-                "targetLang": targetLang,
-                "engine": engine,
-                "priority": priority,
-                "notes": notes,
-                "modelConfig": model_config_dict,
-                "providerConfigId": providerConfigId,
-            }
-            task = await task_manager.create_task(user, payload, file_data)
-            tasks.append(task.to_dict())
-        
-        return {"tasks": tasks, "count": len(tasks)}
+            page_count = count_pdf_pages(file_data)
+            file_page_counts.append((file_data, page_count))
+            total_pages += page_count
+
+        # 检查总配额是否足够
+        has_quota, error_msg = await check_quota(user_obj, total_pages, db)
+        if not has_quota:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=error_msg
+            )
+
+        # 消耗总配额
+        await consume_quota(user_obj, total_pages, db)
+
+        # 创建PublicUser用于task manager
+        from ..config import PublicUser
+        user = PublicUser(id=user_obj.id, name=user_obj.name, email=user_obj.email)
+
+        tasks = []
+        try:
+            for i, (file_data, page_count) in enumerate(file_page_counts):
+                payload = {
+                    "documentName": document_names[i],
+                    "sourceLang": sourceLang,
+                    "targetLang": targetLang,
+                    "engine": engine,
+                    "priority": priority,
+                    "notes": notes,
+                    "modelConfig": model_config_dict,
+                    "providerConfigId": providerConfigId,
+                    "pageCount": page_count
+                }
+                task = await task_manager.create_task(user, payload, file_data)
+                tasks.append(task.to_dict())
+
+            return {"tasks": tasks, "count": len(tasks)}
+
+        except Exception as e:
+            # 如果任务创建失败，回滚配额
+            from ..quota import refund_quota
+            await refund_quota(user_obj, total_pages, db)
+            raise HTTPException(status_code=500, detail=f"Batch creation failed: {str(e)}")
     except json.JSONDecodeError:
         raise HTTPException(status_code=400, detail="Invalid document names JSON")
     except Exception as e:
