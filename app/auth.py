@@ -9,14 +9,21 @@ from .config import PublicUser, get_settings
 from .models import User
 from .redis_client import get_redis
 import json
+from argon2 import PasswordHasher
+from argon2.exceptions import VerifyMismatchError, InvalidHash
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Use argon2 directly instead of passlib to avoid bcrypt compatibility issues
+ph = PasswordHasher()
 
 def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    return ph.hash(password)
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
+    try:
+        ph.verify(hashed_password, plain_password)
+        return True
+    except (VerifyMismatchError, InvalidHash):
+        return False
 
 async def create_session(user: PublicUser) -> str:
     settings = get_settings()
