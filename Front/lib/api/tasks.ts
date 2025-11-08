@@ -76,5 +76,13 @@ export const tasksAPI = {
       body: JSON.stringify({ action: 'retry' }),
     }),
 
+  delete: async (id: string) => {
+    const res = await fetch(`/api/tasks/${id}`, {
+      method: 'DELETE',
+      credentials: 'include',
+    });
+    if (!res.ok) throw new Error('Failed to delete task');
+  },
+
   getStats: (): Promise<TaskStats> => fetchAPI('/api/tasks/stats/overview'),
 };

@@ -358,6 +358,19 @@ Cancel a queued or processing task.
 
 ---
 
+### DELETE /api/tasks/{id}
+
+Delete any task you own (queued/processing tasks are canceled and removed before deletion). All related S3 files (input/output/glossary) are deleted together.
+
+_2025-11-09 更新：新增批量删除任务支持，前端可通过复选框选择任意状态的任务。_
+
+**Response (204 No Content)**
+
+**Errors:**
+- `404 Not Found`: Task not found or not owned by user
+
+---
+
 ### GET /api/tasks/{id}/download
 
 Download the translated PDF file (defaults to the dual-language output when available). Prefer the `monoOutputUrl` / `dualOutputUrl` fields from task responses for direct downloads of the specific variant.

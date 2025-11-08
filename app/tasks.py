@@ -234,6 +234,60 @@ class TaskManager:
                 await db.refresh(task)
             return task
 
+    async def delete_task(self, task_id: str, owner_id: str) -> str:
+        self._cancel_job(task_id)
+
+        redis = await get_redis()
+        await redis.remove_task_from_all_queues(task_id)
+
+        s3_keys: list[Optional[str]] = []
+        s3_client = None
+        task_owner_id = owner_id
+
+        async with AsyncSessionLocal() as db:
+            result = await db.execute(
+                select(TranslationTask)
+                .where(TranslationTask.id == task_id)
+                .where(TranslationTask.owner_id == owner_id)
+            )
+            task = result.scalar_one_or_none()
+            if not task:
+                return "not_found"
+
+            task_owner_id = task.owner_id
+            s3_keys = [
+                task.input_s3_key,
+                task.output_s3_key,
+                task.mono_output_s3_key,
+                task.dual_output_s3_key,
+                task.glossary_output_s3_key,
+            ]
+
+            try:
+                s3_config = await get_s3_config(db, strict=False)
+                required_fields = ("access_key", "secret_key", "bucket", "region")
+                if all(s3_config.get(field) for field in required_fields):
+                    s3_client = get_s3(s3_config)
+            except Exception as exc:  # pragma: no cover - delete best-effort
+                logger.warning("Unable to prepare S3 client for task deletion: %s", exc)
+                s3_client = None
+
+            await db.delete(task)
+            await db.commit()
+
+        if s3_client:
+            unique_keys = {key for key in s3_keys if key}
+            for key in unique_keys:
+                try:
+                    await asyncio.to_thread(s3_client.delete_file, key)
+                except Exception as exc:  # pragma: no cover - delete best-effort
+                    logger.warning("Failed to delete S3 object %s: %s", key, exc)
+
+        await redis.invalidate_task_details_cache(task_id)
+        await redis.invalidate_all_user_cache(task_owner_id)
+        await redis.delete_task_status(task_id)
+        return "deleted"
+
     async def _update_task(self, task_id: str, **updates) -> Optional[TranslationTask]:
         redis = await get_redis()
         

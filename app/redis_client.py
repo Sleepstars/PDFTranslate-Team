@@ -40,10 +40,23 @@ class RedisClient:
             lengths[priority] = await self.redis.llen(queue_name)
         return lengths
 
+    async def remove_task_from_all_queues(self, task_id: str):
+        """从所有优先级队列中移除指定任务"""
+        if not self.redis:
+            return
+        for priority in ["high", "normal", "low"]:
+            queue_name = f"tasks:{priority}"
+            await self.redis.lrem(queue_name, 0, task_id)
+
     # 任务状态缓存
     async def set_task_status(self, task_id: str, status: str, ttl: int = None):
         ttl = ttl or self.default_ttl
         await self.redis.setex(f"task_status:{task_id}", ttl, status)
+
+    async def delete_task_status(self, task_id: str):
+        key = f"task_status:{task_id}"
+        if self.redis:
+            await self.redis.delete(key)
 
     async def get_task_status(self, task_id: str) -> Optional[str]:
         status = await self.redis.get(f"task_status:{task_id}")

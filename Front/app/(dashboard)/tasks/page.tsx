@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { tasksAPI } from '@/lib/api/tasks';
 import { usersAPI } from '@/lib/api/users';
@@ -14,9 +14,12 @@ export default function TasksPage() {
   const queryClient = useQueryClient();
   const [showDialog, setShowDialog] = useState(false);
   const [showBatchDialog, setShowBatchDialog] = useState(false);
+  const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
+  const [isDeleting, setIsDeleting] = useState(false);
   const isRealtimeConnected = useTaskUpdates();
   const refetchOnWindowFocus = !isRealtimeConnected;
   const refetchInterval = isRealtimeConnected ? false : 4000;
+  const selectAllRef = useRef<HTMLInputElement>(null);
 
   const { data: tasksData, isLoading } = useQuery({
     queryKey: ['tasks'],
@@ -54,9 +57,68 @@ export default function TasksPage() {
     },
   });
 
-  if (isLoading) return <div>Loading...</div>;
+  const tasks = useMemo(() => tasksData?.tasks || [], [tasksData?.tasks]);
 
-  const tasks = tasksData?.tasks || [];
+  useEffect(() => {
+    setSelectedTaskIds((prev) => {
+      const validIds = new Set(tasks.map((task) => task.id));
+      const next = new Set([...prev].filter((id) => validIds.has(id)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [tasks]);
+
+  const allSelected = tasks.length > 0 && tasks.every((task) => selectedTaskIds.has(task.id));
+  const hasSelection = selectedTaskIds.size > 0;
+
+  useEffect(() => {
+    if (!selectAllRef.current) return;
+    selectAllRef.current.indeterminate = hasSelection && !allSelected;
+  }, [hasSelection, allSelected]);
+
+  const toggleTaskSelection = (taskId: string) => {
+    setSelectedTaskIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(taskId)) {
+        next.delete(taskId);
+      } else {
+        next.add(taskId);
+      }
+      return next;
+    });
+  };
+
+  const handleSelectAllToggle = () => {
+    if (!tasks.length) {
+      setSelectedTaskIds(new Set());
+      return;
+    }
+    setSelectedTaskIds((prev) => {
+      const currentAllSelected = tasks.every((task) => prev.has(task.id));
+      return currentAllSelected ? new Set() : new Set(tasks.map((task) => task.id));
+    });
+  };
+
+  const handleBulkDelete = async () => {
+    if (!hasSelection) return;
+    const count = selectedTaskIds.size;
+    const confirmMessage = count === 1
+      ? 'Delete the selected task? This removes associated files permanently.'
+      : `Delete ${count} selected tasks? This removes associated files permanently.`;
+    if (!window.confirm(confirmMessage)) return;
+    setIsDeleting(true);
+    try {
+      await Promise.all(Array.from(selectedTaskIds).map((id) => tasksAPI.delete(id)));
+      setSelectedTaskIds(new Set());
+      await queryClient.invalidateQueries({ queryKey: ['tasks'] });
+    } catch (error) {
+      console.error('Failed to delete tasks', error);
+      window.alert('Some tasks could not be deleted. Please try again.');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  if (isLoading) return <div>Loading...</div>;
 
   return (
     <div>
@@ -73,10 +135,28 @@ export default function TasksPage() {
         </div>
       </div>
 
+      {hasSelection && (
+        <div className="flex items-center justify-between mb-4 rounded-lg border border-border bg-muted px-4 py-3">
+          <div className="text-sm text-muted-foreground">{selectedTaskIds.size} selected</div>
+          <Button variant="destructive" size="sm" onClick={handleBulkDelete} disabled={isDeleting}>
+            {isDeleting ? 'Deleting…' : 'Delete'}
+          </Button>
+        </div>
+      )}
+
       <div className="bg-card rounded-lg shadow border border-border overflow-hidden">
         <table className="min-w-full divide-y divide-border">
           <thead className="bg-muted">
             <tr>
+              <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase w-12">
+                <input
+                  ref={selectAllRef}
+                  type="checkbox"
+                  className="h-4 w-4 rounded border-input text-primary focus-visible:ring-2 focus-visible:ring-primary"
+                  onChange={handleSelectAllToggle}
+                  checked={tasks.length > 0 && allSelected}
+                />
+              </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Document</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Languages</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Engine</th>
@@ -89,6 +169,14 @@ export default function TasksPage() {
           <tbody className="bg-card divide-y divide-border">
             {tasks.map((task: Task) => (
               <tr key={task.id}>
+                <td className="px-4 py-4">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-input text-primary focus-visible:ring-2 focus-visible:ring-primary"
+                    onChange={() => toggleTaskSelection(task.id)}
+                    checked={selectedTaskIds.has(task.id)}
+                  />
+                </td>
                 <td className="px-6 py-4">
                   <div className="font-medium">{task.documentName}</div>
                   <div className="text-sm text-muted-foreground">{new Date(task.createdAt).toLocaleString()}</div>

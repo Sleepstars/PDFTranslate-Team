@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status, WebSocket, WebSocketDisconnect, Response
 from typing import List
 from sqlalchemy.ext.asyncio import AsyncSession
 import json
@@ -169,7 +169,8 @@ async def create_batch_tasks(
     notes: str = Form(None),
     modelConfig: str = Form(None),
     providerConfigId: str = Form(None),
-    user: PublicUser = Depends(get_current_user)
+    user_obj: User = Depends(get_current_user_from_db),
+    db: AsyncSession = Depends(get_db)
 ):
     """批量创建翻译任务"""
     try:
@@ -407,6 +408,14 @@ async def mutate_task(task_id: str, payload: TaskActionRequest, user: PublicUser
     if not rerun:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
     return {"task": rerun.to_dict()}
+
+
+@router.delete("/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_task(task_id: str, user: PublicUser = Depends(get_current_user)):
+    result = await task_manager.delete_task(task_id, user.id)
+    if result == "not_found":
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.websocket("/ws")
