@@ -9,6 +9,7 @@ platforms = ["linux-64", "osx-arm64", "osx-64", "win-64"]
 python = "3.11.*"
 nodejs = "20.*"
 pip = "*"
+email-validator = ">=2.3.0,<3"
 
 [pypi-dependencies]
 pdf2zh-next = ">=2.6.0"
