@@ -30,7 +30,7 @@ export default function TasksPage() {
     queryFn: usersAPI.getProviders,
   });
 
-  const providers = (providersData as ProviderConfig[]) || [];
+  const providers = useMemo(() => (providersData as ProviderConfig[]) || [], [providersData]);
 
   const providerMap = useMemo(() => {
     const map = new Map<string, ProviderConfig>();

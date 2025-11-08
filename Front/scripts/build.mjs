@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
-const { spawn } = require('node:child_process');
-const path = require('node:path');
+import { spawn } from 'node:child_process';
+import path from 'node:path';
 
 const nextBin = path.join(__dirname, '..', 'node_modules', '.bin', process.platform === 'win32' ? 'next.cmd' : 'next');
 
