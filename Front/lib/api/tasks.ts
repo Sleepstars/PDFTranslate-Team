@@ -1,4 +1,4 @@
-import { Task, CreateTaskRequest, TaskStats } from '../types/task';
+import type { CreateTaskRequest, TaskStats } from '../types/task';
 
 async function fetchAPI(url: string, options?: RequestInit) {
   const res = await fetch(url, { ...options, credentials: 'include' });

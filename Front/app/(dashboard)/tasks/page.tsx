@@ -5,7 +5,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { tasksAPI } from '@/lib/api/tasks';
 import { usersAPI } from '@/lib/api/users';
 import { Button } from '@/components/ui/button';
-import { Task, CreateTaskRequest } from '@/lib/types/task';
+import { Task } from '@/lib/types/task';
+import { ProviderConfig } from '@/lib/types/provider';
 
 export default function TasksPage() {
   const queryClient = useQueryClient();
@@ -234,7 +235,7 @@ function CreateTaskDialog({ onClose }: { onClose: () => void }) {
               className="w-full border rounded px-3 py-2"
               value={formData.providerConfigId}
               onChange={(e) => {
-                const provider = providers.find((p: any) => p.id === e.target.value);
+                const provider = (providers as ProviderConfig[]).find((p) => p.id === e.target.value);
                 setFormData({
                   ...formData,
                   providerConfigId: e.target.value,
@@ -244,7 +245,7 @@ function CreateTaskDialog({ onClose }: { onClose: () => void }) {
               required
             >
               <option value="">Select provider...</option>
-              {providers.map((provider: any) => (
+              {(providers as ProviderConfig[]).map((provider) => (
                 <option key={provider.id} value={provider.id}>
                   {provider.name} ({provider.providerType})
                   {provider.isDefault && ' - Default'}

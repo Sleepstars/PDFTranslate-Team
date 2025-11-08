@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminUsersAPI } from '@/lib/api/admin-users';
 import { Button } from '@/components/ui/button';
-import { User, CreateUserRequest } from '@/lib/types/user';
+import { User } from '@/lib/types/user';
 
 export default function AdminUsersPage() {
   const queryClient = useQueryClient();
@@ -86,7 +86,7 @@ export default function AdminUsersPage() {
   );
 }
 
-function UserDialog({ onClose, onCreate }: { onClose: () => void; onCreate: (data: CreateUserRequest) => void }) {
+function UserDialog({ onClose, onCreate }: { onClose: () => void; onCreate: (data: { email: string; name: string; password: string; role: 'admin' | 'user'; dailyPageLimit: number }) => void }) {
   const [formData, setFormData] = useState({
     email: '',
     name: '',
@@ -176,7 +176,7 @@ function EditUserDialog({ user, onClose }: { user: User; onClose: () => void }) 
   });
 
   const updateMutation = useMutation({
-    mutationFn: (data: any) => adminUsersAPI.update(user.id, data),
+    mutationFn: (data: { name?: string; role?: 'admin' | 'user'; isActive?: boolean; dailyPageLimit?: number }) => adminUsersAPI.update(user.id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
       onClose();

@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminProvidersAPI } from '@/lib/api/admin-providers';
 import { Button } from '@/components/ui/button';
-import { ProviderConfig, CreateProviderRequest } from '@/lib/types/provider';
+import { ProviderConfig } from '@/lib/types/provider';
 
 const PROVIDER_TYPES = [
   'google', 'deepl', 'openai', 'azure_openai', 'ollama', 'gemini',
@@ -91,7 +91,7 @@ function ProviderDialog({ onClose }: { onClose: () => void }) {
     description: '',
     isActive: true,
     isDefault: false,
-    settings: {} as Record<string, any>,
+    settings: {} as Record<string, string>,
   });
 
   const createMutation = useMutation({
@@ -270,7 +270,7 @@ function EditProviderDialog({ provider, onClose }: { provider: ProviderConfig; o
   });
 
   const updateMutation = useMutation({
-    mutationFn: (data: any) => adminProvidersAPI.update(provider.id, data),
+    mutationFn: (data: { name?: string; description?: string; isActive?: boolean; isDefault?: boolean; settings?: Record<string, string> }) => adminProvidersAPI.update(provider.id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'providers'] });
       onClose();

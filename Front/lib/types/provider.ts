@@ -5,7 +5,7 @@ export interface ProviderConfig {
   description?: string;
   isActive: boolean;
   isDefault: boolean;
-  settings: Record<string, any>;
+  settings: Record<string, string>;
   createdAt: string;
   updatedAt: string;
 }
@@ -16,7 +16,7 @@ export interface CreateProviderRequest {
   description?: string;
   isActive: boolean;
   isDefault: boolean;
-  settings: Record<string, any>;
+  settings: Record<string, string>;
 }
 
 export interface UpdateProviderRequest {
@@ -24,5 +24,5 @@ export interface UpdateProviderRequest {
   description?: string;
   isActive?: boolean;
   isDefault?: boolean;
-  settings?: Record<string, any>;
+  settings?: Record<string, string>;
 }

@@ -1,4 +1,4 @@
-import { User, CreateUserRequest, UpdateUserRequest } from '../types/user';
+import type { CreateUserRequest, UpdateUserRequest } from '../types/user';
 
 async function fetchAPI(url: string, options?: RequestInit) {
   const res = await fetch(url, { ...options, credentials: 'include' });

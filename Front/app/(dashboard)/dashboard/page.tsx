@@ -3,6 +3,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { usersAPI } from '@/lib/api/users';
 import { tasksAPI } from '@/lib/api/tasks';
+import { Task } from '@/lib/types/task';
 
 export default function DashboardPage() {
   const { data: quota } = useQuery({
@@ -55,7 +56,7 @@ export default function DashboardPage() {
         <div className="bg-white rounded-lg shadow p-6">
           <h2 className="text-lg font-semibold mb-4">Recent Activity</h2>
           <div className="space-y-3">
-            {stats.recent_activity.slice(0, 5).map((task: any) => (
+            {stats.recent_activity.slice(0, 5).map((task: Task) => (
               <div key={task.id} className="flex justify-between items-center border-b pb-3">
                 <div>
                   <div className="font-medium">{task.documentName}</div>

@@ -5,7 +5,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminProvidersAPI } from '@/lib/api/admin-providers';
 import { adminUsersAPI } from '@/lib/api/admin-users';
 import { Button } from '@/components/ui/button';
-import { UserProviderAccess, GrantAccessRequest } from '@/lib/types/access';
+import { UserProviderAccess } from '@/lib/types/access';
+import { User } from '@/lib/types/user';
+import { ProviderConfig } from '@/lib/types/provider';
 
 export default function AdminAccessPage() {
   const queryClient = useQueryClient();
@@ -35,8 +37,8 @@ export default function AdminAccessPage() {
 
   if (isLoading) return <div>Loading...</div>;
 
-  const getUserName = (userId: string) => users.find((u: any) => u.id === userId)?.name || userId;
-  const getProviderName = (providerId: string) => providers.find((p: any) => p.id === providerId)?.name || providerId;
+  const getUserName = (userId: string) => (users as User[]).find((u) => u.id === userId)?.name || userId;
+  const getProviderName = (providerId: string) => (providers as ProviderConfig[]).find((p) => p.id === providerId)?.name || providerId;
 
   return (
     <div>
@@ -81,7 +83,7 @@ export default function AdminAccessPage() {
   );
 }
 
-function GrantAccessDialog({ users, providers, onClose }: { users: any[]; providers: any[]; onClose: () => void }) {
+function GrantAccessDialog({ users, providers, onClose }: { users: User[]; providers: ProviderConfig[]; onClose: () => void }) {
   const queryClient = useQueryClient();
   const [formData, setFormData] = useState({
     userId: '',
@@ -116,7 +118,7 @@ function GrantAccessDialog({ users, providers, onClose }: { users: any[]; provid
               required
             >
               <option value="">Select user...</option>
-              {users.map((user: any) => (
+              {users.map((user) => (
                 <option key={user.id} value={user.id}>{user.name} ({user.email})</option>
               ))}
             </select>
@@ -130,7 +132,7 @@ function GrantAccessDialog({ users, providers, onClose }: { users: any[]; provid
               required
             >
               <option value="">Select provider...</option>
-              {providers.map((provider: any) => (
+              {providers.map((provider) => (
                 <option key={provider.id} value={provider.id}>{provider.name} ({provider.providerType})</option>
               ))}
             </select>

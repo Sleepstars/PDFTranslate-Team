@@ -1,5 +1,5 @@
-import { ProviderConfig, CreateProviderRequest, UpdateProviderRequest } from '../types/provider';
-import { UserProviderAccess, GrantAccessRequest } from '../types/access';
+import type { CreateProviderRequest, UpdateProviderRequest } from '../types/provider';
+import type { GrantAccessRequest } from '../types/access';
 
 async function fetchAPI(url: string, options?: RequestInit) {
   const res = await fetch(url, { ...options, credentials: 'include' });
