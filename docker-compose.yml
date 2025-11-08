@@ -22,7 +22,7 @@ services:
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
-      timeout: 3s
+      timeout: 5s
       retries: 5
 
   backend:
@@ -37,9 +37,11 @@ services:
       PDF_APP_CORS_ORIGINS: '["http://localhost:3000"]'
       PDF_APP_DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/pdftranslate
       PDF_APP_REDIS_URL: redis://redis:6379/0
-      PDF_APP_S3_ENDPOINT: http://minio:9000
-      PDF_APP_S3_ACCESS_KEY: minioadmin
-      PDF_APP_S3_SECRET_KEY: minioadmin
+      
+      # S3 兼容服务配置（请根据实际情况修改）
+      PDF_APP_S3_ENDPOINT: https://your-s3-service.com
+      PDF_APP_S3_ACCESS_KEY: your-access-key
+      PDF_APP_S3_SECRET_KEY: your-secret-key
       PDF_APP_S3_BUCKET: pdftranslate
       PDF_APP_S3_REGION: us-east-1
       PDF_APP_S3_FILE_TTL_DAYS: 7
@@ -49,8 +51,6 @@ services:
       postgres:
         condition: service_healthy
       redis:
-        condition: service_healthy
-      minio:
         condition: service_healthy
 
   frontend:
@@ -69,5 +69,4 @@ services:
       - backend
 
 volumes:
-  postgres_data:
-  minio_data:
+  postgres_data
