@@ -46,9 +46,15 @@ export function CreateTaskForm({ onSuccess }: CreateTaskFormProps) {
   });
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [advancedConfig, setAdvancedConfig] = useState({
+    apiKey: "",
     model: "",
     threads: 4,
     endpoint: "",
+    // Azure OpenAI specific
+    deployment: "",
+    // Tencent specific
+    secretId: "",
+    secretKey: "",
   });
   const [error, setError] = useState<string | null>(null);
   const [estimatedPages, setEstimatedPages] = useState<number | null>(null);
@@ -78,12 +84,19 @@ export function CreateTaskForm({ onSuccess }: CreateTaskFormProps) {
       if (data.notes) formDataObj.append("notes", data.notes);
 
       // Add advanced config if any field is set
-      if (showAdvanced && (advancedConfig.model || advancedConfig.endpoint || advancedConfig.threads !== 4)) {
+      if (showAdvanced) {
         const modelConfig: Record<string, any> = {};
+        if (advancedConfig.apiKey) modelConfig.api_key = advancedConfig.apiKey;
         if (advancedConfig.model) modelConfig.model = advancedConfig.model;
         if (advancedConfig.endpoint) modelConfig.endpoint = advancedConfig.endpoint;
+        if (advancedConfig.deployment) modelConfig.deployment = advancedConfig.deployment;
+        if (advancedConfig.secretId) modelConfig.secret_id = advancedConfig.secretId;
+        if (advancedConfig.secretKey) modelConfig.secret_key = advancedConfig.secretKey;
         if (advancedConfig.threads !== 4) modelConfig.threads = advancedConfig.threads;
-        formDataObj.append("modelConfig", JSON.stringify(modelConfig));
+
+        if (Object.keys(modelConfig).length > 0) {
+          formDataObj.append("modelConfig", JSON.stringify(modelConfig));
+        }
       }
 
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/tasks`, {
@@ -113,9 +126,13 @@ export function CreateTaskForm({ onSuccess }: CreateTaskFormProps) {
         notes: "",
       });
       setAdvancedConfig({
+        apiKey: "",
         model: "",
         threads: 4,
         endpoint: "",
+        deployment: "",
+        secretId: "",
+        secretKey: "",
       });
       setShowAdvanced(false);
       setEstimatedPages(null);
@@ -297,32 +314,134 @@ export function CreateTaskForm({ onSuccess }: CreateTaskFormProps) {
           {/* Advanced Configuration Fields */}
           {showAdvanced && (
             <div className="space-y-4 p-4 border rounded-lg bg-muted/50">
-              <div className="space-y-2">
-                <Label htmlFor="endpoint">API Endpoint（可选）</Label>
-                <Input
-                  id="endpoint"
-                  value={advancedConfig.endpoint}
-                  onChange={(e) => setAdvancedConfig({ ...advancedConfig, endpoint: e.target.value })}
-                  placeholder="如: https://api.openai.com/v1"
-                />
-                <p className="text-xs text-muted-foreground">
-                  自定义 API 地址，留空使用默认值
-                </p>
-              </div>
+              <p className="text-sm font-medium">高级配置 - {formData.engine}</p>
 
-              <div className="space-y-2">
-                <Label htmlFor="model">模型名称（可选）</Label>
-                <Input
-                  id="model"
-                  value={advancedConfig.model}
-                  onChange={(e) => setAdvancedConfig({ ...advancedConfig, model: e.target.value })}
-                  placeholder="如: gpt-4, gemma2 等"
-                />
-                <p className="text-xs text-muted-foreground">
-                  仅 OpenAI/Ollama 等需要指定模型
-                </p>
-              </div>
+              {/* API Key - for most services except Google and Tencent */}
+              {!["google", "tencent"].includes(formData.engine) && (
+                <div className="space-y-2">
+                  <Label htmlFor="apiKey">
+                    API Key {["deepl", "openai", "azure-openai", "deepseek", "gemini", "zhipu", "siliconflow", "grok", "groq"].includes(formData.engine) ? "*" : ""}
+                  </Label>
+                  <Input
+                    id="apiKey"
+                    type="password"
+                    value={advancedConfig.apiKey}
+                    onChange={(e) => setAdvancedConfig({ ...advancedConfig, apiKey: e.target.value })}
+                    placeholder={
+                      formData.engine === "openai" ? "sk-..." :
+                      formData.engine === "deepl" ? "your-deepl-api-key" :
+                      "your-api-key"
+                    }
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {formData.engine === "openai" && "OpenAI API 密钥"}
+                    {formData.engine === "deepl" && "DeepL API 密钥"}
+                    {formData.engine === "gemini" && "Google AI Studio API 密钥"}
+                    {formData.engine === "deepseek" && "DeepSeek API 密钥"}
+                    {formData.engine === "zhipu" && "智谱 AI API 密钥"}
+                    {!["openai", "deepl", "gemini", "deepseek", "zhipu"].includes(formData.engine) && "服务 API 密钥"}
+                  </p>
+                </div>
+              )}
 
+              {/* Tencent specific - Secret ID and Secret Key */}
+              {formData.engine === "tencent" && (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="secretId">Secret ID *</Label>
+                    <Input
+                      id="secretId"
+                      value={advancedConfig.secretId}
+                      onChange={(e) => setAdvancedConfig({ ...advancedConfig, secretId: e.target.value })}
+                      placeholder="腾讯云 Secret ID"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="secretKey">Secret Key *</Label>
+                    <Input
+                      id="secretKey"
+                      type="password"
+                      value={advancedConfig.secretKey}
+                      onChange={(e) => setAdvancedConfig({ ...advancedConfig, secretKey: e.target.value })}
+                      placeholder="腾讯云 Secret Key"
+                    />
+                  </div>
+                </>
+              )}
+
+              {/* API Endpoint - for services that support custom endpoints */}
+              {["deepl", "openai", "azure-openai", "ollama"].includes(formData.engine) && (
+                <div className="space-y-2">
+                  <Label htmlFor="endpoint">
+                    API Endpoint {formData.engine === "azure-openai" ? "*" : "（可选）"}
+                  </Label>
+                  <Input
+                    id="endpoint"
+                    value={advancedConfig.endpoint}
+                    onChange={(e) => setAdvancedConfig({ ...advancedConfig, endpoint: e.target.value })}
+                    placeholder={
+                      formData.engine === "openai" ? "https://api.openai.com/v1" :
+                      formData.engine === "azure-openai" ? "https://your-resource.openai.azure.com" :
+                      formData.engine === "ollama" ? "http://localhost:11434" :
+                      formData.engine === "deepl" ? "https://api-free.deepl.com/v2/translate" :
+                      "API 地址"
+                    }
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {formData.engine === "azure-openai" && "Azure OpenAI 资源端点"}
+                    {formData.engine === "ollama" && "Ollama 服务地址"}
+                    {formData.engine === "deepl" && "DeepL API 地址（免费版/专业版）"}
+                    {formData.engine === "openai" && "自定义 OpenAI 兼容端点（可选）"}
+                  </p>
+                </div>
+              )}
+
+              {/* Azure OpenAI specific - Deployment name */}
+              {formData.engine === "azure-openai" && (
+                <div className="space-y-2">
+                  <Label htmlFor="deployment">Deployment Name *</Label>
+                  <Input
+                    id="deployment"
+                    value={advancedConfig.deployment}
+                    onChange={(e) => setAdvancedConfig({ ...advancedConfig, deployment: e.target.value })}
+                    placeholder="gpt-4"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Azure OpenAI 部署名称
+                  </p>
+                </div>
+              )}
+
+              {/* Model - for services that need model specification */}
+              {["openai", "azure-openai", "ollama", "deepseek", "gemini", "zhipu"].includes(formData.engine) && (
+                <div className="space-y-2">
+                  <Label htmlFor="model">
+                    模型名称 {["openai", "ollama"].includes(formData.engine) ? "" : "（可选）"}
+                  </Label>
+                  <Input
+                    id="model"
+                    value={advancedConfig.model}
+                    onChange={(e) => setAdvancedConfig({ ...advancedConfig, model: e.target.value })}
+                    placeholder={
+                      formData.engine === "openai" ? "gpt-4, gpt-3.5-turbo" :
+                      formData.engine === "ollama" ? "llama2, gemma2" :
+                      formData.engine === "deepseek" ? "deepseek-chat" :
+                      formData.engine === "gemini" ? "gemini-pro" :
+                      formData.engine === "zhipu" ? "glm-4" :
+                      "模型名称"
+                    }
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {formData.engine === "openai" && "OpenAI 模型（如 gpt-4, gpt-3.5-turbo）"}
+                    {formData.engine === "ollama" && "Ollama 本地模型名称"}
+                    {formData.engine === "deepseek" && "DeepSeek 模型"}
+                    {formData.engine === "gemini" && "Gemini 模型"}
+                    {formData.engine === "zhipu" && "智谱 AI 模型"}
+                  </p>
+                </div>
+              )}
+
+              {/* Threads - for all services */}
               <div className="space-y-2">
                 <Label htmlFor="threads">并发线程数</Label>
                 <Input
