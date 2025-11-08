@@ -23,7 +23,7 @@ export function TaskList() {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const queryClient = useQueryClient();
 
-  const { data: tasks, isLoading } = useQuery({
+  const { data: response, isLoading } = useQuery({
     queryKey: ['tasks'],
     queryFn: () => tasksApi.listTasks({}),
     refetchInterval: 5000, // Refetch every 5 seconds for real-time updates
@@ -31,7 +31,7 @@ export function TaskList() {
 
   const updateMutation = useMutation({
     mutationFn: ({ taskId, action }: { taskId: string; action: 'cancel' | 'retry' }) =>
-      tasksApi.updateTask(taskId, action),
+      tasksApi.updateTask(taskId, { action }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
       queryClient.invalidateQueries({ queryKey: ['tasks', 'stats'] });
@@ -60,7 +60,9 @@ export function TaskList() {
     return <div className="text-center py-8">加载中...</div>;
   }
 
-  if (!tasks || tasks.length === 0) {
+  const tasks = response?.tasks || [];
+
+  if (tasks.length === 0) {
     return (
       <div className="text-center py-8 text-muted-foreground">
         暂无任务
