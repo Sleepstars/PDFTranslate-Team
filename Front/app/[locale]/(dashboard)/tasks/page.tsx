@@ -71,7 +71,7 @@ export default function TasksPage() {
   useEffect(() => {
     setSelectedTaskIds((prev) => {
       const validIds = new Set(tasks.map((task) => task.id));
-      const next = new Set([...prev].filter((id) => validIds.has(id)));
+      const next = new Set(Array.from(prev).filter((id) => validIds.has(id)));
       return next.size === prev.size ? prev : next;
     });
   }, [tasks]);
