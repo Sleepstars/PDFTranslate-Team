@@ -6,6 +6,7 @@ import { adminProvidersAPI } from '@/lib/api/admin-providers';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ProviderConfig, UpdateProviderRequest } from '@/lib/types/provider';
+import { useAdminUpdates } from '@/lib/hooks/use-admin-updates';
 
 const PROVIDER_TYPES = [
   'google', 'deepl', 'openai', 'azure_openai', 'ollama', 'gemini',
@@ -27,10 +28,12 @@ export default function AdminProvidersPage() {
   const queryClient = useQueryClient();
   const [showDialog, setShowDialog] = useState(false);
   const [editProvider, setEditProvider] = useState<ProviderConfig | null>(null);
+  const isRealtimeConnected = useAdminUpdates('providers');
 
   const { data: providers = [], isLoading } = useQuery({
     queryKey: ['admin', 'providers'],
     queryFn: adminProvidersAPI.list,
+    refetchOnWindowFocus: !isRealtimeConnected,
   });
 
   const deleteMutation = useMutation({

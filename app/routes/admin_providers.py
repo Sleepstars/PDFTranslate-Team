@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import List
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, WebSocket, WebSocketDisconnect
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 import uuid
@@ -22,8 +22,12 @@ from app.schemas import (
     TencentProviderSettings,
     GenericProviderSettings,
 )
+from app.websocket_manager import admin_ws_manager
+from app.auth import get_session
+from app.config import get_settings
 
 router = APIRouter(prefix="/api/admin/providers", tags=["admin-providers"])
+settings = get_settings()
 
 
 @router.get("", response_model=List[ProviderConfigResponse])
@@ -115,8 +119,8 @@ async def create_provider(
     db.add(provider)
     await db.commit()
     await db.refresh(provider)
-    
-    return ProviderConfigResponse(
+
+    response = ProviderConfigResponse(
         id=provider.id,
         name=provider.name,
         providerType=provider.provider_type,
@@ -127,6 +131,9 @@ async def create_provider(
         createdAt=provider.created_at,
         updatedAt=provider.updated_at
     )
+
+    await admin_ws_manager.broadcast("provider.created", response.model_dump())
+    return response
 
 
 @router.get("/{provider_id}", response_model=ProviderConfigResponse)
@@ -203,11 +210,11 @@ async def update_provider(
         provider.settings = json.dumps(validated_settings)
     
     provider.updated_at = datetime.utcnow()
-    
+
     await db.commit()
     await db.refresh(provider)
-    
-    return ProviderConfigResponse(
+
+    response = ProviderConfigResponse(
         id=provider.id,
         name=provider.name,
         providerType=provider.provider_type,
@@ -218,6 +225,9 @@ async def update_provider(
         createdAt=provider.created_at,
         updatedAt=provider.updated_at
     )
+
+    await admin_ws_manager.broadcast("provider.updated", response.model_dump())
+    return response
 
 
 @router.delete("/{provider_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -237,9 +247,10 @@ async def delete_provider(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Provider config not found"
         )
-    
+
     await db.delete(provider)
     await db.commit()
+    await admin_ws_manager.broadcast("provider.deleted", {"id": provider_id})
 
 
 @router.get("/access/all", response_model=List[UserProviderAccessResponse])
@@ -357,3 +368,20 @@ async def revoke_provider_access(
     await db.delete(access)
     await db.commit()
 
+
+@router.websocket("/ws")
+async def provider_updates(websocket: WebSocket):
+    token = websocket.cookies.get(settings.session_cookie_name) or websocket.query_params.get("token")
+    session = await get_session(token)
+    if not session:
+        await websocket.close(code=1008)
+        return
+
+    await admin_ws_manager.connect(websocket)
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        pass
+    finally:
+        await admin_ws_manager.disconnect(websocket)

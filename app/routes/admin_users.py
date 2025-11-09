@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import List
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, WebSocket, WebSocketDisconnect
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 import uuid
@@ -14,9 +14,12 @@ from app.schemas import (
     UpdateQuotaRequest,
     UserResponse
 )
-from app.auth import hash_password
+from app.auth import hash_password, get_session
+from app.websocket_manager import admin_ws_manager
+from app.config import get_settings
 
 router = APIRouter(prefix="/api/admin/users", tags=["admin-users"])
+settings = get_settings()
 
 
 @router.get("", response_model=List[UserResponse])
@@ -76,8 +79,8 @@ async def create_user(
     db.add(user)
     await db.commit()
     await db.refresh(user)
-    
-    return UserResponse(
+
+    response = UserResponse(
         id=user.id,
         name=user.name,
         email=user.email,
@@ -88,6 +91,9 @@ async def create_user(
         lastQuotaReset=user.last_quota_reset,
         createdAt=user.created_at
     )
+
+    await admin_ws_manager.broadcast("user.created", response.model_dump())
+    return response
 
 
 @router.get("/{user_id}", response_model=UserResponse)
@@ -148,8 +154,8 @@ async def update_user(
     
     await db.commit()
     await db.refresh(user)
-    
-    return UserResponse(
+
+    response = UserResponse(
         id=user.id,
         name=user.name,
         email=user.email,
@@ -160,6 +166,9 @@ async def update_user(
         lastQuotaReset=user.last_quota_reset,
         createdAt=user.created_at
     )
+
+    await admin_ws_manager.broadcast("user.updated", response.model_dump())
+    return response
 
 
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -184,9 +193,10 @@ async def delete_user(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Cannot deactivate your own account"
         )
-    
+
     user.is_active = False
     await db.commit()
+    await admin_ws_manager.broadcast("user.deleted", {"id": user_id})
 
 
 @router.patch("/{user_id}/quota", response_model=UserResponse)
@@ -209,7 +219,7 @@ async def update_user_quota(
     user.daily_page_limit = request.dailyPageLimit
     await db.commit()
     await db.refresh(user)
-    
+
     return UserResponse(
         id=user.id,
         name=user.name,
@@ -222,3 +232,20 @@ async def update_user_quota(
         createdAt=user.created_at
     )
 
+
+@router.websocket("/ws")
+async def user_updates(websocket: WebSocket):
+    token = websocket.cookies.get(settings.session_cookie_name) or websocket.query_params.get("token")
+    session = await get_session(token)
+    if not session:
+        await websocket.close(code=1008)
+        return
+
+    await admin_ws_manager.connect(websocket)
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        pass
+    finally:
+        await admin_ws_manager.disconnect(websocket)

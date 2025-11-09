@@ -6,15 +6,18 @@ import { adminUsersAPI } from '@/lib/api/admin-users';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { User } from '@/lib/types/user';
+import { useAdminUpdates } from '@/lib/hooks/use-admin-updates';
 
 export default function AdminUsersPage() {
   const queryClient = useQueryClient();
   const [showDialog, setShowDialog] = useState(false);
   const [editUser, setEditUser] = useState<User | null>(null);
+  const isRealtimeConnected = useAdminUpdates('users');
 
   const { data: users = [], isLoading } = useQuery({
     queryKey: ['admin', 'users'],
     queryFn: adminUsersAPI.list,
+    refetchOnWindowFocus: !isRealtimeConnected,
   });
 
   const createMutation = useMutation({
@@ -95,9 +98,22 @@ function UserDialog({ onClose, onCreate }: { onClose: () => void; onCreate: (dat
     role: 'user' as 'admin' | 'user',
     dailyPageLimit: 50,
   });
+  const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
+
+    if (formData.password.length < 8) {
+      setError('Password must be at least 8 characters long.');
+      return;
+    }
+
+    if (!Number.isInteger(formData.dailyPageLimit) || formData.dailyPageLimit < 0) {
+      setError('Daily page limit must be a non-negative integer.');
+      return;
+    }
+
     onCreate(formData);
   };
 
@@ -133,6 +149,7 @@ function UserDialog({ onClose, onCreate }: { onClose: () => void; onCreate: (dat
               className="w-full border-input bg-background border rounded px-3 py-2"
               value={formData.password}
               onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+              minLength={8}
               required
             />
           </div>
@@ -152,11 +169,17 @@ function UserDialog({ onClose, onCreate }: { onClose: () => void; onCreate: (dat
             <input
               type="number"
               className="w-full border-input bg-background border rounded px-3 py-2"
-              value={formData.dailyPageLimit}
-              onChange={(e) => setFormData({ ...formData, dailyPageLimit: parseInt(e.target.value) })}
+              value={Number.isNaN(formData.dailyPageLimit) ? '' : formData.dailyPageLimit}
+              onChange={(e) => {
+                const value = e.target.value;
+                const parsed = value === '' ? Number.NaN : parseInt(value, 10);
+                setFormData({ ...formData, dailyPageLimit: parsed });
+              }}
+              min={0}
               required
             />
           </div>
+          {error && <p className="text-sm text-destructive">{error}</p>}
           <div className="flex justify-end space-x-2">
             <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
             <Button type="submit">Create</Button>
@@ -175,6 +198,7 @@ function EditUserDialog({ user, onClose }: { user: User; onClose: () => void }) 
     isActive: user.isActive,
     dailyPageLimit: user.dailyPageLimit,
   });
+  const [error, setError] = useState<string | null>(null);
 
   const updateMutation = useMutation({
     mutationFn: (data: { name?: string; role?: 'admin' | 'user'; isActive?: boolean; dailyPageLimit?: number }) => adminUsersAPI.update(user.id, data),
@@ -186,6 +210,13 @@ function EditUserDialog({ user, onClose }: { user: User; onClose: () => void }) 
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
+
+    if (!Number.isInteger(formData.dailyPageLimit) || formData.dailyPageLimit < 0) {
+      setError('Daily page limit must be a non-negative integer.');
+      return;
+    }
+
     updateMutation.mutate(formData);
   };
 
@@ -219,8 +250,13 @@ function EditUserDialog({ user, onClose }: { user: User; onClose: () => void }) 
             <input
               type="number"
               className="w-full border-input bg-background border rounded px-3 py-2"
-              value={formData.dailyPageLimit}
-              onChange={(e) => setFormData({ ...formData, dailyPageLimit: parseInt(e.target.value) })}
+              value={Number.isNaN(formData.dailyPageLimit) ? '' : formData.dailyPageLimit}
+              onChange={(e) => {
+                const value = e.target.value;
+                const parsed = value === '' ? Number.NaN : parseInt(value, 10);
+                setFormData({ ...formData, dailyPageLimit: parsed });
+              }}
+              min={0}
             />
           </div>
           <div className="flex items-center">
@@ -233,6 +269,7 @@ function EditUserDialog({ user, onClose }: { user: User; onClose: () => void }) 
             />
             <label htmlFor="isActive" className="text-sm font-medium">Active</label>
           </div>
+          {error && <p className="text-sm text-destructive">{error}</p>}
           <div className="flex justify-end space-x-2">
             <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
             <Button type="submit">Update</Button>
