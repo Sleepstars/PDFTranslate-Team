@@ -11,7 +11,7 @@ export default function AdminSettingsPage() {
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
   const [showSecretKey, setShowSecretKey] = useState(false);
   const t = useTranslations('settings');
-  const tCommon = useTranslations('common');
+  const _tCommon = useTranslations('common');
 
   const { data: s3Config, isLoading } = useQuery({
     queryKey: ['admin', 'settings', 's3'],
@@ -80,7 +80,7 @@ export default function AdminSettingsPage() {
     testMutation.mutate(formData);
   };
 
-  if (isLoading) return <div>{tCommon('loading')}</div>;
+  if (isLoading) return <div>{_tCommon('loading')}</div>;
 
   return (
     <div className="max-w-4xl mx-auto">

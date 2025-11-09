@@ -15,7 +15,7 @@ export default function AdminAccessPage() {
   const queryClient = useQueryClient();
   const [showDialog, setShowDialog] = useState(false);
   const t = useTranslations('access');
-  const tCommon = useTranslations('common');
+  const _tCommon = useTranslations('common');
 
   const { data: accesses = [], isLoading } = useQuery({
     queryKey: ['admin', 'access'],
@@ -39,7 +39,7 @@ export default function AdminAccessPage() {
     },
   });
 
-  if (isLoading) return <div className="flex items-center justify-center h-64">{tCommon('loading')}</div>;
+  if (isLoading) return <div className="flex items-center justify-center h-64">{_tCommon('loading')}</div>;
 
   const getUserName = (userId: string) => (users as User[]).find((u) => u.id === userId)?.name || userId;
   const getProviderName = (providerId: string) => (providers as ProviderConfig[]).find((p) => p.id === providerId)?.name || providerId;
@@ -107,7 +107,7 @@ function GrantAccessDialog({ users, providers, onClose }: { users: User[]; provi
     isDefault: false,
   });
   const t = useTranslations('access.grantDialog');
-  const tCommon = useTranslations('common');
+  const _tCommon = useTranslations('common');
 
   const grantMutation = useMutation({
     mutationFn: adminProvidersAPI.grantAccess,

@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Task } from '@/lib/types/task';
 import { ProviderConfig } from '@/lib/types/provider';
 import { useTaskUpdates } from '@/lib/hooks/use-task-updates';
-import { useTranslations, useLocale } from 'next-intl';
+import { useTranslations } from 'next-intl';
 
 export default function TasksPage() {
   const queryClient = useQueryClient();
@@ -24,7 +24,7 @@ export default function TasksPage() {
   const refetchInterval = isRealtimeConnected ? false : 4000;
   const selectAllRef = useRef<HTMLInputElement>(null);
   const t = useTranslations('tasks');
-  const tCommon = useTranslations('common');
+  const _tCommon = useTranslations('common');
 
   const getStatusText = (status: string) => {
     return t(`status.${status}`) || status;
@@ -127,7 +127,7 @@ export default function TasksPage() {
     }
   };
 
-  if (isLoading) return <div className="flex items-center justify-center h-64">{tCommon('loading')}</div>;
+  if (isLoading) return <div className="flex items-center justify-center h-64">{_tCommon('loading')}</div>;
 
   return (
     <div className="space-y-4">
@@ -331,7 +331,7 @@ export default function TasksPage() {
 
 function TaskDetailDialog({ task, providerName, onClose }: { task: Task; providerName?: string; onClose: () => void }) {
   const t = useTranslations('tasks');
-  const tCommon = useTranslations('common');
+  const _tCommon = useTranslations('common');
   
   const getStatusText = (status: string) => {
     return t(`status.${status}`) || status;
@@ -460,7 +460,7 @@ function CreateTaskDialog({ onClose, providers }: { onClose: () => void; provide
     providerConfigId: '',
   });
   const t = useTranslations('tasks.createDialog');
-  const tCommon = useTranslations('common');
+  const _tCommon = useTranslations('common');
 
   const createMutation = useMutation({
     mutationFn: tasksAPI.create,

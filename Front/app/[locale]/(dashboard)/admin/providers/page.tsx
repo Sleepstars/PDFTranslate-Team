@@ -31,7 +31,7 @@ export default function AdminProvidersPage() {
   const [editProvider, setEditProvider] = useState<ProviderConfig | null>(null);
   const isRealtimeConnected = useAdminUpdates('providers');
   const t = useTranslations('providers');
-  const tCommon = useTranslations('common');
+  const _tCommon = useTranslations('common');
 
   const getProviderTypeDescription = (type: string) => {
     return t(`types.${type}`) || type;
@@ -50,7 +50,7 @@ export default function AdminProvidersPage() {
     },
   });
 
-  if (isLoading) return <div className="flex items-center justify-center h-64">{tCommon('loading')}</div>;
+  if (isLoading) return <div className="flex items-center justify-center h-64">{_tCommon('loading')}</div>;
 
   return (
     <div className="space-y-4">
@@ -143,7 +143,7 @@ function ProviderDialog({ onClose }: { onClose: () => void }) {
     settings: {},
   });
   const t = useTranslations('providers.createDialog');
-  const tCommon = useTranslations('common');
+  const _tCommon = useTranslations('common');
   const tProviders = useTranslations('providers');
 
   const getProviderTypeDescription = (type: string) => {
