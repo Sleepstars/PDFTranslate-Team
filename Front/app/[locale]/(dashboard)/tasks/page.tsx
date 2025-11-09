@@ -333,6 +333,10 @@ function TaskDetailDialog({ task, providerName, onClose }: { task: Task; provide
   const t = useTranslations('tasks');
   const tCommon = useTranslations('common');
   
+  const getStatusText = (status: string) => {
+    return t(`status.${status}`) || status;
+  };
+  
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50" onClick={onClose}>
       <div className="bg-card border border-border rounded-lg p-6 w-full max-w-2xl shadow-xl" onClick={(e) => e.stopPropagation()}>
