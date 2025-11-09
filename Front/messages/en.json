@@ -1,0 +1,48 @@
+{
+  "nav": {
+    "dashboard": "Dashboard",
+    "tasks": "Tasks",
+    "admin": "Admin",
+    "users": "Users",
+    "providers": "Providers",
+    "access": "Access Control",
+    "settings": "Settings"
+  },
+  "users": {
+    "title": "User Management",
+    "description": "Manage users, including add, delete, edit, and query operations.",
+    "create": "Create User",
+    "search": "Search user email...",
+    "actions": "Actions",
+    "email": "Email",
+    "status": "Status",
+    "role": "Role",
+    "used": "Used",
+    "active": "Active",
+    "inactive": "Inactive",
+    "edit": "Edit",
+    "delete": "Delete",
+    "createDialog": {
+      "title": "Create User",
+      "name": "Name",
+      "email": "Email",
+      "password": "Password",
+      "role": "Role",
+      "dailyLimit": "Daily Page Limit",
+      "user": "User",
+      "admin": "Admin",
+      "cancel": "Cancel",
+      "submit": "Create",
+      "passwordError": "Password must be at least 8 characters",
+      "limitError": "Daily page limit must be a non-negative integer"
+    },
+    "editDialog": {
+      "title": "Edit User",
+      "activeStatus": "Active Status",
+      "submit": "Update"
+    }
+  },
+  "header": {
+    "logout": "Logout"
+  }
+}

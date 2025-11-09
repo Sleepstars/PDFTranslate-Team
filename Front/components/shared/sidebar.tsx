@@ -2,90 +2,76 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useTheme } from 'next-themes';
-import { Moon, Sun, Monitor } from 'lucide-react';
 import { useRole } from '@/lib/hooks/use-role';
 import { cn } from '@/lib/utils';
+import { LayoutDashboard, FileText, Users, Settings, Shield, Boxes } from 'lucide-react';
+import { useTranslations, useLocale } from 'next-intl';
 
 export function Sidebar() {
   const pathname = usePathname();
   const { isAdmin } = useRole();
-  const { theme, setTheme } = useTheme();
+  const t = useTranslations('nav');
+  const locale = useLocale();
 
   const userLinks = [
-    { href: '/dashboard', label: 'Dashboard' },
-    { href: '/tasks', label: 'Tasks' },
+    { href: `/${locale}/dashboard`, label: t('dashboard'), icon: LayoutDashboard },
+    { href: `/${locale}/tasks`, label: t('tasks'), icon: FileText },
   ];
 
   const adminLinks = [
-    { href: '/admin/users', label: 'Users' },
-    { href: '/admin/providers', label: 'Providers' },
-    { href: '/admin/access', label: 'Access Control' },
-    { href: '/admin/settings', label: 'Settings' },
+    { href: `/${locale}/admin/users`, label: t('users'), icon: Users },
+    { href: `/${locale}/admin/providers`, label: t('providers'), icon: Boxes },
+    { href: `/${locale}/admin/access`, label: t('access'), icon: Shield },
+    { href: `/${locale}/admin/settings`, label: t('settings'), icon: Settings },
   ];
 
-  const cycleTheme = () => {
-    if (theme === 'light') {
-      setTheme('dark');
-    } else if (theme === 'dark') {
-      setTheme('system');
-    } else {
-      setTheme('light');
-    }
-  };
-
-  const getThemeIcon = () => {
-    if (theme === 'light') {
-      return <Sun className="h-5 w-5" />;
-    } else if (theme === 'dark') {
-      return <Moon className="h-5 w-5" />;
-    } else {
-      return <Monitor className="h-5 w-5" />;
-    }
-  };
-
   return (
-    <div className="w-64 bg-card border-r border-border min-h-screen p-4 flex flex-col">
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-xl font-bold">PDF Translate</h2>
-        <button
-          onClick={cycleTheme}
-          className="p-2 rounded-md hover:bg-accent transition-colors"
-          title={`Current theme: ${theme || 'system'}`}
-        >
-          {getThemeIcon()}
-        </button>
+    <div className="w-56 bg-card border-r border-border min-h-screen flex flex-col">
+      <div className="px-4 py-4 border-b border-border">
+        <h2 className="text-lg font-semibold">PDF Translate</h2>
       </div>
-      <nav className="space-y-2 flex-1">
-        {userLinks.map((link) => (
-          <Link
-            key={link.href}
-            href={link.href}
-            className={cn(
-              'block px-4 py-2 rounded hover:bg-accent transition-colors',
-              pathname === link.href && 'bg-accent'
-            )}
-          >
-            {link.label}
-          </Link>
-        ))}
+      <nav className="flex-1 px-3 py-4 space-y-1">
+        {userLinks.map((link) => {
+          const Icon = link.icon;
+          return (
+            <Link
+              key={link.href}
+              href={link.href}
+              className={cn(
+                'flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors',
+                pathname === link.href
+                  ? 'bg-accent text-accent-foreground'
+                  : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
+              )}
+            >
+              <Icon className="h-4 w-4" />
+              {link.label}
+            </Link>
+          );
+        })}
         {isAdmin && (
           <>
-            <div className="pt-4 pb-2 px-4">
-              <p className="text-xs font-semibold text-muted-foreground uppercase">Admin</p>
+            <div className="pt-4 pb-2 px-3">
+              <p className="text-xs font-medium text-muted-foreground">{t('admin')}</p>
             </div>
-            {adminLinks.map((link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                className={cn(
-                  'block px-4 py-2 rounded hover:bg-accent transition-colors',
-                  pathname === link.href && 'bg-accent'
-                )}
-              >
-                {link.label}
-              </Link>
-            ))}
+            {adminLinks.map((link) => {
+              const Icon = link.icon;
+              return (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className={cn(
+                    'flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors',
+                    pathname === link.href
+                      ? 'bg-accent text-accent-foreground'
+                      : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
+                  )}
+                >
+                  <Icon className="h-4 w-4" />
+                  {link.label}
+                </Link>
+              );
+            })}
           </>
         )}
       </nav>

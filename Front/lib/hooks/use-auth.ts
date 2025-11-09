@@ -1,10 +1,12 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getCurrentUser, login, logout } from '../api/auth';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 
 export function useAuth() {
   const queryClient = useQueryClient();
   const router = useRouter();
+  const pathname = usePathname();
+  const locale = pathname.split('/')[1] || 'zh';
 
   const { data: user, isLoading } = useQuery({
     queryKey: ['auth', 'me'],
@@ -16,7 +18,7 @@ export function useAuth() {
       login(email, password),
     onSuccess: (user) => {
       queryClient.setQueryData(['auth', 'me'], user);
-      router.push(user.role === 'admin' ? '/admin/users' : '/dashboard');
+      router.push(user.role === 'admin' ? `/${locale}/admin/users` : `/${locale}/dashboard`);
     },
   });
 
@@ -24,7 +26,7 @@ export function useAuth() {
     mutationFn: logout,
     onSuccess: () => {
       queryClient.setQueryData(['auth', 'me'], null);
-      router.push('/login');
+      router.push(`/${locale}/login`);
     },
   });
 

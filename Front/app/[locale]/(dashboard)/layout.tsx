@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/hooks/use-auth';
 import { Sidebar } from '@/components/shared/sidebar';
 import { Header } from '@/components/shared/header';
@@ -12,13 +12,15 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
   const { user, isLoading } = useAuth();
+  const locale = pathname.split('/')[1];
 
   useEffect(() => {
     if (!isLoading && !user) {
-      router.push('/login');
+      router.push(`/${locale}/login`);
     }
-  }, [user, isLoading, router]);
+  }, [user, isLoading, router, locale]);
 
   if (isLoading || !user) {
     return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
