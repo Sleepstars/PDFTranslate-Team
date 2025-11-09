@@ -4,11 +4,14 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminSettingsAPI, S3ConfigRequest } from '@/lib/api/admin-settings';
 import { Button } from '@/components/ui/button';
+import { useTranslations } from 'next-intl';
 
 export default function AdminSettingsPage() {
   const queryClient = useQueryClient();
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
   const [showSecretKey, setShowSecretKey] = useState(false);
+  const t = useTranslations('settings');
+  const tCommon = useTranslations('common');
 
   const { data: s3Config, isLoading } = useQuery({
     queryKey: ['admin', 'settings', 's3'],
@@ -77,47 +80,47 @@ export default function AdminSettingsPage() {
     testMutation.mutate(formData);
   };
 
-  if (isLoading) return <div>Loading...</div>;
+  if (isLoading) return <div>{tCommon('loading')}</div>;
 
   return (
     <div className="max-w-4xl mx-auto">
-      <h1 className="text-2xl font-bold mb-6">System Settings</h1>
+      <h1 className="text-2xl font-bold mb-6">{t('title')}</h1>
 
       <div className="bg-card border border-border rounded-lg shadow p-6">
-        <h2 className="text-xl font-semibold mb-4">S3 Storage Configuration</h2>
+        <h2 className="text-xl font-semibold mb-4">{t('s3Config')}</h2>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium mb-1">
-              S3 Endpoint
-              <span className="text-muted-foreground font-normal ml-2">(Optional, leave empty for AWS S3)</span>
+              {t('s3Endpoint')}
+              <span className="text-muted-foreground font-normal ml-2">{t('s3EndpointDescription')}</span>
             </label>
             <input
               type="text"
               className="w-full border-input bg-background border rounded px-3 py-2"
               value={formData.endpoint}
               onChange={(e) => setFormData({ ...formData, endpoint: e.target.value })}
-              placeholder="https://s3.amazonaws.com or custom endpoint"
+              placeholder={t('endpointPlaceholder')}
             />
           </div>
 
           <div>
             <label className="block text-sm font-medium mb-1">
-              Access Key <span className="text-red-500">*</span>
+              {t('accessKey')} <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
               className="w-full border-input bg-background border rounded px-3 py-2"
               value={formData.access_key}
               onChange={(e) => setFormData({ ...formData, access_key: e.target.value })}
-              placeholder="AWS Access Key ID"
+              placeholder={t('accessKeyPlaceholder')}
               required
             />
           </div>
 
           <div>
             <label className="block text-sm font-medium mb-1">
-              Secret Key <span className="text-red-500">*</span>
+              {t('secretKey')} <span className="text-red-500">*</span>
             </label>
             <div className="relative">
               <input
@@ -125,7 +128,7 @@ export default function AdminSettingsPage() {
                 className="w-full border-input bg-background border rounded px-3 py-2 pr-20"
                 value={formData.secret_key}
                 onChange={(e) => setFormData({ ...formData, secret_key: e.target.value })}
-                placeholder="AWS Secret Access Key"
+                placeholder={t('secretKeyPlaceholder')}
                 required
               />
               <button
@@ -133,43 +136,43 @@ export default function AdminSettingsPage() {
                 className="absolute right-2 top-2 text-sm text-blue-600 hover:text-blue-800"
                 onClick={() => setShowSecretKey(!showSecretKey)}
               >
-                {showSecretKey ? 'Hide' : 'Show'}
+                {showSecretKey ? t('hide') : t('show')}
               </button>
             </div>
           </div>
 
           <div>
             <label className="block text-sm font-medium mb-1">
-              Bucket Name <span className="text-red-500">*</span>
+              {t('bucketName')} <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
               className="w-full border-input bg-background border rounded px-3 py-2"
               value={formData.bucket}
               onChange={(e) => setFormData({ ...formData, bucket: e.target.value })}
-              placeholder="my-bucket"
+              placeholder={t('bucketPlaceholder')}
               required
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">Region</label>
+            <label className="block text-sm font-medium mb-1">{t('region')}</label>
             <input
               type="text"
               className="w-full border-input bg-background border rounded px-3 py-2"
               value={formData.region}
               onChange={(e) => setFormData({ ...formData, region: e.target.value })}
-              placeholder="us-east-1"
+              placeholder={t('regionPlaceholder')}
               required
             />
             <p className="text-xs text-muted-foreground mt-1">
-              AWS region (e.g., us-east-1, eu-west-1, ap-northeast-1) or custom region for S3-compatible services
+              {t('regionDescription')}
             </p>
           </div>
 
           <div>
             <label className="block text-sm font-medium mb-1">
-              File TTL (Days)
+              {t('fileTTL')}
             </label>
             <input
               type="number"
@@ -181,13 +184,13 @@ export default function AdminSettingsPage() {
               required
             />
             <p className="text-xs text-muted-foreground mt-1">
-              Files will be automatically deleted after this many days (1-365)
+              {t('ttlDescription')}
             </p>
           </div>
 
           {testResult && (
             <div className={`p-4 rounded border ${testResult.success ? 'bg-green-50 dark:bg-green-950 text-green-800 dark:text-green-200 border-green-200 dark:border-green-800' : 'bg-red-50 dark:bg-red-950 text-red-800 dark:text-red-200 border-red-200 dark:border-red-800'}`}>
-              <p className="font-medium">{testResult.success ? '✓ Success' : '✗ Failed'}</p>
+              <p className="font-medium">{testResult.success ? t('success') : t('failed')}</p>
               <p className="text-sm mt-1">{testResult.message}</p>
             </div>
           )}
@@ -199,13 +202,13 @@ export default function AdminSettingsPage() {
               onClick={handleTest}
               disabled={testMutation.isPending}
             >
-              {testMutation.isPending ? 'Testing...' : 'Test Connection'}
+              {testMutation.isPending ? t('testing') : t('testConnection')}
             </Button>
             <Button
               type="submit"
               disabled={updateMutation.isPending}
             >
-              {updateMutation.isPending ? 'Saving...' : 'Save Configuration'}
+              {updateMutation.isPending ? t('saving') : t('saveConfiguration')}
             </Button>
           </div>
         </form>

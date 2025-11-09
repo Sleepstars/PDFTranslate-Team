@@ -13,6 +13,7 @@ export interface Task {
   createdAt: string;
   updatedAt: string;
   completedAt?: string;
+  inputUrl?: string;
   outputUrl?: string;
   monoOutputUrl?: string;
   dualOutputUrl?: string;

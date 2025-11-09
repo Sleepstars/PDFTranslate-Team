@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Task } from '@/lib/types/task';
 import { ProviderConfig } from '@/lib/types/provider';
 import { useTaskUpdates } from '@/lib/hooks/use-task-updates';
+import { useTranslations, useLocale } from 'next-intl';
 
 export default function TasksPage() {
   const queryClient = useQueryClient();
@@ -16,10 +17,18 @@ export default function TasksPage() {
   const [showBatchDialog, setShowBatchDialog] = useState(false);
   const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
   const [isDeleting, setIsDeleting] = useState(false);
+  const [activeMenu, setActiveMenu] = useState<string | null>(null);
+  const [detailTask, setDetailTask] = useState<Task | null>(null);
   const isRealtimeConnected = useTaskUpdates();
   const refetchOnWindowFocus = !isRealtimeConnected;
   const refetchInterval = isRealtimeConnected ? false : 4000;
   const selectAllRef = useRef<HTMLInputElement>(null);
+  const t = useTranslations('tasks');
+  const tCommon = useTranslations('common');
+
+  const getStatusText = (status: string) => {
+    return t(`status.${status}`) || status;
+  };
 
   const { data: tasksData, isLoading } = useQuery({
     queryKey: ['tasks'],
@@ -118,37 +127,40 @@ export default function TasksPage() {
     }
   };
 
-  if (isLoading) return <div>Loading...</div>;
+  if (isLoading) return <div className="flex items-center justify-center h-64">{tCommon('loading')}</div>;
 
   return (
-    <div>
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-2xl font-bold">My Tasks</h1>
-          <p className="text-sm text-muted-foreground">
-            Realtime status: {isRealtimeConnected ? <span className="text-green-600 dark:text-green-400">connected</span> : <span className="text-yellow-600 dark:text-yellow-400">reconnecting...</span>}
-          </p>
-        </div>
-        <div className="space-x-2">
-          <Button variant="outline" onClick={() => setShowBatchDialog(true)}>Batch Upload</Button>
-          <Button onClick={() => setShowDialog(true)}>Create Task</Button>
-        </div>
+    <div className="space-y-4">
+      <div>
+        <h1 className="text-2xl font-semibold mb-1">{t('title')}</h1>
+        <p className="text-sm text-muted-foreground">
+          Realtime status: {isRealtimeConnected ? <span className="text-green-600 dark:text-green-400">{t('realtime.connected')}</span> : <span className="text-yellow-600 dark:text-yellow-400">{t('realtime.reconnecting')}</span>}
+        </p>
+      </div>
+
+      <div className="flex items-center gap-3">
+        <Button onClick={() => setShowDialog(true)} size="sm" className="h-9">
+          + {t('create')}
+        </Button>
+        <Button variant="outline" onClick={() => setShowBatchDialog(true)} size="sm" className="h-9">
+          {t('batch')}
+        </Button>
       </div>
 
       {hasSelection && (
-        <div className="flex items-center justify-between mb-4 rounded-lg border border-border bg-muted px-4 py-3">
-          <div className="text-sm text-muted-foreground">{selectedTaskIds.size} selected</div>
+        <div className="flex items-center justify-between rounded-lg border border-border bg-muted px-4 py-3">
+          <div className="text-sm text-muted-foreground">{selectedTaskIds.size} {t('selected')}</div>
           <Button variant="destructive" size="sm" onClick={handleBulkDelete} disabled={isDeleting}>
-            {isDeleting ? 'Deleting…' : 'Delete'}
+            {isDeleting ? t('deleting') : t('delete')}
           </Button>
         </div>
       )}
 
-      <div className="bg-card rounded-lg shadow border border-border overflow-x-auto">
-        <table className="min-w-full divide-y divide-border">
-          <thead className="bg-muted">
-            <tr>
-              <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase w-12">
+      <div className="bg-card border border-border rounded-lg overflow-visible">
+        <table className="w-full">
+          <thead className="bg-muted/50 border-b border-border">
+            <tr className="text-xs text-muted-foreground">
+              <th className="px-4 py-2.5 text-left font-medium w-12">
                 <input
                   ref={selectAllRef}
                   type="checkbox"
@@ -157,20 +169,20 @@ export default function TasksPage() {
                   checked={tasks.length > 0 && allSelected}
                 />
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Document</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Languages</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Engine</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Status</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Progress</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Pages</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Actions</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Created At</th>
+              <th className="px-4 py-2.5 text-left font-medium min-w-[200px]">{t('document')}</th>
+              <th className="px-4 py-2.5 text-left font-medium">{t('languages')}</th>
+              <th className="px-4 py-2.5 text-left font-medium">{t('engine')}</th>
+              <th className="px-4 py-2.5 text-left font-medium">{t('status')}</th>
+              <th className="px-4 py-2.5 text-left font-medium w-[120px]">{t('progress')}</th>
+              <th className="px-4 py-2.5 text-left font-medium">{t('pages')}</th>
+              <th className="px-4 py-2.5 text-left font-medium">{t('created')}</th>
+              <th className="px-4 py-2.5 text-right font-medium">{t('actions')}</th>
             </tr>
           </thead>
-          <tbody className="bg-card divide-y divide-border">
+          <tbody className="divide-y divide-border">
             {tasks.map((task: Task) => (
-              <tr key={task.id}>
-                <td className="px-4 py-4">
+              <tr key={task.id} className="hover:bg-muted/30 transition-colors">
+                <td className="px-4 py-2.5">
                   <input
                     type="checkbox"
                     className="h-4 w-4 rounded border-input text-primary focus-visible:ring-2 focus-visible:ring-primary"
@@ -178,86 +190,131 @@ export default function TasksPage() {
                     checked={selectedTaskIds.has(task.id)}
                   />
                 </td>
-                <td className="px-6 py-4">
-                  <div className="font-medium">{task.documentName}</div>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
+                <td className="px-4 py-2.5 text-sm font-medium">{task.documentName}</td>
+                <td className="px-4 py-2.5 text-sm whitespace-nowrap">
                   {task.sourceLang} → {task.targetLang}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <Badge variant="info">{providerMap.get(task.providerConfigId || '')?.name || task.engine}</Badge>
+                <td className="px-4 py-2.5">
+                  <Badge variant="info" className="text-xs">{providerMap.get(task.providerConfigId || '')?.name || task.engine}</Badge>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap">
+                <td className="px-4 py-2.5">
                   <Badge variant={
                     task.status === 'completed' ? 'success' :
                     task.status === 'failed' ? 'error' :
                     task.status === 'processing' ? 'info' :
                     task.status === 'cancelled' ? 'secondary' :
                     'warning'
-                  }>
-                    {task.status}
+                  } className="text-xs">
+                    {getStatusText(task.status)}
                   </Badge>
                 </td>
-              <td className="px-6 py-4 whitespace-nowrap">
-                <div className="max-w-[140px]">
-                  <div className="w-full bg-muted rounded-full h-2">
-                    <div
-                      className="bg-primary h-2 rounded-full"
-                      style={{ width: `${task.progress}%` }}
-                    />
+                <td className="px-4 py-2.5">
+                  <div className="flex items-center gap-2">
+                    <div className="w-16 h-1.5 bg-muted rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-primary rounded-full transition-all"
+                        style={{ width: `${task.progress}%` }}
+                      />
+                    </div>
+                    <span className="text-xs text-muted-foreground min-w-[2.5rem]">{task.progress}%</span>
                   </div>
-                  <span className="text-xs text-muted-foreground">{task.progress}%</span>
-                  {task.progressMessage &&
-                    task.status !== 'completed' &&
-                    task.status !== 'canceled' &&
-                    task.status !== 'cancelled' && (
-                    <div className="text-xs text-muted-foreground mt-1">
-                      <span
-                        className="block w-full truncate"
-                        title={task.progressMessage}
-                      >
-                        {task.progressMessage}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </td>
-                <td className="px-6 py-4 whitespace-nowrap">{task.pageCount}</td>
-                <td className="px-6 py-4 whitespace-nowrap space-x-2">
-                  {task.status === 'completed' && (task.dualOutputUrl || task.monoOutputUrl || task.outputUrl) && (
-                    <div className="flex flex-wrap gap-2">
-                      {task.dualOutputUrl && (
-                        <Button variant="outline" size="sm" onClick={() => window.open(task.dualOutputUrl!, '_blank')}>
-                          Dual PDF
-                        </Button>
-                      )}
-                      {task.monoOutputUrl && (
-                        <Button variant="outline" size="sm" onClick={() => window.open(task.monoOutputUrl!, '_blank')}>
-                          Mono PDF
-                        </Button>
-                      )}
-                      {!task.dualOutputUrl && !task.monoOutputUrl && task.outputUrl && (
-                        <Button variant="outline" size="sm" onClick={() => window.open(task.outputUrl!, '_blank')}>
-                          Download
-                        </Button>
-                      )}
-                    </div>
-                  )}
-                  {task.status === 'processing' && (
-                    <Button variant="outline" size="sm" onClick={() => cancelMutation.mutate(task.id)}>
-                      Cancel
-                    </Button>
-                  )}
-                  {(task.status === 'failed' ||
-                    task.status === 'canceled' ||
-                    task.status === 'cancelled') && (
-                    <Button variant="outline" size="sm" onClick={() => retryMutation.mutate(task.id)}>
-                      Retry
-                    </Button>
-                  )}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
-                  {new Date(task.createdAt).toLocaleString()}
+                <td className="px-4 py-2.5 text-sm">{task.pageCount}</td>
+                <td className="px-4 py-2.5 text-sm text-muted-foreground whitespace-nowrap">
+                  {new Date(task.createdAt).toLocaleDateString()}
+                </td>
+                <td className="px-4 py-2.5 text-right">
+                  <div className="relative inline-block">
+                    <button
+                      onClick={() => setActiveMenu(activeMenu === task.id ? null : task.id)}
+                      className="p-1 hover:bg-muted rounded transition-colors"
+                    >
+                      <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 16 16">
+                        <circle cx="8" cy="2" r="1.5"/>
+                        <circle cx="8" cy="8" r="1.5"/>
+                        <circle cx="8" cy="14" r="1.5"/>
+                      </svg>
+                    </button>
+                    {activeMenu === task.id && (
+                      <div className="absolute right-0 mt-1 w-40 bg-popover border border-border rounded-md shadow-lg z-10">
+                        <button
+                          onClick={() => {
+                            setDetailTask(task);
+                            setActiveMenu(null);
+                          }}
+                          className="w-full px-3 py-2 text-left text-sm hover:bg-muted transition-colors"
+                        >
+                          {t('detail')}
+                        </button>
+                        {task.inputUrl && (
+                          <button
+                            onClick={() => {
+                              window.open(task.inputUrl!, '_blank');
+                              setActiveMenu(null);
+                            }}
+                            className="w-full px-3 py-2 text-left text-sm hover:bg-muted transition-colors"
+                          >
+                            {t('downloadOriginal')}
+                          </button>
+                        )}
+                        {task.status === 'completed' && task.dualOutputUrl && (
+                          <button
+                            onClick={() => {
+                              window.open(task.dualOutputUrl!, '_blank');
+                              setActiveMenu(null);
+                            }}
+                            className="w-full px-3 py-2 text-left text-sm hover:bg-muted transition-colors"
+                          >
+                            {t('downloadDual')}
+                          </button>
+                        )}
+                        {task.status === 'completed' && task.monoOutputUrl && (
+                          <button
+                            onClick={() => {
+                              window.open(task.monoOutputUrl!, '_blank');
+                              setActiveMenu(null);
+                            }}
+                            className="w-full px-3 py-2 text-left text-sm hover:bg-muted transition-colors"
+                          >
+                            {t('downloadMono')}
+                          </button>
+                        )}
+                        {task.status === 'completed' && !task.dualOutputUrl && !task.monoOutputUrl && task.outputUrl && (
+                          <button
+                            onClick={() => {
+                              window.open(task.outputUrl!, '_blank');
+                              setActiveMenu(null);
+                            }}
+                            className="w-full px-3 py-2 text-left text-sm hover:bg-muted transition-colors"
+                          >
+                            {t('download')}
+                          </button>
+                        )}
+                        {task.status === 'processing' && (
+                          <button
+                            onClick={() => {
+                              cancelMutation.mutate(task.id);
+                              setActiveMenu(null);
+                            }}
+                            className="w-full px-3 py-2 text-left text-sm hover:bg-muted transition-colors"
+                          >
+                            {t('cancel')}
+                          </button>
+                        )}
+                        {(task.status === 'failed' || task.status === 'canceled' || task.status === 'cancelled') && (
+                          <button
+                            onClick={() => {
+                              retryMutation.mutate(task.id);
+                              setActiveMenu(null);
+                            }}
+                            className="w-full px-3 py-2 text-left text-sm hover:bg-muted transition-colors"
+                          >
+                            {t('retry')}
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}
@@ -267,6 +324,121 @@ export default function TasksPage() {
 
       {showDialog && <CreateTaskDialog providers={providers} onClose={() => setShowDialog(false)} />}
       {showBatchDialog && <BatchUploadDialog providers={providers} onClose={() => setShowBatchDialog(false)} />}
+      {detailTask && <TaskDetailDialog task={detailTask} providerName={providerMap.get(detailTask.providerConfigId || '')?.name} onClose={() => setDetailTask(null)} />}
+    </div>
+  );
+}
+
+function TaskDetailDialog({ task, providerName, onClose }: { task: Task; providerName?: string; onClose: () => void }) {
+  const t = useTranslations('tasks');
+  const tCommon = useTranslations('common');
+  
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50" onClick={onClose}>
+      <div className="bg-card border border-border rounded-lg p-6 w-full max-w-2xl shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <h2 className="text-lg font-semibold mb-4">{t('taskDetails')}</h2>
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-sm font-medium text-muted-foreground">{t('document')}</label>
+              <p className="text-sm mt-1">{task.documentName}</p>
+            </div>
+            <div>
+              <label className="text-sm font-medium text-muted-foreground">{t('status')}</label>
+              <div className="mt-1">
+                <Badge variant={
+                  task.status === 'completed' ? 'success' :
+                  task.status === 'failed' ? 'error' :
+                  task.status === 'processing' ? 'info' :
+                  task.status === 'cancelled' ? 'secondary' :
+                  'warning'
+                } className="text-xs">
+                  {getStatusText(task.status)}
+                </Badge>
+              </div>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-sm font-medium text-muted-foreground">{t('languages')}</label>
+              <p className="text-sm mt-1">{task.sourceLang} → {task.targetLang}</p>
+            </div>
+            <div>
+              <label className="text-sm font-medium text-muted-foreground">{t('engine')}</label>
+              <p className="text-sm mt-1">{providerName || task.engine}</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-sm font-medium text-muted-foreground">{t('progress')}</label>
+              <div className="mt-1">
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-primary rounded-full transition-all"
+                      style={{ width: `${task.progress}%` }}
+                    />
+                  </div>
+                  <span className="text-sm">{task.progress}%</span>
+                </div>
+              </div>
+            </div>
+            <div>
+              <label className="text-sm font-medium text-muted-foreground">{t('pages')}</label>
+              <p className="text-sm mt-1">{task.pageCount}</p>
+            </div>
+          </div>
+          {task.progressMessage && (
+            <div>
+              <label className="text-sm font-medium text-muted-foreground">{t('progressMessage')}</label>
+              <p className="text-sm mt-1">{task.progressMessage}</p>
+            </div>
+          )}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-sm font-medium text-muted-foreground">{t('createdAt')}</label>
+              <p className="text-sm mt-1">{new Date(task.createdAt).toLocaleString()}</p>
+            </div>
+            {task.completedAt && (
+              <div>
+                <label className="text-sm font-medium text-muted-foreground">{t('completedAt')}</label>
+                <p className="text-sm mt-1">{new Date(task.completedAt).toLocaleString()}</p>
+              </div>
+            )}
+          </div>
+          {task.notes && (
+            <div>
+              <label className="text-sm font-medium text-muted-foreground">{t('notes')}</label>
+              <p className="text-sm mt-1">{task.notes}</p>
+            </div>
+          )}
+        </div>
+        <div className="flex justify-between mt-6">
+          <div className="flex gap-2">
+            {task.inputUrl && (
+              <Button variant="outline" size="sm" onClick={() => window.open(task.inputUrl!, '_blank')}>
+                {t('downloadOriginal')}
+              </Button>
+            )}
+            {task.status === 'completed' && task.dualOutputUrl && (
+              <Button variant="outline" size="sm" onClick={() => window.open(task.dualOutputUrl!, '_blank')}>
+                {t('downloadDual')}
+              </Button>
+            )}
+            {task.status === 'completed' && task.monoOutputUrl && (
+              <Button variant="outline" size="sm" onClick={() => window.open(task.monoOutputUrl!, '_blank')}>
+                {t('downloadMono')}
+              </Button>
+            )}
+            {task.status === 'completed' && !task.dualOutputUrl && !task.monoOutputUrl && task.outputUrl && (
+              <Button variant="outline" size="sm" onClick={() => window.open(task.outputUrl!, '_blank')}>
+                {t('download')}
+              </Button>
+            )}
+          </div>
+          <Button onClick={onClose} size="sm">{t('close')}</Button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -283,6 +455,8 @@ function CreateTaskDialog({ onClose, providers }: { onClose: () => void; provide
     notes: '',
     providerConfigId: '',
   });
+  const t = useTranslations('tasks.createDialog');
+  const tCommon = useTranslations('common');
 
   const createMutation = useMutation({
     mutationFn: tasksAPI.create,
@@ -316,10 +490,10 @@ function CreateTaskDialog({ onClose, providers }: { onClose: () => void; provide
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center overflow-y-auto z-50">
       <div className="bg-card rounded-lg p-6 w-full max-w-2xl my-8 border border-border">
-        <h2 className="text-xl font-bold mb-4">Create Translation Task</h2>
+        <h2 className="text-xl font-bold mb-4">{t('title')}</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium mb-1">PDF File</label>
+            <label className="block text-sm font-medium mb-1">{t('pdfFile')}</label>
             <input
               type="file"
               accept=".pdf"
@@ -330,7 +504,7 @@ function CreateTaskDialog({ onClose, providers }: { onClose: () => void; provide
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">Document Name</label>
+            <label className="block text-sm font-medium mb-1">{t('documentName')}</label>
             <input
               type="text"
               className="w-full border border-input rounded px-3 py-2 bg-background"
@@ -342,42 +516,42 @@ function CreateTaskDialog({ onClose, providers }: { onClose: () => void; provide
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium mb-1">Source Language</label>
+              <label className="block text-sm font-medium mb-1">{t('sourceLanguage')}</label>
               <select
                 className="w-full border border-input rounded px-3 py-2 bg-background"
                 value={formData.sourceLang}
                 onChange={(e) => setFormData({ ...formData, sourceLang: e.target.value })}
               >
-                <option value="en">English</option>
-                <option value="zh">Chinese</option>
-                <option value="ja">Japanese</option>
-                <option value="ko">Korean</option>
-                <option value="fr">French</option>
-                <option value="de">German</option>
-                <option value="es">Spanish</option>
+                <option value="en">{t('english')}</option>
+                <option value="zh">{t('chinese')}</option>
+                <option value="ja">{t('japanese')}</option>
+                <option value="ko">{t('korean')}</option>
+                <option value="fr">{t('french')}</option>
+                <option value="de">{t('german')}</option>
+                <option value="es">{t('spanish')}</option>
               </select>
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-1">Target Language</label>
+              <label className="block text-sm font-medium mb-1">{t('targetLanguage')}</label>
               <select
                 className="w-full border border-input rounded px-3 py-2 bg-background"
                 value={formData.targetLang}
                 onChange={(e) => setFormData({ ...formData, targetLang: e.target.value })}
               >
-                <option value="zh">Chinese</option>
-                <option value="en">English</option>
-                <option value="ja">Japanese</option>
-                <option value="ko">Korean</option>
-                <option value="fr">French</option>
-                <option value="de">German</option>
-                <option value="es">Spanish</option>
+                <option value="zh">{t('chinese')}</option>
+                <option value="en">{t('english')}</option>
+                <option value="ja">{t('japanese')}</option>
+                <option value="ko">{t('korean')}</option>
+                <option value="fr">{t('french')}</option>
+                <option value="de">{t('german')}</option>
+                <option value="es">{t('spanish')}</option>
               </select>
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">Translation Provider</label>
+            <label className="block text-sm font-medium mb-1">{t('translationProvider')}</label>
             <select
               className="w-full border border-input rounded px-3 py-2 bg-background"
               value={formData.providerConfigId}
@@ -391,30 +565,30 @@ function CreateTaskDialog({ onClose, providers }: { onClose: () => void; provide
               }}
               required
             >
-              <option value="">Select provider...</option>
+              <option value="">{t('selectProvider')}</option>
               {providers.map((provider) => (
                 <option key={provider.id} value={provider.id}>
                   {provider.name} ({provider.providerType})
-                  {provider.isDefault && ' - Default'}
+                  {provider.isDefault && ` ${t('default')}`}
                 </option>
               ))}
             </select>
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">Priority</label>
+            <label className="block text-sm font-medium mb-1">{t('priority')}</label>
             <select
               className="w-full border border-input rounded px-3 py-2 bg-background"
               value={formData.priority}
               onChange={(e) => setFormData({ ...formData, priority: e.target.value as 'normal' | 'high' })}
             >
-              <option value="normal">Normal</option>
-              <option value="high">High</option>
+              <option value="normal">{t('normal')}</option>
+              <option value="high">{t('high')}</option>
             </select>
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">Notes (Optional)</label>
+            <label className="block text-sm font-medium mb-1">{t('notes')} ({t('optional')})</label>
             <textarea
               className="w-full border border-input rounded px-3 py-2 bg-background"
               value={formData.notes}
@@ -425,9 +599,9 @@ function CreateTaskDialog({ onClose, providers }: { onClose: () => void; provide
           </div>
 
           <div className="flex justify-end space-x-2">
-            <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+            <Button type="button" variant="outline" onClick={onClose}>{t('cancel')}</Button>
             <Button type="submit" disabled={createMutation.isPending}>
-              {createMutation.isPending ? 'Creating...' : 'Create Task'}
+              {createMutation.isPending ? t('creating') : t('create')}
             </Button>
           </div>
         </form>
@@ -448,6 +622,8 @@ function BatchUploadDialog({ onClose, providers }: { onClose: () => void; provid
     providerConfigId: '',
   });
   const [error, setError] = useState<string | null>(null);
+  const t = useTranslations('tasks.batchDialog');
+  const tCreate = useTranslations('tasks.createDialog');
 
   const batchMutation = useMutation({
     mutationFn: tasksAPI.createBatch,
@@ -508,10 +684,10 @@ function BatchUploadDialog({ onClose, providers }: { onClose: () => void; provid
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center overflow-y-auto z-50">
       <div className="bg-card rounded-lg p-6 w-full max-w-3xl my-8 border border-border">
-        <h2 className="text-xl font-bold mb-4">Batch Upload PDFs</h2>
+        <h2 className="text-xl font-bold mb-4">{t('title')}</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium mb-1">Select PDF Files</label>
+            <label className="block text-sm font-medium mb-1">{t('selectFiles')}</label>
             <input
               type="file"
               multiple
@@ -519,7 +695,7 @@ function BatchUploadDialog({ onClose, providers }: { onClose: () => void; provid
               onChange={handleFilesSelected}
               className="w-full border border-input rounded px-3 py-2 bg-background"
             />
-            <p className="text-xs text-muted-foreground mt-1">You can add multiple files. Each file will become an individual task.</p>
+            <p className="text-xs text-muted-foreground mt-1">{t('selectFilesDescription')}</p>
           </div>
 
           {entries.length > 0 && (
@@ -534,12 +710,12 @@ function BatchUploadDialog({ onClose, providers }: { onClose: () => void; provid
                       className="w-full border border-input rounded px-3 py-2 bg-background mt-1"
                       value={entry.documentName}
                       onChange={(e) => updateDocumentName(entry.id, e.target.value)}
-                      placeholder="Document name"
+                      placeholder={t('documentName')}
                       required
                     />
                   </div>
                   <Button type="button" variant="outline" size="sm" onClick={() => removeEntry(entry.id)}>
-                    Remove
+                    {t('remove')}
                   </Button>
                 </div>
               ))}
@@ -548,42 +724,42 @@ function BatchUploadDialog({ onClose, providers }: { onClose: () => void; provid
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium mb-1">Source Language</label>
+              <label className="block text-sm font-medium mb-1">{tCreate('sourceLanguage')}</label>
               <select
                 className="w-full border border-input rounded px-3 py-2 bg-background"
                 value={formData.sourceLang}
                 onChange={(e) => setFormData({ ...formData, sourceLang: e.target.value })}
               >
-                <option value="en">English</option>
-                <option value="zh">Chinese</option>
-                <option value="ja">Japanese</option>
-                <option value="ko">Korean</option>
-                <option value="fr">French</option>
-                <option value="de">German</option>
-                <option value="es">Spanish</option>
+                <option value="en">{tCreate('english')}</option>
+                <option value="zh">{tCreate('chinese')}</option>
+                <option value="ja">{tCreate('japanese')}</option>
+                <option value="ko">{tCreate('korean')}</option>
+                <option value="fr">{tCreate('french')}</option>
+                <option value="de">{tCreate('german')}</option>
+                <option value="es">{tCreate('spanish')}</option>
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Target Language</label>
+              <label className="block text-sm font-medium mb-1">{tCreate('targetLanguage')}</label>
               <select
                 className="w-full border border-input rounded px-3 py-2 bg-background"
                 value={formData.targetLang}
                 onChange={(e) => setFormData({ ...formData, targetLang: e.target.value })}
               >
-                <option value="zh">Chinese</option>
-                <option value="en">English</option>
-                <option value="ja">Japanese</option>
-                <option value="ko">Korean</option>
-                <option value="fr">French</option>
-                <option value="de">German</option>
-                <option value="es">Spanish</option>
+                <option value="zh">{tCreate('chinese')}</option>
+                <option value="en">{tCreate('english')}</option>
+                <option value="ja">{tCreate('japanese')}</option>
+                <option value="ko">{tCreate('korean')}</option>
+                <option value="fr">{tCreate('french')}</option>
+                <option value="de">{tCreate('german')}</option>
+                <option value="es">{tCreate('spanish')}</option>
               </select>
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium mb-1">Translation Provider</label>
+              <label className="block text-sm font-medium mb-1">{tCreate('translationProvider')}</label>
               <select
                 className="w-full border border-input rounded px-3 py-2 bg-background"
                 value={formData.providerConfigId}
@@ -597,29 +773,29 @@ function BatchUploadDialog({ onClose, providers }: { onClose: () => void; provid
                 }}
                 required
               >
-                <option value="">Select provider...</option>
+                <option value="">{tCreate('selectProvider')}</option>
                 {providers.map((provider) => (
                   <option key={provider.id} value={provider.id}>
-                    {provider.name} ({provider.providerType}){provider.isDefault ? ' - Default' : ''}
+                    {provider.name} ({provider.providerType}){provider.isDefault ? ` ${tCreate('default')}` : ''}
                   </option>
                 ))}
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Priority</label>
+              <label className="block text-sm font-medium mb-1">{tCreate('priority')}</label>
               <select
                 className="w-full border border-input rounded px-3 py-2 bg-background"
                 value={formData.priority}
                 onChange={(e) => setFormData({ ...formData, priority: e.target.value as 'normal' | 'high' })}
               >
-                <option value="normal">Normal</option>
-                <option value="high">High</option>
+                <option value="normal">{tCreate('normal')}</option>
+                <option value="high">{tCreate('high')}</option>
               </select>
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">Notes (Optional)</label>
+            <label className="block text-sm font-medium mb-1">{tCreate('notes')} ({tCreate('optional')})</label>
             <textarea
               className="w-full border border-input rounded px-3 py-2 bg-background"
               value={formData.notes}
@@ -632,9 +808,9 @@ function BatchUploadDialog({ onClose, providers }: { onClose: () => void; provid
           {error && <div className="text-sm text-red-600">{error}</div>}
 
           <div className="flex justify-end space-x-2">
-            <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+            <Button type="button" variant="outline" onClick={onClose}>{tCreate('cancel')}</Button>
             <Button type="submit" disabled={batchMutation.isPending || entries.length === 0}>
-              {batchMutation.isPending ? 'Creating...' : 'Create Tasks'}
+              {batchMutation.isPending ? t('creating') : t('createTasks')}
             </Button>
           </div>
         </form>

@@ -72,7 +72,7 @@ export default function AdminUsersPage() {
         <div className="ml-auto text-sm text-muted-foreground">{t('actions')}</div>
       </div>
 
-      <div className="bg-card border border-border rounded-lg overflow-hidden">
+      <div className="bg-card border border-border rounded-lg overflow-visible">
         <table className="w-full">
           <thead className="bg-muted/50 border-b border-border">
             <tr className="text-xs text-muted-foreground">

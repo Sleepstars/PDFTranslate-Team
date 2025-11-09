@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ProviderConfig, UpdateProviderRequest } from '@/lib/types/provider';
 import { useAdminUpdates } from '@/lib/hooks/use-admin-updates';
+import { useTranslations } from 'next-intl';
 
 const PROVIDER_TYPES = [
   'google', 'deepl', 'openai', 'azure_openai', 'ollama', 'gemini',
@@ -29,6 +30,12 @@ export default function AdminProvidersPage() {
   const [showDialog, setShowDialog] = useState(false);
   const [editProvider, setEditProvider] = useState<ProviderConfig | null>(null);
   const isRealtimeConnected = useAdminUpdates('providers');
+  const t = useTranslations('providers');
+  const tCommon = useTranslations('common');
+
+  const getProviderTypeDescription = (type: string) => {
+    return t(`types.${type}`) || type;
+  };
 
   const { data: providers = [], isLoading } = useQuery({
     queryKey: ['admin', 'providers'],
@@ -43,46 +50,68 @@ export default function AdminProvidersPage() {
     },
   });
 
-  if (isLoading) return <div>Loading...</div>;
+  if (isLoading) return <div className="flex items-center justify-center h-64">{tCommon('loading')}</div>;
 
   return (
-    <div>
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Provider Configuration</h1>
-        <Button onClick={() => setShowDialog(true)}>Create Provider</Button>
+    <div className="space-y-4">
+      <div>
+        <h1 className="text-2xl font-semibold mb-1">{t('title')}</h1>
+        <p className="text-sm text-muted-foreground">{t('description')}</p>
       </div>
 
-      <div className="bg-card rounded-lg shadow border border-border overflow-hidden">
-        <table className="min-w-full divide-y divide-border">
-          <thead className="bg-muted">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Name</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Type</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Description</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Status</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Default</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Actions</th>
+      <div className="flex items-center gap-3">
+        <Button onClick={() => setShowDialog(true)} size="sm" className="h-9">
+          + {t('create')}
+        </Button>
+      </div>
+
+      <div className="bg-card border border-border rounded-lg overflow-visible">
+        <table className="w-full">
+          <thead className="bg-muted/50 border-b border-border">
+            <tr className="text-xs text-muted-foreground">
+              <th className="px-4 py-2.5 text-left font-medium">{t('name')}</th>
+              <th className="px-4 py-2.5 text-left font-medium">{t('type')}</th>
+              <th className="px-4 py-2.5 text-left font-medium">{t('description')}</th>
+              <th className="px-4 py-2.5 text-left font-medium">{t('status')}</th>
+              <th className="px-4 py-2.5 text-left font-medium">{t('default')}</th>
+              <th className="px-4 py-2.5 text-right font-medium">{t('actions')}</th>
             </tr>
           </thead>
-          <tbody className="bg-card divide-y divide-border">
+          <tbody className="divide-y divide-border">
             {providers.map((provider: ProviderConfig) => (
-              <tr key={provider.id}>
-                <td className="px-6 py-4 whitespace-nowrap font-medium">{provider.name}</td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <Badge variant="info">{provider.providerType}</Badge>
+              <tr key={provider.id} className="hover:bg-muted/30 transition-colors">
+                <td className="px-4 py-2.5 text-sm font-medium">{provider.name}</td>
+                <td className="px-4 py-2.5">
+                  <Badge variant="info" className="text-xs">{getProviderTypeDescription(provider.providerType)}</Badge>
                 </td>
-                <td className="px-6 py-4">{provider.description || '-'}</td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <Badge variant={provider.isActive ? 'success' : 'error'}>
-                    {provider.isActive ? 'Active' : 'Inactive'}
+                <td className="px-4 py-2.5 text-sm">{provider.description || '-'}</td>
+                <td className="px-4 py-2.5">
+                  <Badge variant={provider.isActive ? 'success' : 'error'} className="text-xs">
+                    {provider.isActive ? t('active') : t('inactive')}
                   </Badge>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  {provider.isDefault && <Badge variant="warning">Default</Badge>}
+                <td className="px-4 py-2.5">
+                  {provider.isDefault && <Badge variant="warning" className="text-xs">{t('default')}</Badge>}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap space-x-2">
-                  <Button variant="outline" size="sm" onClick={() => setEditProvider(provider)}>Edit</Button>
-                  <Button variant="destructive" size="sm" onClick={() => deleteMutation.mutate(provider.id)}>Delete</Button>
+                <td className="px-4 py-2.5 text-right">
+                  <div className="relative inline-block">
+                    <button
+                      onClick={() => setEditProvider(provider)}
+                      className="p-1 hover:bg-muted rounded transition-colors mr-1"
+                    >
+                      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                    </button>
+                    <button
+                      onClick={() => deleteMutation.mutate(provider.id)}
+                      className="p-1 hover:bg-muted rounded transition-colors text-destructive"
+                    >
+                      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -113,6 +142,13 @@ function ProviderDialog({ onClose }: { onClose: () => void }) {
     isDefault: false,
     settings: {},
   });
+  const t = useTranslations('providers.createDialog');
+  const tCommon = useTranslations('common');
+  const tProviders = useTranslations('providers');
+
+  const getProviderTypeDescription = (type: string) => {
+    return tProviders(`types.${type}`) || type;
+  };
 
   const createMutation = useMutation({
     mutationFn: adminProvidersAPI.create,
@@ -136,10 +172,10 @@ function ProviderDialog({ onClose }: { onClose: () => void }) {
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center overflow-y-auto">
       <div className="bg-card rounded-lg border border-border p-6 w-full max-w-2xl my-8">
-        <h2 className="text-xl font-bold mb-4">Create Provider</h2>
+        <h2 className="text-xl font-bold mb-4">{t('title')}</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium mb-1">Name</label>
+            <label className="block text-sm font-medium mb-1">{t('name')}</label>
             <input
               type="text"
               className="w-full border border-input rounded px-3 py-2 bg-background"
@@ -149,19 +185,19 @@ function ProviderDialog({ onClose }: { onClose: () => void }) {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1">Provider Type</label>
+            <label className="block text-sm font-medium mb-1">{t('providerType')}</label>
             <select
               className="w-full border border-input rounded px-3 py-2 bg-background"
               value={formData.providerType}
               onChange={(e) => setFormData({ ...formData, providerType: e.target.value, settings: {} })}
             >
               {PROVIDER_TYPES.map(type => (
-                <option key={type} value={type}>{type}</option>
+                <option key={type} value={type}>{getProviderTypeDescription(type)}</option>
               ))}
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1">Description</label>
+            <label className="block text-sm font-medium mb-1">{t('description')}</label>
             <textarea
               className="w-full border border-input rounded px-3 py-2 bg-background"
               value={formData.description}
@@ -171,10 +207,10 @@ function ProviderDialog({ onClose }: { onClose: () => void }) {
           </div>
 
           <div className="border-t border-border pt-4">
-            <h3 className="font-medium mb-2">Settings</h3>
+            <h3 className="font-medium mb-2">{t('settings')}</h3>
             
             <div className="mb-3">
-              <label className="block text-sm font-medium mb-1">Max Concurrency</label>
+              <label className="block text-sm font-medium mb-1">{t('maxConcurrency')}</label>
               <input
                 type="number"
                 className="w-full border border-input rounded px-3 py-2 bg-background"
@@ -183,11 +219,11 @@ function ProviderDialog({ onClose }: { onClose: () => void }) {
                 min="1"
                 max="100"
               />
-              <p className="text-xs text-muted-foreground mt-1">Maximum concurrent translation tasks (1-100)</p>
+              <p className="text-xs text-muted-foreground mt-1">{t('maxConcurrencyDescription')}</p>
             </div>
 
             <div className="mb-3">
-              <label className="block text-sm font-medium mb-1">Requests Per Minute (RPM)</label>
+              <label className="block text-sm font-medium mb-1">{t('requestsPerMinute')}</label>
               <input
                 type="number"
                 className="w-full border border-input rounded px-3 py-2 bg-background"
@@ -197,7 +233,7 @@ function ProviderDialog({ onClose }: { onClose: () => void }) {
                 max="10000"
                 placeholder="Optional rate limit"
               />
-              <p className="text-xs text-muted-foreground mt-1">API rate limit in requests per minute (optional, 1-10000)</p>
+              <p className="text-xs text-muted-foreground mt-1">{t('rpmDescription')}</p>
             </div>
 
           {requiresModel && (
@@ -222,7 +258,7 @@ function ProviderDialog({ onClose }: { onClose: () => void }) {
             {formData.providerType === 'openai' && (
               <>
                 <div className="mb-3">
-                  <label className="block text-sm font-medium mb-1">API Key</label>
+                  <label className="block text-sm font-medium mb-1">{t('apiKey')}</label>
                   <input
                     type="password"
                     className="w-full border border-input rounded px-3 py-2 bg-background"
@@ -231,13 +267,13 @@ function ProviderDialog({ onClose }: { onClose: () => void }) {
                   />
                 </div>
                 <div className="mb-3">
-                  <label className="block text-sm font-medium mb-1">Base URL (Optional)</label>
+                  <label className="block text-sm font-medium mb-1">{t('baseUrl')}</label>
                   <input
                     type="text"
                     className="w-full border border-input rounded px-3 py-2 bg-background"
                     value={formData.settings.base_url || ''}
                     onChange={(e) => updateSettings('base_url', e.target.value)}
-                    placeholder="https://api.openai.com/v1"
+                    placeholder={t('baseUrlPlaceholder')}
                   />
                 </div>
               </>
@@ -246,7 +282,7 @@ function ProviderDialog({ onClose }: { onClose: () => void }) {
             {['deepl', 'gemini', 'deepseek', 'zhipu', 'siliconflow', 'grok', 'groq'].includes(formData.providerType) && (
               <>
                 <div className="mb-3">
-                  <label className="block text-sm font-medium mb-1">API Key</label>
+                  <label className="block text-sm font-medium mb-1">{t('apiKey')}</label>
                   <input
                     type="password"
                     className="w-full border border-input rounded px-3 py-2 bg-background"
@@ -256,7 +292,7 @@ function ProviderDialog({ onClose }: { onClose: () => void }) {
                 </div>
                 {formData.providerType === 'deepl' && (
                   <div className="mb-3">
-                    <label className="block text-sm font-medium mb-1">Endpoint (Optional)</label>
+                    <label className="block text-sm font-medium mb-1">{t('endpointOptional')}</label>
                     <input
                       type="text"
                       className="w-full border border-input rounded px-3 py-2 bg-background"
@@ -272,7 +308,7 @@ function ProviderDialog({ onClose }: { onClose: () => void }) {
             {formData.providerType === 'azure_openai' && (
               <>
                 <div className="mb-3">
-                  <label className="block text-sm font-medium mb-1">API Key</label>
+                  <label className="block text-sm font-medium mb-1">{t('apiKey')}</label>
                   <input
                     type="password"
                     className="w-full border border-input rounded px-3 py-2 bg-background"
@@ -281,7 +317,7 @@ function ProviderDialog({ onClose }: { onClose: () => void }) {
                   />
                 </div>
                 <div className="mb-3">
-                  <label className="block text-sm font-medium mb-1">Endpoint</label>
+                  <label className="block text-sm font-medium mb-1">{t('endpoint')}</label>
                   <input
                     type="text"
                     className="w-full border border-input rounded px-3 py-2 bg-background"
@@ -291,7 +327,7 @@ function ProviderDialog({ onClose }: { onClose: () => void }) {
                   />
                 </div>
                 <div className="mb-3">
-                  <label className="block text-sm font-medium mb-1">Deployment Name</label>
+                  <label className="block text-sm font-medium mb-1">{t('deploymentName')}</label>
                   <input
                     type="text"
                     className="w-full border border-input rounded px-3 py-2 bg-background"
@@ -304,7 +340,7 @@ function ProviderDialog({ onClose }: { onClose: () => void }) {
 
             {formData.providerType === 'ollama' && (
               <div className="mb-3">
-                <label className="block text-sm font-medium mb-1">Endpoint</label>
+                <label className="block text-sm font-medium mb-1">{t('endpoint')}</label>
                 <input
                   type="text"
                   className="w-full border border-input rounded px-3 py-2 bg-background"
@@ -318,7 +354,7 @@ function ProviderDialog({ onClose }: { onClose: () => void }) {
             {formData.providerType === 'tencent' && (
               <>
                 <div className="mb-3">
-                  <label className="block text-sm font-medium mb-1">Secret ID</label>
+                  <label className="block text-sm font-medium mb-1">{t('secretId')}</label>
                   <input
                     type="text"
                     className="w-full border border-input rounded px-3 py-2 bg-background"
@@ -327,7 +363,7 @@ function ProviderDialog({ onClose }: { onClose: () => void }) {
                   />
                 </div>
                 <div className="mb-3">
-                  <label className="block text-sm font-medium mb-1">Secret Key</label>
+                  <label className="block text-sm font-medium mb-1">{t('secretKey')}</label>
                   <input
                     type="password"
                     className="w-full border border-input rounded px-3 py-2 bg-background"
@@ -347,7 +383,7 @@ function ProviderDialog({ onClose }: { onClose: () => void }) {
                 onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
                 className="mr-2"
               />
-              <span className="text-sm font-medium">Active</span>
+              <span className="text-sm font-medium">{t('active')}</span>
             </label>
             <label className="flex items-center">
               <input
@@ -356,13 +392,13 @@ function ProviderDialog({ onClose }: { onClose: () => void }) {
                 onChange={(e) => setFormData({ ...formData, isDefault: e.target.checked })}
                 className="mr-2"
               />
-              <span className="text-sm font-medium">Set as Default</span>
+              <span className="text-sm font-medium">{t('setAsDefault')}</span>
             </label>
           </div>
 
           <div className="flex justify-end space-x-2">
-            <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
-            <Button type="submit">Create</Button>
+            <Button type="button" variant="outline" onClick={onClose}>{t('cancel')}</Button>
+            <Button type="submit">{t('create')}</Button>
           </div>
         </form>
       </div>

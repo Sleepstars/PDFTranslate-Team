@@ -86,7 +86,11 @@ class TranslationTask(Base):
     glossary_output_s3_key: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     glossary_output_url: Mapped[Optional[str]] = mapped_column(String(1000), nullable=True)
 
-    def to_dict(self) -> dict:
+    def to_dict(self, s3_client=None) -> dict:
+        input_url = None
+        if s3_client and self.input_s3_key:
+            input_url = s3_client.get_presigned_url(self.input_s3_key, expiration=86400)
+
         return {
             "id": self.id,
             "ownerId": self.owner_id,
@@ -102,6 +106,7 @@ class TranslationTask(Base):
             "createdAt": self.created_at.isoformat(),
             "updatedAt": self.updated_at.isoformat(),
             "completedAt": self.completed_at.isoformat() if self.completed_at else None,
+            "inputUrl": input_url,
             "outputUrl": self.output_url,
             "progressMessage": self.progress_message,
             "monoOutputUrl": self.mono_output_url,

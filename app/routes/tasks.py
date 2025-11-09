@@ -42,27 +42,28 @@ async def list_tasks(
     date_to: str = None,
     limit: int = 50,
     offset: int = 0,
-    user: PublicUser = Depends(get_current_user)
+    user: PublicUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
 ):
     """获取任务列表，支持筛选和分页"""
     from datetime import datetime
-    
+
     # 解析日期参数
     date_from_dt = None
     date_to_dt = None
-    
+
     if date_from:
         try:
             date_from_dt = datetime.fromisoformat(date_from)
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid date_from format. Use ISO format (YYYY-MM-DDTHH:MM:SS)")
-    
+
     if date_to:
         try:
             date_to_dt = datetime.fromisoformat(date_to)
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid date_to format. Use ISO format (YYYY-MM-DDTHH:MM:SS)")
-    
+
     tasks = await task_manager.list_tasks(
         owner_id=user.id,
         status=status,
@@ -73,9 +74,15 @@ async def list_tasks(
         limit=limit,
         offset=offset
     )
-    
+
+    try:
+        s3_config = await get_s3_config(db)
+        s3 = get_s3(s3_config)
+    except MissingS3Configuration:
+        s3 = None
+
     return {
-        "tasks": [task.to_dict() for task in tasks],
+        "tasks": [task.to_dict(s3) for task in tasks],
         "total": len(tasks),
         "limit": limit,
         "offset": offset,
@@ -138,7 +145,12 @@ async def create_task(
 
     try:
         task = await task_manager.create_task(user, payload, file_data)
-        return {"task": task.to_dict()}
+        try:
+            s3_config = await get_s3_config(db)
+            s3 = get_s3(s3_config)
+        except MissingS3Configuration:
+            s3 = None
+        return {"task": task.to_dict(s3)}
     except MissingS3Configuration as exc:
         from ..quota import refund_quota
         await refund_quota(user_obj, page_count, db)
@@ -151,11 +163,18 @@ async def create_task(
 
 
 @router.get("/{task_id}")
-async def get_task(task_id: str, user: PublicUser = Depends(get_current_user)):
+async def get_task(task_id: str, user: PublicUser = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     task = await task_manager.get_task(task_id)
     if not task or task.owner_id != user.id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
-    return {"task": task.to_dict()}
+
+    try:
+        s3_config = await get_s3_config(db)
+        s3 = get_s3(s3_config)
+    except MissingS3Configuration:
+        s3 = None
+
+    return {"task": task.to_dict(s3)}
 
 
 @router.post("/batch")
@@ -207,6 +226,12 @@ async def create_batch_tasks(
 
         tasks = []
         try:
+            s3_config = await get_s3_config(db)
+            s3 = get_s3(s3_config)
+        except MissingS3Configuration:
+            s3 = None
+
+        try:
             for i, (file_data, page_count) in enumerate(file_page_counts):
                 payload = {
                     "documentName": document_names[i],
@@ -220,7 +245,7 @@ async def create_batch_tasks(
                     "pageCount": page_count
                 }
                 task = await task_manager.create_task(user, payload, file_data)
-                tasks.append(task.to_dict())
+                tasks.append(task.to_dict(s3))
 
             return {"tasks": tasks, "count": len(tasks)}
 
@@ -236,19 +261,26 @@ async def create_batch_tasks(
 
 
 @router.get("/batch/{batch_id}/status")
-async def get_batch_status(batch_id: str, user: PublicUser = Depends(get_current_user)):
+async def get_batch_status(batch_id: str, user: PublicUser = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     """获取批量任务状态"""
     # 这里可以扩展为按批次ID查询
     # 目前返回用户的任务列表
     tasks = await task_manager.list_tasks(user.id)
-    return {"tasks": [task.to_dict() for task in tasks]}
+
+    try:
+        s3_config = await get_s3_config(db)
+        s3 = get_s3(s3_config)
+    except MissingS3Configuration:
+        s3 = None
+
+    return {"tasks": [task.to_dict(s3) for task in tasks]}
 
 
 @router.get("/stats/overview")
-async def get_task_stats(user: PublicUser = Depends(get_current_user)):
+async def get_task_stats(user: PublicUser = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     """获取任务统计信息"""
     tasks = await task_manager.list_tasks(user.id)
-    
+
     stats = {
         "total": len(tasks),
         "by_status": {},
@@ -256,40 +288,45 @@ async def get_task_stats(user: PublicUser = Depends(get_current_user)):
         "by_priority": {},
         "recent_activity": []
     }
-    
+
     # 统计按状态
     for task in tasks:
         status = task.status
         stats["by_status"][status] = stats["by_status"].get(status, 0) + 1
-        
+
         # 统计按引擎
         engine = task.engine
         stats["by_engine"][engine] = stats["by_engine"].get(engine, 0) + 1
-        
+
         # 统计按优先级
         priority = task.priority
         stats["by_priority"][priority] = stats["by_priority"].get(priority, 0) + 1
-    
+
+    try:
+        s3_config = await get_s3_config(db)
+        s3 = get_s3(s3_config)
+    except MissingS3Configuration:
+        s3 = None
+
     # 最近活动（最近10个任务）
     recent_tasks = sorted(tasks, key=lambda x: x.updated_at, reverse=True)[:10]
-    stats["recent_activity"] = [task.to_dict() for task in recent_tasks]
-    
+    stats["recent_activity"] = [task.to_dict(s3) for task in recent_tasks]
+
     return stats
 
 
 @router.post("/download/batch")
 async def download_batch_tasks(
     task_ids: List[str],
-    user: PublicUser = Depends(get_current_user)
+    user: PublicUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
 ):
     """批量下载翻译结果"""
     try:
-        redis = await get_redis()
-        
         # 验证任务所有权
         valid_tasks = []
         invalid_task_ids = []
-        
+
         for task_id in task_ids:
             task = await task_manager.get_task(task_id)
             has_outputs = (
@@ -306,14 +343,20 @@ async def download_batch_tasks(
                 valid_tasks.append(task)
             else:
                 invalid_task_ids.append(task_id)
-        
+
         if not valid_tasks:
             raise HTTPException(status_code=404, detail="No valid completed tasks found for download")
-        
+
+        try:
+            s3_config = await get_s3_config(db)
+            s3 = get_s3(s3_config)
+        except MissingS3Configuration:
+            s3 = None
+
         # 创建ZIP打包URL（这里简化处理，实际应该生成临时ZIP文件）
         download_info = {
             "batch_id": f"batch_{int(time.time())}",
-            "tasks": [task.to_dict() for task in valid_tasks],
+            "tasks": [task.to_dict(s3) for task in valid_tasks],
             "download_urls": [
                 task.dual_output_url or task.mono_output_url or task.output_url
                 for task in valid_tasks
@@ -427,19 +470,25 @@ async def get_concurrent_status(user: PublicUser = Depends(get_current_user)):
 
 
 @router.patch("/{task_id}")
-async def mutate_task(task_id: str, payload: TaskActionRequest, user: PublicUser = Depends(get_current_user)):
+async def mutate_task(task_id: str, payload: TaskActionRequest, user: PublicUser = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     task = await task_manager.get_task(task_id)
     if not task or task.owner_id != user.id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
 
+    try:
+        s3_config = await get_s3_config(db)
+        s3 = get_s3(s3_config)
+    except MissingS3Configuration:
+        s3 = None
+
     if payload.action == 'cancel':
         updated = await task_manager.cancel_task(task_id)
-        return {"task": updated.to_dict() if updated else task.to_dict()}
+        return {"task": updated.to_dict(s3) if updated else task.to_dict(s3)}
 
     rerun = await task_manager.retry_task(task_id)
     if not rerun:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
-    return {"task": rerun.to_dict()}
+    return {"task": rerun.to_dict(s3)}
 
 
 @router.delete("/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
