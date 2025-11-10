@@ -22,10 +22,16 @@ export interface S3TestResponse {
 
 export interface SystemSettings {
   allowRegistration: boolean;
+  altchaEnabled: boolean;
+  altchaSecretKey?: string | null;
+  allowedEmailSuffixes: string[];
 }
 
 export interface UpdateSystemSettingsRequest {
-  allowRegistration: boolean;
+  allowRegistration?: boolean;
+  altchaEnabled?: boolean;
+  altchaSecretKey?: string;
+  allowedEmailSuffixes?: string[];
 }
 
 export interface EmailSettings {

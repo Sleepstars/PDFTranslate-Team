@@ -9,6 +9,14 @@ from pydantic import BaseModel, EmailStr, Field
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
+    altchaPayload: Optional[str] = None
+
+
+class RegisterRequest(BaseModel):
+    email: EmailStr
+    name: str = Field(..., min_length=1)
+    password: str = Field(..., min_length=8)
+    altchaPayload: Optional[str] = None
 
 
 class SessionResponse(BaseModel):
@@ -204,10 +212,16 @@ class ReorderGroupProvidersRequest(BaseModel):
 # Admin Settings
 class SystemSettingsResponse(BaseModel):
     allowRegistration: bool
+    altchaEnabled: bool
+    altchaSecretKey: Optional[str]
+    allowedEmailSuffixes: list[str]
 
 
 class UpdateSystemSettingsRequest(BaseModel):
-    allowRegistration: bool
+    allowRegistration: Optional[bool] = None
+    altchaEnabled: Optional[bool] = None
+    altchaSecretKey: Optional[str] = None
+    allowedEmailSuffixes: Optional[list[str]] = None
 
 
 class EmailSettingsResponse(BaseModel):

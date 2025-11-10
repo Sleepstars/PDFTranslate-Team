@@ -5,6 +5,7 @@ import { useAuth } from '@/lib/hooks/use-auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useTranslations } from 'next-intl';
+import Link from 'next/link';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -44,6 +45,13 @@ export default function LoginPage() {
             {isLoggingIn ? t('loggingIn') : t('login')}
           </Button>
         </form>
+
+        <div className="text-center text-sm">
+          <span className="text-muted-foreground">{t('noAccount')} </span>
+          <Link href="/register" className="text-primary hover:underline">
+            {t('registerHere')}
+          </Link>
+        </div>
       </div>
     </div>
   );

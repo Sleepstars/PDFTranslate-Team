@@ -80,7 +80,7 @@ export default function AdminGroupsPage() {
 function GroupAccessPanel({ groupId, providers }: { groupId: string; providers: ProviderConfig[] }) {
   const t = useTranslations('groups');
   const queryClient = useQueryClient();
-  const [selectedProviderId, setSelectedProviderId] = useState('');
+  const [pendingChanges, setPendingChanges] = useState<Set<string>>(new Set());
 
   const { data: accessList = [], isLoading } = useQuery<GroupProviderAccess[]>({
     queryKey: ['admin', 'groups', groupId, 'access'],
@@ -89,12 +89,10 @@ function GroupAccessPanel({ groupId, providers }: { groupId: string; providers: 
 
   const providerMap = useMemo(() => new Map(providers.map((p) => [p.id, p])), [providers]);
   const grantedIds = useMemo(() => new Set(accessList.map((a) => a.providerConfigId)), [accessList]);
-  const availableProviders = useMemo(() => providers.filter((p) => !grantedIds.has(p.id)), [providers, grantedIds]);
 
   const grantMutation = useMutation({
-    mutationFn: () => adminGroupsAPI.grantAccess(groupId, selectedProviderId),
+    mutationFn: (providerId: string) => adminGroupsAPI.grantAccess(groupId, providerId),
     onSuccess: () => {
-      setSelectedProviderId('');
       queryClient.invalidateQueries({ queryKey: ['admin', 'groups', groupId, 'access'] });
     },
   });
@@ -119,58 +117,117 @@ function GroupAccessPanel({ groupId, providers }: { groupId: string; providers: 
     },
   });
 
+  const handleProviderToggle = (providerId: string, isCurrentlyGranted: boolean) => {
+    setPendingChanges((prev) => new Set(prev).add(providerId));
+
+    if (isCurrentlyGranted) {
+      revokeMutation.mutate(providerId, {
+        onSettled: () => {
+          setPendingChanges((prev) => {
+            const next = new Set(prev);
+            next.delete(providerId);
+            return next;
+          });
+        },
+      });
+    } else {
+      grantMutation.mutate(providerId, {
+        onSettled: () => {
+          setPendingChanges((prev) => {
+            const next = new Set(prev);
+            next.delete(providerId);
+            return next;
+          });
+        },
+      });
+    }
+  };
+
   return (
     <div className="bg-card border border-border rounded-lg">
-      <div className="p-4 border-b border-border flex items-center gap-3">
-        <h2 className="text-sm font-medium flex-1">{t('groupAccess')}</h2>
-        <div className="flex items-center gap-2">
-          <select
-            className="border border-input bg-background rounded px-3 py-2 text-sm"
-            value={selectedProviderId}
-            onChange={(e) => setSelectedProviderId(e.target.value)}
-          >
-            <option value="">{t('selectProvider')}</option>
-            {availableProviders.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name} ({p.providerType})
-              </option>
-            ))}
-          </select>
-          <Button size="sm" disabled={!selectedProviderId || grantMutation.isPending} onClick={() => grantMutation.mutate()}> 
-            {t('addProvider')}
-          </Button>
+      <div className="p-4 border-b border-border">
+        <h2 className="text-sm font-medium mb-3">{t('groupAccess')}</h2>
+        <div className="space-y-2 max-h-[400px] overflow-y-auto">
+          {isLoading ? (
+            <div className="text-sm text-muted-foreground">{t('loading')}</div>
+          ) : providers.length === 0 ? (
+            <div className="text-sm text-muted-foreground">{t('noProvidersAvailable')}</div>
+          ) : (
+            providers.map((provider) => {
+              const isGranted = grantedIds.has(provider.id);
+              const isPending = pendingChanges.has(provider.id);
+
+              return (
+                <label
+                  key={provider.id}
+                  className={`flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-muted/50 transition-colors cursor-pointer ${
+                    isGranted ? 'bg-primary/5 border-primary/20' : ''
+                  } ${isPending ? 'opacity-50 pointer-events-none' : ''}`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={isGranted}
+                    onChange={() => handleProviderToggle(provider.id, isGranted)}
+                    disabled={isPending}
+                    className="h-4 w-4 rounded border-input text-primary focus-visible:ring-2 focus-visible:ring-primary"
+                  />
+                  <div className="flex-1">
+                    <div className="text-sm font-medium">{provider.name}</div>
+                    <div className="text-xs text-muted-foreground">{provider.providerType}</div>
+                  </div>
+                  {provider.isDefault && (
+                    <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded">
+                      {t('default')}
+                    </span>
+                  )}
+                </label>
+              );
+            })
+          )}
         </div>
       </div>
-      <div className="divide-y divide-border">
-        {isLoading ? (
-          <div className="p-4 text-sm text-muted-foreground">{t('loading')}</div>
-        ) : accessList.length === 0 ? (
-          <div className="p-4 text-sm text-muted-foreground">{t('noProviders')}</div>
-        ) : (
-          accessList.map((a, index) => {
-            const p = providerMap.get(a.providerConfigId);
-            return (
-              <div key={a.id} className="p-4 flex items-center gap-3">
-                <div className="flex-1">
-                  <div className="text-sm font-medium">{p?.name || a.providerConfigId}</div>
-                  <div className="text-xs text-muted-foreground">{p?.providerType}</div>
+
+      {accessList.length > 0 && (
+        <div className="p-4">
+          <h3 className="text-sm font-medium mb-3">{t('priorityOrder')}</h3>
+          <div className="space-y-2">
+            {accessList.map((a, index) => {
+              const p = providerMap.get(a.providerConfigId);
+              return (
+                <div key={a.id} className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg">
+                  <div className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-medium">
+                    {index + 1}
+                  </div>
+                  <div className="flex-1">
+                    <div className="text-sm font-medium">{p?.name || a.providerConfigId}</div>
+                    <div className="text-xs text-muted-foreground">{p?.providerType}</div>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={index === 0 || move.isPending}
+                      onClick={() => move.mutate({ from: index, to: index - 1 })}
+                      className="h-8 w-8 p-0"
+                    >
+                      ↑
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={index === accessList.length - 1 || move.isPending}
+                      onClick={() => move.mutate({ from: index, to: index + 1 })}
+                      className="h-8 w-8 p-0"
+                    >
+                      ↓
+                    </Button>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Button variant="outline" size="sm" disabled={index === 0 || move.isPending} onClick={() => move.mutate({ from: index, to: index - 1 })}>
-                    {t('moveUp')}
-                  </Button>
-                  <Button variant="outline" size="sm" disabled={index === accessList.length - 1 || move.isPending} onClick={() => move.mutate({ from: index, to: index + 1 })}>
-                    {t('moveDown')}
-                  </Button>
-                  <Button variant="destructive" size="sm" disabled={revokeMutation.isPending} onClick={() => revokeMutation.mutate(a.providerConfigId)}>
-                    {t('remove')}
-                  </Button>
-                </div>
-              </div>
-            );
-          })
-        )}
-      </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

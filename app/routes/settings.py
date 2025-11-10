@@ -43,12 +43,23 @@ async def get_system_settings(
     admin: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db)
 ):
-    result = await db.execute(select(SystemSetting).where(SystemSetting.key == "allow_registration"))
-    setting = result.scalar_one_or_none()
-    allow = False
-    if setting and setting.value is not None:
-        allow = (setting.value.lower() == "true" or setting.value == "1")
-    return SystemSettingsResponse(allowRegistration=allow)
+    async def get_setting(key: str) -> str:
+        result = await db.execute(select(SystemSetting).where(SystemSetting.key == key))
+        row = result.scalar_one_or_none()
+        return row.value if row and row.value is not None else ""
+
+    allow_registration = _parse_bool(await get_setting("allow_registration"), default=False)
+    altcha_enabled = _parse_bool(await get_setting("altcha_enabled"), default=False)
+    altcha_secret_key = await get_setting("altcha_secret_key")
+    suffixes_raw = await get_setting("allowed_email_suffixes")
+    suffixes = [s.strip() for s in suffixes_raw.split(",") if s.strip()] if suffixes_raw else []
+
+    return SystemSettingsResponse(
+        allowRegistration=allow_registration,
+        altchaEnabled=altcha_enabled,
+        altchaSecretKey=altcha_secret_key or None,
+        allowedEmailSuffixes=suffixes
+    )
 
 
 @router.put("/system")
@@ -57,13 +68,25 @@ async def update_system_settings(
     admin: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db)
 ):
-    result = await db.execute(select(SystemSetting).where(SystemSetting.key == "allow_registration"))
-    setting = result.scalar_one_or_none()
-    value = "true" if request.allowRegistration else "false"
-    if setting:
-        setting.value = value
-    else:
-        db.add(SystemSetting(key="allow_registration", value=value))
+    settings_map: dict[str, str] = {}
+
+    if request.allowRegistration is not None:
+        settings_map["allow_registration"] = "true" if request.allowRegistration else "false"
+    if request.altchaEnabled is not None:
+        settings_map["altcha_enabled"] = "true" if request.altchaEnabled else "false"
+    if request.altchaSecretKey is not None:
+        settings_map["altcha_secret_key"] = request.altchaSecretKey
+    if request.allowedEmailSuffixes is not None:
+        settings_map["allowed_email_suffixes"] = ",".join([s.strip() for s in request.allowedEmailSuffixes if s.strip()])
+
+    for key, value in settings_map.items():
+        result = await db.execute(select(SystemSetting).where(SystemSetting.key == key))
+        setting = result.scalar_one_or_none()
+        if setting:
+            setting.value = value
+        else:
+            db.add(SystemSetting(key=key, value=value))
+
     await db.commit()
     return {"message": "System settings updated"}
 
