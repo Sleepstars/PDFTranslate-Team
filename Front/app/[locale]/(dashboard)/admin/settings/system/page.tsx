@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminSettingsAPI } from '@/lib/api/admin-settings';
 import { useTranslations } from 'next-intl';
@@ -16,11 +16,8 @@ export default function AdminSettingsSystemPage() {
     queryFn: adminSettingsAPI.getSystem,
   });
 
-  const [allowRegistration, setAllowRegistration] = useState(false);
-
-  useEffect(() => {
-    if (data) setAllowRegistration(data.allowRegistration);
-  }, [data]);
+  // Initialize with data or default to false
+  const [allowRegistration, setAllowRegistration] = useState(() => data?.allowRegistration ?? false);
 
   const updateMutation = useMutation({
     mutationFn: adminSettingsAPI.updateSystem,

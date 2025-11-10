@@ -14,6 +14,7 @@
 4. [Admin - User Management](#admin---user-management)
 5. [Admin - Provider Management](#admin---provider-management)
 6. [Admin - Group Management](#admin---group-management)
+8. [Admin - Settings](#admin---settings)
 7. [Error Responses](#error-responses)
 
 ---
@@ -162,17 +163,21 @@ The list includes only providers granted through the user's **Group** (translati
 
 ### PATCH /api/admin/users/{id}
 
-Update user fields. Supports `name`, `role`, `isActive`, `dailyPageLimit`, and `groupId`.
+Update user fields. Supports `name`, `email`, `password`, `role`, `isActive`, `dailyPageLimit`, and `groupId`.
 
 ```json
 {
   "name": "Jane",
+  "email": "jane@example.com",
+  "password": "optional-new-password", // omit or empty to keep unchanged
   "role": "user",
   "isActive": true,
   "dailyPageLimit": 100,
   "groupId": "default" // or empty string to clear
 }
 ```
+
+Email must be unique; attempting to set an existing email returns `400 Bad Request`.
 
 ---
 
@@ -943,4 +948,60 @@ Request:
 Response:
 ```json
 { "ok": true }
+```
+## Admin - Settings
+
+All settings endpoints require admin privileges.
+
+### GET /api/admin/settings/system
+
+Returns system settings.
+
+**Response (200 OK):**
+```json
+{ "allowRegistration": false }
+```
+
+### PUT /api/admin/settings/system
+
+Update system settings.
+
+**Request:**
+```json
+{ "allowRegistration": true }
+```
+
+---
+
+### GET /api/admin/settings/email
+
+Returns email (SMTP) configuration. The SMTP password is never returned.
+
+**Response (200 OK):**
+```json
+{
+  "smtpHost": "smtp.example.com",
+  "smtpPort": 587,
+  "smtpUsername": "no-reply",
+  "smtpUseTLS": true,
+  "smtpFromEmail": "no-reply@example.com",
+  "allowedEmailSuffixes": ["@company.com", "@org.org"]
+}
+```
+
+### PUT /api/admin/settings/email
+
+Updates email (SMTP) configuration. Provide only fields you want to change. When setting `smtpPassword`, pass the new value; omit the field to keep unchanged.
+
+**Request:**
+```json
+{
+  "smtpHost": "smtp.example.com",
+  "smtpPort": 587,
+  "smtpUsername": "no-reply",
+  "smtpPassword": "app-password",
+  "smtpUseTLS": true,
+  "smtpFromEmail": "no-reply@example.com",
+  "allowedEmailSuffixes": ["@company.com", "@org.org"]
+}
 ```

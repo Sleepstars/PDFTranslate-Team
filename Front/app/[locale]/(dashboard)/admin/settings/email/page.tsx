@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminSettingsAPI, type EmailSettings, type UpdateEmailSettingsRequest } from '@/lib/api/admin-settings';
 import { useTranslations } from 'next-intl';
@@ -16,19 +16,10 @@ export default function AdminSettingsEmailPage() {
     queryFn: adminSettingsAPI.getEmail,
   });
 
-  const [form, setForm] = useState<UpdateEmailSettingsRequest>({
-    smtpHost: '',
-    smtpPort: 587,
-    smtpUsername: '',
-    smtpPassword: '',
-    smtpUseTLS: true,
-    smtpFromEmail: '',
-    allowedEmailSuffixes: [],
-  });
-
-  useEffect(() => {
+  // Initialize form with data or defaults
+  const [form, setForm] = useState<UpdateEmailSettingsRequest>(() => {
     if (data) {
-      setForm({
+      return {
         smtpHost: data.smtpHost || '',
         smtpPort: data.smtpPort || 587,
         smtpUsername: data.smtpUsername || '',
@@ -36,9 +27,18 @@ export default function AdminSettingsEmailPage() {
         smtpUseTLS: data.smtpUseTLS,
         smtpFromEmail: data.smtpFromEmail || '',
         allowedEmailSuffixes: data.allowedEmailSuffixes || [],
-      });
+      };
     }
-  }, [data]);
+    return {
+      smtpHost: '',
+      smtpPort: 587,
+      smtpUsername: '',
+      smtpPassword: '',
+      smtpUseTLS: true,
+      smtpFromEmail: '',
+      allowedEmailSuffixes: [],
+    };
+  });
 
   const updateMutation = useMutation({
     mutationFn: adminSettingsAPI.updateEmail,
@@ -52,9 +52,9 @@ export default function AdminSettingsEmailPage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     // Do not send empty password field
-    const payload: UpdateEmailSettingsRequest = { ...form };
-    if (!payload.smtpPassword) delete (payload as any).smtpPassword;
-    updateMutation.mutate(payload);
+    const payload: Partial<UpdateEmailSettingsRequest> = { ...form };
+    if (!payload.smtpPassword) delete payload.smtpPassword;
+    updateMutation.mutate(payload as UpdateEmailSettingsRequest);
   };
 
   if (isLoading) return <SkeletonForm fields={6} />;

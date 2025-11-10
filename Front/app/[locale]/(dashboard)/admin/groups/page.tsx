@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminGroupsAPI, type Group, type GroupProviderAccess } from '@/lib/api/admin-groups';
 import { adminProvidersAPI } from '@/lib/api/admin-providers';
@@ -11,7 +11,6 @@ import { useTranslations } from 'next-intl';
 
 export default function AdminGroupsPage() {
   const t = useTranslations('groups');
-  const [selectedGroupId, setSelectedGroupId] = useState<string>('');
   const [showCreateDialog, setShowCreateDialog] = useState(false);
 
   const { data: groups = [], isLoading: loadingGroups } = useQuery<Group[]>({
@@ -24,11 +23,10 @@ export default function AdminGroupsPage() {
     queryFn: adminProvidersAPI.list,
   });
 
-  useEffect(() => {
-    if (!selectedGroupId && groups.length > 0) {
-      setSelectedGroupId(groups[0].id);
-    }
-  }, [groups]);
+  const [selectedGroupId, setSelectedGroupId] = useState<string>('');
+
+  // Derive the effective selected group ID
+  const effectiveSelectedGroupId = selectedGroupId || groups[0]?.id || '';
 
   return (
     <div className="space-y-4">
@@ -52,7 +50,7 @@ export default function AdminGroupsPage() {
               {groups.map((g) => (
                 <button
                   key={g.id}
-                  className={`w-full text-left px-3 py-2 rounded hover:bg-muted transition-colors ${selectedGroupId === g.id ? 'bg-muted' : ''}`}
+                  className={`w-full text-left px-3 py-2 rounded hover:bg-muted transition-colors ${effectiveSelectedGroupId === g.id ? 'bg-muted' : ''}`}
                   onClick={() => setSelectedGroupId(g.id)}
                 >
                   <div className="text-sm font-medium">{g.name}</div>
@@ -63,8 +61,8 @@ export default function AdminGroupsPage() {
           </div>
 
           <div className="lg:col-span-2">
-            {selectedGroupId ? (
-              <GroupAccessPanel groupId={selectedGroupId} providers={providers as ProviderConfig[]} />
+            {effectiveSelectedGroupId ? (
+              <GroupAccessPanel groupId={effectiveSelectedGroupId} providers={providers as ProviderConfig[]} />
             ) : (
               <div className="bg-card border border-border rounded-lg p-6 text-sm text-muted-foreground">{t('selectGroup')}</div>
             )}
@@ -90,8 +88,8 @@ function GroupAccessPanel({ groupId, providers }: { groupId: string; providers: 
   });
 
   const providerMap = useMemo(() => new Map(providers.map((p) => [p.id, p])), [providers]);
-  const grantedIds = new Set(accessList.map((a) => a.providerConfigId));
-  const availableProviders = useMemo(() => providers.filter((p) => !grantedIds.has(p.id)), [providers, accessList]);
+  const grantedIds = useMemo(() => new Set(accessList.map((a) => a.providerConfigId)), [accessList]);
+  const availableProviders = useMemo(() => providers.filter((p) => !grantedIds.has(p.id)), [providers, grantedIds]);
 
   const grantMutation = useMutation({
     mutationFn: () => adminGroupsAPI.grantAccess(groupId, selectedProviderId),

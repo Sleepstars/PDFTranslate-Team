@@ -15,6 +15,7 @@ import { useTaskUpdates } from '@/lib/hooks/use-task-updates';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import { FileText, Upload, Download, Trash2 } from 'lucide-react';
+import { Portal } from '@/components/ui/portal';
 import { useDropzone } from 'react-dropzone';
 
 export default function TasksPage() {
@@ -25,6 +26,7 @@ export default function TasksPage() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const [detailTask, setDetailTask] = useState<Task | null>(null);
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number; id: string } | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const isRealtimeConnected = useTaskUpdates();
   const refetchOnWindowFocus = !isRealtimeConnected;
@@ -481,23 +483,42 @@ export default function TasksPage() {
                   {new Date(task.createdAt).toLocaleDateString()}
                 </td>
                 <td className="px-4 py-2.5 text-right">
-                  <div className="relative inline-block">
-                    <button
-                      onClick={() => setActiveMenu(activeMenu === task.id ? null : task.id)}
-                      className="p-1 hover:bg-muted rounded transition-colors"
-                    >
-                      <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 16 16">
-                        <circle cx="8" cy="2" r="1.5"/>
-                        <circle cx="8" cy="8" r="1.5"/>
-                        <circle cx="8" cy="14" r="1.5"/>
-                      </svg>
-                    </button>
-                    {activeMenu === task.id && (
-                      <div className="absolute right-0 mt-1 w-40 bg-popover border border-border rounded-md shadow-lg z-10">
+                  <button
+                    onClick={(e) => {
+                      const isOpen = activeMenu === task.id;
+                      if (isOpen) {
+                        setActiveMenu(null);
+                        setMenuPos(null);
+                        return;
+                      }
+                      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                      // Menu width = w-40 = 160px
+                      const menuWidth = 160;
+                      const left = Math.min(
+                        Math.max(8, rect.right - menuWidth),
+                        window.innerWidth - 8 - menuWidth,
+                      );
+                      const top = Math.min(rect.bottom + 4, window.innerHeight - 8);
+                      setMenuPos({ top, left, id: task.id });
+                      setActiveMenu(task.id);
+                    }}
+                    className="p-1 hover:bg-muted rounded transition-colors"
+                  >
+                    <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 16 16">
+                      <circle cx="8" cy="2" r="1.5"/>
+                      <circle cx="8" cy="8" r="1.5"/>
+                      <circle cx="8" cy="14" r="1.5"/>
+                    </svg>
+                  </button>
+                  {activeMenu === task.id && menuPos?.id === task.id && (
+                    <Portal>
+                      <div className="fixed inset-0 z-[60]" onClick={() => { setActiveMenu(null); setMenuPos(null); }} />
+                      <div className="fixed z-[61] w-40 bg-popover border border-border rounded-md shadow-lg" style={{ top: menuPos.top, left: menuPos.left }}>
                         <button
                           onClick={() => {
                             setDetailTask(task);
                             setActiveMenu(null);
+                            setMenuPos(null);
                           }}
                           className="w-full px-3 py-2 text-left text-sm hover:bg-muted transition-colors"
                         >
@@ -519,6 +540,7 @@ export default function TasksPage() {
                             onClick={() => {
                               window.open(task.dualOutputUrl!, '_blank');
                               setActiveMenu(null);
+                              setMenuPos(null);
                             }}
                             className="w-full px-3 py-2 text-left text-sm hover:bg-muted transition-colors"
                           >
@@ -530,6 +552,7 @@ export default function TasksPage() {
                             onClick={() => {
                               window.open(task.monoOutputUrl!, '_blank');
                               setActiveMenu(null);
+                              setMenuPos(null);
                             }}
                             className="w-full px-3 py-2 text-left text-sm hover:bg-muted transition-colors"
                           >
@@ -541,6 +564,7 @@ export default function TasksPage() {
                             onClick={() => {
                               window.open(task.outputUrl!, '_blank');
                               setActiveMenu(null);
+                              setMenuPos(null);
                             }}
                             className="w-full px-3 py-2 text-left text-sm hover:bg-muted transition-colors"
                           >
@@ -552,6 +576,7 @@ export default function TasksPage() {
                             onClick={() => {
                               cancelMutation.mutate(task.id);
                               setActiveMenu(null);
+                              setMenuPos(null);
                             }}
                             className="w-full px-3 py-2 text-left text-sm hover:bg-muted transition-colors"
                           >
@@ -563,6 +588,7 @@ export default function TasksPage() {
                             onClick={() => {
                               retryMutation.mutate(task.id);
                               setActiveMenu(null);
+                              setMenuPos(null);
                             }}
                             className="w-full px-3 py-2 text-left text-sm hover:bg-muted transition-colors"
                           >
@@ -570,8 +596,8 @@ export default function TasksPage() {
                           </button>
                         )}
                       </div>
-                    )}
-                  </div>
+                    </Portal>
+                  )}
                 </td>
               </tr>
             ))}
@@ -720,49 +746,24 @@ function TaskDetailDialog({ task, providerName, onClose }: { task: Task; provide
 function CreateTaskDialog({ onClose, providers }: { onClose: () => void; providers: ProviderConfig[] }) {
   const queryClient = useQueryClient();
   const [file, setFile] = useState<File | null>(null);
+  const [translateAfterParsing, setTranslateAfterParsing] = useState(false);
+  const t = useTranslations('tasks.createDialog');
+
+  // Compute default translation provider
+  const translationProviders = useMemo(() => providers.filter((p) => p.providerType !== 'mineru'), [providers]);
+  const defaultTranslation = useMemo(() => translationProviders.find((p) => p.isDefault) || translationProviders[0], [translationProviders]);
+
   const [formData, setFormData] = useState({
     documentName: '',
     taskType: 'translation' as 'translation' | 'parsing',
     sourceLang: 'en',
     targetLang: 'zh',
-    engine: 'openai',
+    engine: defaultTranslation?.providerType || 'openai',
     priority: 'normal' as 'normal' | 'high',
     notes: '',
-    providerConfigId: '',
+    providerConfigId: defaultTranslation?.id || '',
     translationProviderConfigId: '', // 用于解析任务的翻译提供商
   });
-  const [translateAfterParsing, setTranslateAfterParsing] = useState(false);
-  const t = useTranslations('tasks.createDialog');
-
-  // Auto-select default providers by category (group order or flags)
-  useEffect(() => {
-    if (!providers || providers.length === 0) return;
-
-    const mineruProviders = providers.filter((p) => p.providerType === 'mineru');
-    const translationProviders = providers.filter((p) => p.providerType !== 'mineru');
-    const defaultMineru = mineruProviders.find((p) => p.isDefault) || mineruProviders[0];
-    const defaultTranslation = translationProviders.find((p) => p.isDefault) || translationProviders[0];
-
-    setFormData((prev) => {
-      const next = { ...prev };
-      if (prev.taskType === 'translation') {
-        if (!prev.providerConfigId && defaultTranslation) {
-          next.providerConfigId = defaultTranslation.id;
-          next.engine = defaultTranslation.providerType || prev.engine;
-        }
-      } else {
-        // parsing task
-        if (!prev.providerConfigId && defaultMineru) {
-          next.providerConfigId = defaultMineru.id;
-          next.engine = defaultMineru.providerType || prev.engine;
-        }
-        if (translateAfterParsing && !prev.translationProviderConfigId && defaultTranslation) {
-          next.translationProviderConfigId = defaultTranslation.id;
-        }
-      }
-      return next;
-    });
-  }, [providers, translateAfterParsing]);
 
   const createMutation = useMutation({
     mutationFn: tasksAPI.create,
@@ -772,7 +773,7 @@ function CreateTaskDialog({ onClose, providers }: { onClose: () => void; provide
       toast.success(t('createSuccess'));
       onClose();
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast.error(error?.message || t('createError'));
     },
   });
@@ -1052,31 +1053,22 @@ function CreateTaskDialog({ onClose, providers }: { onClose: () => void; provide
 function BatchUploadDialog({ onClose, providers }: { onClose: () => void; providers: ProviderConfig[] }) {
   const queryClient = useQueryClient();
   const [entries, setEntries] = useState<Array<{ id: string; file: File; documentName: string }>>([]);
-  const [formData, setFormData] = useState({
-    sourceLang: 'en',
-    targetLang: 'zh',
-    engine: 'openai',
-    priority: 'normal' as 'normal' | 'high',
-    notes: '',
-    providerConfigId: '',
-  });
   const [error, setError] = useState<string | null>(null);
   const t = useTranslations('tasks.batchDialog');
   const tCreate = useTranslations('tasks.createDialog');
 
-  // Auto-select default translation provider for batch
-  useEffect(() => {
-    if (!providers || providers.length === 0) return;
-    const translationProviders = providers.filter((p) => p.providerType !== 'mineru');
-    const defaultTranslation = translationProviders.find((p) => p.isDefault) || translationProviders[0];
-    if (defaultTranslation && !formData.providerConfigId) {
-      setFormData((prev) => ({
-        ...prev,
-        providerConfigId: defaultTranslation.id,
-        engine: defaultTranslation.providerType || prev.engine,
-      }));
-    }
-  }, [providers]);
+  // Compute default translation provider
+  const translationProviders = useMemo(() => providers.filter((p) => p.providerType !== 'mineru'), [providers]);
+  const defaultTranslation = useMemo(() => translationProviders.find((p) => p.isDefault) || translationProviders[0], [translationProviders]);
+
+  const [formData, setFormData] = useState({
+    sourceLang: 'en',
+    targetLang: 'zh',
+    engine: defaultTranslation?.providerType || 'openai',
+    priority: 'normal' as 'normal' | 'high',
+    notes: '',
+    providerConfigId: defaultTranslation?.id || '',
+  });
 
   const batchMutation = useMutation({
     mutationFn: tasksAPI.createBatch,

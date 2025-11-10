@@ -113,6 +113,11 @@
 
 /* Smooth transitions for interactive elements */
 @layer utilities {
+  /* Reserve stable gutter for vertical scrollbar to avoid overlaying content */
+  .scrollbar-gutter-stable {
+    scrollbar-gutter: stable;
+  }
+
   .transition-smooth {
     @apply transition-all duration-300 ease-in-out;
   }

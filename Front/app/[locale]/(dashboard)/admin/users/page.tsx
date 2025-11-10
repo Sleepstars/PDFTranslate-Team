@@ -1,10 +1,11 @@
 'use client';
 
 import { useState, useMemo, useDeferredValue } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import { adminUsersAPI } from '@/lib/api/admin-users';
 import { adminGroupsAPI, type Group } from '@/lib/api/admin-groups';
 import { Button } from '@/components/ui/button';
+import { Portal } from '@/components/ui/portal';
 import { Badge } from '@/components/ui/badge';
 import { User } from '@/lib/types/user';
 import { useAdminUpdates } from '@/lib/hooks/use-admin-updates';
@@ -14,11 +15,11 @@ import { toast } from 'sonner';
 import { SkeletonTable } from '@/components/ui/skeleton';
 
 export default function AdminUsersPage() {
-  const queryClient = useQueryClient();
   const [showDialog, setShowDialog] = useState(false);
   const [editUser, setEditUser] = useState<User | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
   const isRealtimeConnected = useAdminUpdates('users');
   const t = useTranslations('users');
 
@@ -132,21 +133,42 @@ export default function AdminUsersPage() {
                       </div>
                     </div>
                   </td>
-                  <td className="px-4 py-2.5 text-right relative">
+                  <td className="px-4 py-2.5 text-right">
                     <button
-                      onClick={() => setActiveMenu(activeMenu === user.id ? null : user.id)}
+                      onClick={(e) => {
+                        const isOpen = activeMenu === user.id;
+                        if (isOpen) {
+                          setActiveMenu(null);
+                          setMenuPos(null);
+                          return;
+                        }
+                        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                        // Menu width = w-32 = 128px
+                        const menuWidth = 128;
+                        const left = Math.min(
+                          Math.max(8, rect.right - menuWidth),
+                          window.innerWidth - 8 - menuWidth,
+                        );
+                        const top = Math.min(rect.bottom + 4, window.innerHeight - 8);
+                        setMenuPos({ top, left });
+                        setActiveMenu(user.id);
+                      }}
                       className="p-1 hover:bg-muted rounded transition-colors"
                     >
                       <MoreVertical className="h-4 w-4" />
                     </button>
-                    {activeMenu === user.id && (
-                      <>
-                        <div className="fixed inset-0 z-40" onClick={() => setActiveMenu(null)} />
-                        <div className="absolute right-0 mt-1 w-32 bg-popover border border-border rounded-md shadow-lg z-50">
+                    {activeMenu === user.id && menuPos && (
+                      <Portal>
+                        <div className="fixed inset-0 z-[60]" onClick={() => { setActiveMenu(null); setMenuPos(null); }} />
+                        <div
+                          className="fixed z-[61] w-32 bg-popover border border-border rounded-md shadow-lg"
+                          style={{ top: menuPos.top, left: menuPos.left }}
+                        >
                           <button
                             onClick={() => {
                               setEditUser(user);
                               setActiveMenu(null);
+                              setMenuPos(null);
                             }}
                             className="w-full px-3 py-2 text-left text-sm hover:bg-muted transition-colors"
                           >
@@ -156,13 +178,14 @@ export default function AdminUsersPage() {
                             onClick={() => {
                               deleteMutation.mutate(user.id);
                               setActiveMenu(null);
+                              setMenuPos(null);
                             }}
                             className="w-full px-3 py-2 text-left text-sm text-destructive hover:bg-muted transition-colors"
                           >
                             {t('delete')}
                           </button>
                         </div>
-                      </>
+                      </Portal>
                     )}
                   </td>
                 </tr>
@@ -282,7 +305,6 @@ function UserDialog({ onClose, onCreate }: { onClose: () => void; onCreate: (dat
 }
 
 function EditUserDialog({ user, groups, onClose }: { user: User; groups: Group[]; onClose: () => void }) {
-  const queryClient = useQueryClient();
   const t = useTranslations('users.editDialog');
   const tCreate = useTranslations('users.createDialog');
   const [formData, setFormData] = useState({

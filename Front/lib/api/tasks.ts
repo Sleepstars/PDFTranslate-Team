@@ -43,9 +43,10 @@ export const tasksAPI = {
     const formData = new FormData();
     data.files.forEach((file) => formData.append('files', file));
     formData.append('documentNames', JSON.stringify(data.documentNames));
-    formData.append('sourceLang', data.sourceLang);
-    formData.append('targetLang', data.targetLang);
-    formData.append('engine', data.engine);
+    if (data.taskType) formData.append('taskType', data.taskType);
+    if (data.sourceLang) formData.append('sourceLang', data.sourceLang);
+    if (data.targetLang) formData.append('targetLang', data.targetLang);
+    if (data.engine) formData.append('engine', data.engine);
     formData.append('priority', data.priority);
     if (data.notes) formData.append('notes', data.notes);
     if (data.modelConfig) formData.append('modelConfig', data.modelConfig);
