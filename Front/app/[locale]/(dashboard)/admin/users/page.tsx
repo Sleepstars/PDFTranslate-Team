@@ -287,6 +287,8 @@ function EditUserDialog({ user, groups, onClose }: { user: User; groups: Group[]
   const tCreate = useTranslations('users.createDialog');
   const [formData, setFormData] = useState({
     name: user.name,
+    email: user.email,
+    password: '',
     role: user.role,
     groupId: user.groupId || '',
     isActive: user.isActive,
@@ -295,7 +297,7 @@ function EditUserDialog({ user, groups, onClose }: { user: User; groups: Group[]
   const [error, setError] = useState<string | null>(null);
 
   const updateMutation = useMutation({
-    mutationFn: (data: { name?: string; role?: 'admin' | 'user'; groupId?: string; isActive?: boolean; dailyPageLimit?: number }) => adminUsersAPI.update(user.id, data),
+    mutationFn: (data: { name?: string; email?: string; password?: string; role?: 'admin' | 'user'; groupId?: string; isActive?: boolean; dailyPageLimit?: number }) => adminUsersAPI.update(user.id, data),
     onSuccess: () => {
       onClose();
       // WebSocket 会自动更新数据，无需手动 invalidate
@@ -329,6 +331,25 @@ function EditUserDialog({ user, groups, onClose }: { user: User; groups: Group[]
               className="w-full h-9 border-input bg-background border rounded-md px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1.5">{tCreate('email')}</label>
+            <input
+              type="email"
+              className="w-full h-9 border-input bg-background border rounded-md px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              value={formData.email}
+              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1.5">{tCreate('password')} <span className="text-xs text-muted-foreground">(optional)</span></label>
+            <input
+              type="password"
+              className="w-full h-9 border-input bg-background border rounded-md px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              value={formData.password}
+              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+              placeholder="••••••••"
             />
           </div>
           <div>

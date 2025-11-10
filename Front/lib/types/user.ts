@@ -21,6 +21,8 @@ export interface CreateUserRequest {
 
 export interface UpdateUserRequest {
   name?: string;
+  email?: string;
+  password?: string;
   role?: 'admin' | 'user';
   groupId?: string;
   isActive?: boolean;

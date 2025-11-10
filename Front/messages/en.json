@@ -254,6 +254,8 @@
   },
   "settings": {
     "title": "System Settings",
+    "systemConfig": "System",
+    "emailConfig": "Email",
     "s3Config": "S3 Storage Configuration",
     "s3Endpoint": "S3 Endpoint",
     "s3EndpointDescription": "(Optional, leave empty for AWS S3)",
@@ -278,7 +280,19 @@
     "testResult": "Test result will appear here",
     "required": "required",
     "hide": "Hide",
-    "show": "Show"
+    "show": "Show",
+    "allowRegistration": "Allow self-registration",
+    "allowRegistrationDescription": "When off, only admins can create users.",
+    "smtpHost": "SMTP Host",
+    "smtpPort": "SMTP Port",
+    "smtpUsername": "SMTP Username",
+    "smtpPassword": "SMTP Password",
+    "smtpPasswordPlaceholder": "Leave empty to keep unchanged",
+    "smtpUseTLS": "Use TLS/STARTTLS",
+    "smtpFromEmail": "From Email",
+    "allowedEmailSuffixes": "Allowed email suffixes",
+    "allowedEmailSuffixesPlaceholder": "e.g., @company.com, @org.org",
+    "allowedEmailSuffixesHelp": "Restrict signups to these suffixes; leave empty for no restriction"
   },
   "login": {
     "title": "PDF Translate",

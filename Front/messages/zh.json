@@ -254,6 +254,8 @@
   },
   "settings": {
     "title": "系统设置",
+    "systemConfig": "系统配置",
+    "emailConfig": "邮件设置",
     "s3Config": "S3存储配置",
     "s3Endpoint": "S3端点",
     "s3EndpointDescription": "（可选，AWS S3留空）",
@@ -278,7 +280,19 @@
     "testResult": "测试结果将在这里显示",
     "required": "必填",
     "hide": "隐藏",
-    "show": "显示"
+    "show": "显示",
+    "allowRegistration": "允许新用户自行注册",
+    "allowRegistrationDescription": "关闭后，仅管理员可创建用户。",
+    "smtpHost": "SMTP 主机",
+    "smtpPort": "SMTP 端口",
+    "smtpUsername": "SMTP 用户名",
+    "smtpPassword": "SMTP 密码",
+    "smtpPasswordPlaceholder": "留空表示不修改",
+    "smtpUseTLS": "使用 TLS/STARTTLS",
+    "smtpFromEmail": "发件邮箱（From）",
+    "allowedEmailSuffixes": "允许的邮箱后缀",
+    "allowedEmailSuffixesPlaceholder": "例如：@company.com, @org.org",
+    "allowedEmailSuffixesHelp": "用于限制注册邮箱后缀；留空表示不限制"
   },
   "login": {
     "title": "PDF翻译",
