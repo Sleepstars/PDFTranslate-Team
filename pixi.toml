@@ -26,8 +26,8 @@ pypdf2 = ">=3.0.0"
 greenlet = ">=3.0.0"
 
 [tasks]
-"install-frontend" = { cmd = "npm install", cwd = "Front" }
-"dev-frontend" = { cmd = "npm run dev", cwd = "Front" }
-"build-frontend" = { cmd = "npm run build", cwd = "Front" }
+"install-frontend" = { cmd = "bun install", cwd = "Front" }
+"dev-frontend" = { cmd = "bun run dev", cwd = "Front" }
+"build-frontend" = { cmd = "bun run build", cwd = "Front" }
 "start-backend" = "uvicorn app.main:app --reload --port 8000"
-"lint-frontend" = { cmd = "npm run lint", cwd = "Front" }
+"lint-frontend" = { cmd = "bun run lint", cwd = "Front" }

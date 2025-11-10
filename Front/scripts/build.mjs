@@ -5,9 +5,9 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const nextBin = path.join(__dirname, '..', 'node_modules', '.bin', process.platform === 'win32' ? 'next.cmd' : 'next');
 
-const child = spawn(nextBin, ['build', '--webpack'], {
+// Use bun to run next directly
+const child = spawn('bun', ['run', 'next', 'build', '--webpack'], {
   stdio: 'inherit',
   cwd: path.join(__dirname, '..'),
   env: {

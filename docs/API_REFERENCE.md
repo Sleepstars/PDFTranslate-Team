@@ -296,6 +296,8 @@ _2025-11-09 更新：后端重启后会自动将上次停在 `processing` 状态
 
 > **2025-11-11** – Responses now expose `zipOutputUrl` for MinerU parsing tasks so clients can download the original ZIP (with `images/`) directly. `markdownOutputUrl` already points inline image links to tenant-owned S3 URLs, so previews stay intact even if the ZIP is never downloaded.
 
+> Note (2025-11-10): If S3 is not configured yet (fresh startup), this endpoint still returns successfully, but URL fields such as `inputUrl`, `outputUrl`, `monoOutputUrl`, `dualOutputUrl`, `glossaryOutputUrl`, `zipOutputUrl`, and `markdownOutputUrl` will be `null`.
+
 ---
 
 ### GET /api/tasks/{id}
@@ -330,6 +332,8 @@ _Use case_: 在前端“任务详情”面板或调试工具中，结合轮询�
 
 **Errors:**
 - `404 Not Found`: Task not found or not owned by user
+
+> Note (2025-11-10): When S3 is not configured, URL fields in the task payload will be `null`, but the endpoint still returns task metadata.
 
 ---
 

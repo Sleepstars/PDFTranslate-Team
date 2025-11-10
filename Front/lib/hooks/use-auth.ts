@@ -8,7 +8,7 @@ export function useAuth() {
   const pathname = usePathname();
   const locale = pathname.split('/')[1] || 'zh';
 
-  const { data: user, isLoading } = useQuery({
+  const { data: user, isLoading, refetch } = useQuery({
     queryKey: ['auth', 'me'],
     queryFn: getCurrentUser,
   });
@@ -37,5 +37,6 @@ export function useAuth() {
     login: loginMutation.mutate,
     logout: logoutMutation.mutate,
     isLoggingIn: loginMutation.isPending,
+    refetch,
   };
 }

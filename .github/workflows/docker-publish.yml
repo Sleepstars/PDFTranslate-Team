@@ -21,24 +21,22 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
         with:
-          node-version: "20"
-          cache: "npm"
-          cache-dependency-path: Front/package-lock.json
+          bun-version: latest
 
       - name: Install dependencies
-        run: npm ci
+        run: bun install
 
       - name: Lint
-        run: npm run lint
+        run: bun run lint
 
       - name: Type check
         run: npx tsc --noEmit
 
       - name: Build
-        run: npm run build
+        run: bun run build
         env:
           NEXT_PUBLIC_API_BASE_URL: http://localhost:8000/api
 
