@@ -31,7 +31,7 @@ export default function RegisterPage() {
         await getAltchaChallenge();
         setAltchaEnabled(true);
         setChallengeUrl('/auth/altcha/challenge');
-      } catch (error) {
+      } catch {
         // ALTCHA is not enabled or not configured
         setAltchaEnabled(false);
       }
@@ -57,7 +57,7 @@ export default function RegisterPage() {
   useEffect(() => {
     if (!altchaEnabled) return;
 
-    const handleAltchaStateChange = (event: any) => {
+    const handleAltchaStateChange = (event: CustomEvent) => {
       if (event.detail.state === 'verified') {
         setAltchaPayload(event.detail.payload);
       } else {
@@ -114,8 +114,8 @@ export default function RegisterPage() {
 
       // Redirect to dashboard
       router.push('/');
-    } catch (err: any) {
-      setError(err.message || t('registrationFailed'));
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : t('registrationFailed'));
     } finally {
       setIsRegistering(false);
     }

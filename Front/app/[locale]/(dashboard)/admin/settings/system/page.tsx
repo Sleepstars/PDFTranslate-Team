@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminSettingsAPI } from '@/lib/api/admin-settings';
 import { useTranslations } from 'next-intl';
@@ -29,21 +29,28 @@ export default function AdminSettingsSystemPage() {
     queryFn: adminSettingsAPI.getSystem,
   });
 
-  const [allowRegistration, setAllowRegistration] = useState(false);
-  const [altchaEnabled, setAltchaEnabled] = useState(false);
-  const [altchaSecretKey, setAltchaSecretKey] = useState('');
-  const [allowedEmailSuffixes, setAllowedEmailSuffixes] = useState<string[]>([]);
+  // Derive state from data using useMemo to avoid setState in effects
+  const derivedState = useMemo(() => ({
+    allowRegistration: data?.allowRegistration ?? false,
+    altchaEnabled: data?.altchaEnabled ?? false,
+    altchaSecretKey: data?.altchaSecretKey ?? '',
+    allowedEmailSuffixes: data?.allowedEmailSuffixes ?? [],
+  }), [data]);
+
+  // Local state for form inputs
+  const [allowRegistration, setAllowRegistration] = useState(derivedState.allowRegistration);
+  const [altchaEnabled, setAltchaEnabled] = useState(derivedState.altchaEnabled);
+  const [altchaSecretKey, setAltchaSecretKey] = useState(derivedState.altchaSecretKey);
+  const [allowedEmailSuffixes, setAllowedEmailSuffixes] = useState(derivedState.allowedEmailSuffixes);
   const [customSuffix, setCustomSuffix] = useState('');
 
-  // Update state when data is loaded
+  // Update state when derived state changes
   useEffect(() => {
-    if (data) {
-      setAllowRegistration(data.allowRegistration);
-      setAltchaEnabled(data.altchaEnabled);
-      setAltchaSecretKey(data.altchaSecretKey || '');
-      setAllowedEmailSuffixes(data.allowedEmailSuffixes || []);
-    }
-  }, [data]);
+    setAllowRegistration(derivedState.allowRegistration);
+    setAltchaEnabled(derivedState.altchaEnabled);
+    setAltchaSecretKey(derivedState.altchaSecretKey);
+    setAllowedEmailSuffixes(derivedState.allowedEmailSuffixes);
+  }, [derivedState]);
 
   const updateMutation = useMutation({
     mutationFn: adminSettingsAPI.updateSystem,

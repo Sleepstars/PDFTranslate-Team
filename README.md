@@ -17,6 +17,7 @@
 - **2025-11-11**：修复任务删除未清理 MinerU `images/` 与 ZIP 产物的问题；现在会删除 `outputs/{ownerId}/{taskId}/` 与 `mineru/{mineruTaskId}/` 前缀下的所有对象。
 - **2025-11-09**：后端启动时会自动恢复重启前卡在 `processing` 的任务，将其重新排队并继续执行。
 - **2025-11-09**：修复批量上传任务未携带 `providerConfigId` 的问题，现在批量翻译会正确使用所选的自定义翻译服务（包括第三方 OpenAI 代理）。
+- **2025-11-10**：后台“系统设置”新增二级菜单（系统/邮件/S3）；系统设置可控制是否允许新用户注册；邮件设置支持 SMTP 与允许的邮箱后缀；用户管理支持编辑邮箱与密码。
 
 ## 仓库结构
 ```
@@ -90,6 +91,7 @@ pixi.toml           # 跨语言开发环境
 - **对象存储**：S3 兼容服务（MinIO/AWS S3）
 - **翻译引擎**：pdf2zh-next (v2.6.0+) 支持 20+ 翻译服务
 - **部署**：Docker Compose, Pixi 环境管理
+- **包管理**：前端使用 [bun](https://bun.sh)，后端使用 [pixi](https://pixi.sh)
 
 ## 快速开始
 
@@ -105,7 +107,7 @@ pixi.toml           # 跨语言开发环境
 ```bash
 # 1. 安装依赖
 pixi install
-pixi run install-frontend
+pixi run install-frontend  # 使用 bun install
 
 # 2. 配置环境变量（可选，使用默认值）
 cp .env.example .env
@@ -348,10 +350,10 @@ ruff format .
 ### 前端开发
 ```bash
 cd Front
-npm install
-npm run dev      # 开发模式
-npm run build    # 生产构建
-npm run lint     # 代码检查
+bun install  # 使用 bun 替代 npm
+bun run dev      # 开发模式 - 使用 bun
+bun run build    # 生产构建 - 使用 bun  
+bun run lint     # 代码检查 - 使用 bun
 ```
 
 ### 数据库迁移
