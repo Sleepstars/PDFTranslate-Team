@@ -1054,6 +1054,7 @@ function BatchUploadDialog({ onClose, providers }: { onClose: () => void; provid
   const queryClient = useQueryClient();
   const [entries, setEntries] = useState<Array<{ id: string; file: File; documentName: string }>>([]);
   const [error, setError] = useState<string | null>(null);
+  const [translateAfterParsing, setTranslateAfterParsing] = useState(false);
   const t = useTranslations('tasks.batchDialog');
   const tCreate = useTranslations('tasks.createDialog');
 
@@ -1062,12 +1063,14 @@ function BatchUploadDialog({ onClose, providers }: { onClose: () => void; provid
   const defaultTranslation = useMemo(() => translationProviders.find((p) => p.isDefault) || translationProviders[0], [translationProviders]);
 
   const [formData, setFormData] = useState({
+    taskType: 'translation' as 'translation' | 'parsing',
     sourceLang: 'en',
     targetLang: 'zh',
     engine: defaultTranslation?.providerType || 'openai',
     priority: 'normal' as 'normal' | 'high',
     notes: '',
     providerConfigId: defaultTranslation?.id || '',
+    translationProviderConfigId: '', // 用于解析任务的翻译提供商
   });
 
   const batchMutation = useMutation({
@@ -1114,15 +1117,32 @@ function BatchUploadDialog({ onClose, providers }: { onClose: () => void; provid
       return;
     }
     setError(null);
+
+    // 根据任务类型和勾选状态构建请求
+    let taskType: 'translation' | 'parsing' | 'parse_and_translate';
+    let providerConfigId: string;
+
+    if (formData.taskType === 'translation') {
+      taskType = 'translation';
+      providerConfigId = formData.providerConfigId;
+    } else if (formData.taskType === 'parsing' && translateAfterParsing) {
+      taskType = 'parse_and_translate';
+      providerConfigId = formData.translationProviderConfigId;
+    } else {
+      taskType = 'parsing';
+      providerConfigId = formData.providerConfigId;
+    }
+
     batchMutation.mutate({
       files: entries.map((entry) => entry.file),
       documentNames: entries.map((entry) => entry.documentName.trim()),
-      sourceLang: formData.sourceLang,
-      targetLang: formData.targetLang,
-      engine: formData.engine,
+      taskType,
+      sourceLang: formData.sourceLang || undefined,
+      targetLang: formData.targetLang || undefined,
+      engine: formData.engine || undefined,
       priority: formData.priority,
       notes: formData.notes || undefined,
-      providerConfigId: formData.providerConfigId || undefined,
+      providerConfigId: providerConfigId || undefined,
     });
   };
 
@@ -1167,44 +1187,83 @@ function BatchUploadDialog({ onClose, providers }: { onClose: () => void; provid
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium mb-1">{tCreate('sourceLanguage')}</label>
-              <select
-                className="w-full border border-input rounded px-3 py-2 bg-background"
-                value={formData.sourceLang}
-                onChange={(e) => setFormData({ ...formData, sourceLang: e.target.value })}
-              >
-                <option value="en">{tCreate('english')}</option>
-                <option value="zh">{tCreate('chinese')}</option>
-                <option value="ja">{tCreate('japanese')}</option>
-                <option value="ko">{tCreate('korean')}</option>
-                <option value="fr">{tCreate('french')}</option>
-                <option value="de">{tCreate('german')}</option>
-                <option value="es">{tCreate('spanish')}</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">{tCreate('targetLanguage')}</label>
-              <select
-                className="w-full border border-input rounded px-3 py-2 bg-background"
-                value={formData.targetLang}
-                onChange={(e) => setFormData({ ...formData, targetLang: e.target.value })}
-              >
-                <option value="zh">{tCreate('chinese')}</option>
-                <option value="en">{tCreate('english')}</option>
-                <option value="ja">{tCreate('japanese')}</option>
-                <option value="ko">{tCreate('korean')}</option>
-                <option value="fr">{tCreate('french')}</option>
-                <option value="de">{tCreate('german')}</option>
-                <option value="es">{tCreate('spanish')}</option>
-              </select>
-            </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">{tCreate('taskType')}</label>
+            <select
+              className="w-full border border-input rounded px-3 py-2 bg-background"
+              value={formData.taskType}
+              onChange={(e) => {
+                const newTaskType = e.target.value as 'translation' | 'parsing';
+                setFormData({ ...formData, taskType: newTaskType });
+                // 切换到解析任务时，重置翻译选项
+                if (newTaskType === 'parsing') {
+                  setTranslateAfterParsing(false);
+                }
+              }}
+            >
+              <option value="translation">{tCreate('pdfTranslation')}</option>
+              <option value="parsing">{tCreate('pdfParsing')}</option>
+            </select>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          {/* PDF 解析任务的额外选项 */}
+          {formData.taskType === 'parsing' && (
+            <div className="flex items-center space-x-2 p-3 bg-muted/50 rounded-md">
+              <input
+                type="checkbox"
+                id="batchTranslateAfterParsing"
+                checked={translateAfterParsing}
+                onChange={(e) => setTranslateAfterParsing(e.target.checked)}
+                className="w-4 h-4 rounded border-input"
+              />
+              <label htmlFor="batchTranslateAfterParsing" className="text-sm font-medium cursor-pointer">
+                {tCreate('translateMarkdownAfterParsing')}
+              </label>
+            </div>
+          )}
+
+          {/* 翻译任务或解析后翻译时显示语言选择 */}
+          {(formData.taskType === 'translation' || (formData.taskType === 'parsing' && translateAfterParsing)) && (
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">{tCreate('sourceLanguage')}</label>
+                <select
+                  className="w-full border border-input rounded px-3 py-2 bg-background"
+                  value={formData.sourceLang}
+                  onChange={(e) => setFormData({ ...formData, sourceLang: e.target.value })}
+                >
+                  <option value="en">{tCreate('english')}</option>
+                  <option value="zh">{tCreate('chinese')}</option>
+                  <option value="ja">{tCreate('japanese')}</option>
+                  <option value="ko">{tCreate('korean')}</option>
+                  <option value="fr">{tCreate('french')}</option>
+                  <option value="de">{tCreate('german')}</option>
+                  <option value="es">{tCreate('spanish')}</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">{tCreate('targetLanguage')}</label>
+                <select
+                  className="w-full border border-input rounded px-3 py-2 bg-background"
+                  value={formData.targetLang}
+                  onChange={(e) => setFormData({ ...formData, targetLang: e.target.value })}
+                >
+                  <option value="zh">{tCreate('chinese')}</option>
+                  <option value="en">{tCreate('english')}</option>
+                  <option value="ja">{tCreate('japanese')}</option>
+                  <option value="ko">{tCreate('korean')}</option>
+                  <option value="fr">{tCreate('french')}</option>
+                  <option value="de">{tCreate('german')}</option>
+                  <option value="es">{tCreate('spanish')}</option>
+                </select>
+              </div>
+            </div>
+          )}
+
+          {/* 解析服务提供商（仅解析任务） */}
+          {formData.taskType === 'parsing' && (
             <div>
-              <label className="block text-sm font-medium mb-1">{tCreate('translationProvider')}</label>
+              <label className="block text-sm font-medium mb-1">{tCreate('parsingProvider')}</label>
               <select
                 className="w-full border border-input rounded px-3 py-2 bg-background"
                 value={formData.providerConfigId}
@@ -1213,30 +1272,72 @@ function BatchUploadDialog({ onClose, providers }: { onClose: () => void; provid
                   setFormData({
                     ...formData,
                     providerConfigId: e.target.value,
-                    engine: provider?.providerType || formData.engine,
+                    engine: provider?.providerType || 'mineru',
                   });
                 }}
                 required
               >
                 <option value="">{tCreate('selectProvider')}</option>
-                {providers.map((provider) => (
-                  <option key={provider.id} value={provider.id}>
-                    {provider.name} ({provider.providerType}){provider.isDefault ? ` ${tCreate('default')}` : ''}
-                  </option>
-                ))}
+                {providers
+                  .filter((provider) => provider.providerType === 'mineru')
+                  .map((provider) => (
+                    <option key={provider.id} value={provider.id}>
+                      {provider.name} ({provider.providerType})
+                      {provider.isDefault && ` ${tCreate('default')}`}
+                    </option>
+                  ))}
               </select>
             </div>
+          )}
+
+          {/* 翻译服务提供商（翻译任务或解析后翻译） */}
+          {(formData.taskType === 'translation' || (formData.taskType === 'parsing' && translateAfterParsing)) && (
             <div>
-              <label className="block text-sm font-medium mb-1">{tCreate('priority')}</label>
+              <label className="block text-sm font-medium mb-1">{tCreate('translationProvider')}</label>
               <select
                 className="w-full border border-input rounded px-3 py-2 bg-background"
-                value={formData.priority}
-                onChange={(e) => setFormData({ ...formData, priority: e.target.value as 'normal' | 'high' })}
+                value={formData.taskType === 'translation' ? formData.providerConfigId : formData.translationProviderConfigId}
+                onChange={(e) => {
+                  const provider = providers.find((p) => p.id === e.target.value);
+                  if (formData.taskType === 'translation') {
+                    setFormData({
+                      ...formData,
+                      providerConfigId: e.target.value,
+                      engine: provider?.providerType || 'openai',
+                    });
+                  } else {
+                    // 解析后翻译，保存到单独的字段
+                    setFormData({
+                      ...formData,
+                      translationProviderConfigId: e.target.value,
+                    });
+                  }
+                }}
+                required
               >
-                <option value="normal">{tCreate('normal')}</option>
-                <option value="high">{tCreate('high')}</option>
+                <option value="">{tCreate('selectProvider')}</option>
+                {providers
+                  .filter((provider) => provider.providerType !== 'mineru')
+                  .map((provider) => (
+                    <option key={provider.id} value={provider.id}>
+                      {provider.name} ({provider.providerType})
+                      {provider.isDefault && ` ${tCreate('default')}`}
+                    </option>
+                  ))}
               </select>
             </div>
+          )}
+
+          <div>
+            <label className="block text-sm font-medium mb-1">{tCreate('priority')}</label>
+            <select
+              className="w-full border border-input rounded px-3 py-2 bg-background"
+              value={formData.priority}
+              onChange={(e) => setFormData({ ...formData, priority: e.target.value as 'normal' | 'high' })}
+            >
+              <option value="normal">{tCreate('normal')}</option>
+              <option value="high">{tCreate('high')}</option>
+            </select>
           </div>
 
           <div>

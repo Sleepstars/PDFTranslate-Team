@@ -47,14 +47,14 @@ export interface CreateTaskRequest {
 export interface CreateBatchTasksRequest {
   files: File[];
   documentNames: string[];
-  taskType?: TaskType;         // translation | parsing | parse_and_translate
-  sourceLang?: string;         // Optional for parsing-only tasks
-  targetLang?: string;         // Optional for parsing-only tasks
-  engine?: string;             // Optional for parsing-only tasks
+  taskType?: TaskType;
+  sourceLang?: string;  // Optional for parsing-only tasks
+  targetLang?: string;  // Optional for parsing-only tasks
+  engine?: string;      // Optional for parsing-only tasks
   priority: 'normal' | 'high';
   notes?: string;
   modelConfig?: string;
-  providerConfigId?: string;   // Translation provider for translation/parse_and_translate; MinerU for parsing
+  providerConfigId?: string;
 }
 
 export interface TaskStats {

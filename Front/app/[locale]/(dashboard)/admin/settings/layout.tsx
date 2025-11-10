@@ -1,13 +1,15 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 
-export default function SettingsLayout({ children, params }: { children: React.ReactNode; params: { locale: string } }) {
+export default function SettingsLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const params = useParams<{ locale: string }>();
   const t = useTranslations('settings');
-  const base = `/${params.locale}/admin/settings`;
+  const locale = params?.locale || 'zh';
+  const base = `/${locale}/admin/settings`;
 
   const links = [
     { href: `${base}/system`, label: t('systemConfig') },

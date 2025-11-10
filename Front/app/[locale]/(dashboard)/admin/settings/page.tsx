@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 
-export default function AdminSettingsPage({ params }: { params: { locale: string } }) {
-  redirect(`/${params.locale}/admin/settings/s3`);
+export default async function AdminSettingsPage({ params }: { params: Promise<{ locale: string }> }) {
+  const { locale } = await params;
+  redirect(`/${locale}/admin/settings/s3`);
 }

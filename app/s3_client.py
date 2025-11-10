@@ -2,6 +2,7 @@ import boto3
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 from botocore.exceptions import ClientError
+from .settings_manager import MissingS3Configuration
 
 
 class S3Client:
@@ -102,6 +103,25 @@ class S3Client:
             pass
 
 def get_s3(config: Optional[dict] = None):
+    """Return an initialized S3Client or raise MissingS3Configuration.
+
+    This is tolerant during normal read paths: callers that want to gracefully
+    handle missing storage can catch MissingS3Configuration and proceed with
+    s3=None (e.g., task listing without presigned URLs). For write paths, call
+    get_s3_config(..., strict=True) first so misconfiguration is surfaced early.
+    """
     if not config:
-        raise ValueError("Please provide an S3 configuration from the database")
+        raise MissingS3Configuration(
+            "S3 storage is not configured. Please open Admin > Settings > S3 to complete the configuration."
+        )
+
+    # If any required field is missing/empty, treat as not configured
+    required = S3Client.REQUIRED_FIELDS
+    missing = [field for field in required if not config.get(field)]
+    if missing:
+        raise MissingS3Configuration(
+            f"S3 storage is not fully configured (missing: {', '.join(missing)}). "
+            "Please open Admin > Settings > S3 to complete the configuration."
+        )
+
     return S3Client(config)
