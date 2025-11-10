@@ -18,6 +18,9 @@ class User(Base):
     role: Mapped[str] = mapped_column(String(20), server_default="user")  # "admin" or "user"
     is_active: Mapped[bool] = mapped_column(Boolean, server_default="true")
 
+    # Group-based access control (optional single group)
+    group_id: Mapped[Optional[str]] = mapped_column(String(50), ForeignKey("groups.id", ondelete="SET NULL"), nullable=True)
+
     # Quota management
     daily_page_limit: Mapped[int] = mapped_column(Integer, server_default="50")
     daily_page_used: Mapped[int] = mapped_column(Integer, server_default="0")
@@ -38,13 +41,21 @@ class TranslationProviderConfig(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
 
 
-class UserProviderAccess(Base):
-    __tablename__ = "user_provider_access"
+class Group(Base):
+    __tablename__ = "groups"
 
     id: Mapped[str] = mapped_column(String(50), primary_key=True)
-    user_id: Mapped[str] = mapped_column(String(50), ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(255))
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class GroupProviderAccess(Base):
+    __tablename__ = "group_provider_access"
+
+    id: Mapped[str] = mapped_column(String(50), primary_key=True)
+    group_id: Mapped[str] = mapped_column(String(50), ForeignKey("groups.id", ondelete="CASCADE"), index=True)
     provider_config_id: Mapped[str] = mapped_column(String(50), ForeignKey("translation_provider_configs.id", ondelete="CASCADE"), index=True)
-    is_default: Mapped[bool] = mapped_column(Boolean, server_default="false")
+    sort_order: Mapped[int] = mapped_column(Integer, server_default="0")
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
 
@@ -85,6 +96,16 @@ class TranslationTask(Base):
     dual_output_url: Mapped[Optional[str]] = mapped_column(String(1000), nullable=True)
     glossary_output_s3_key: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     glossary_output_url: Mapped[Optional[str]] = mapped_column(String(1000), nullable=True)
+    zip_output_s3_key: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    zip_output_url: Mapped[Optional[str]] = mapped_column(String(1000), nullable=True)
+
+    # MinerU parsing support
+    task_type: Mapped[str] = mapped_column(String(20), server_default="translation", index=True)  # translation, parsing, parse_and_translate
+    markdown_output_s3_key: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    markdown_output_url: Mapped[Optional[str]] = mapped_column(String(1000), nullable=True)
+    translated_markdown_s3_key: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    translated_markdown_url: Mapped[Optional[str]] = mapped_column(String(1000), nullable=True)
+    mineru_task_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)  # MinerU API task ID
 
     def to_dict(self, s3_client=None) -> dict:
         input_url = None
@@ -112,9 +133,14 @@ class TranslationTask(Base):
             "monoOutputUrl": self.mono_output_url,
             "dualOutputUrl": self.dual_output_url,
             "glossaryOutputUrl": self.glossary_output_url,
+            "zipOutputUrl": self.zip_output_url,
             "error": self.error,
             "pageCount": self.page_count,
             "providerConfigId": self.provider_config_id,
+            "taskType": self.task_type,
+            "markdownOutputUrl": self.markdown_output_url,
+            "translatedMarkdownUrl": self.translated_markdown_url,
+            "mineruTaskId": self.mineru_task_id,
         }
 
 

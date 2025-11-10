@@ -37,6 +37,7 @@ async def list_users(
             name=user.name,
             email=user.email,
             role=user.role,
+            groupId=getattr(user, "group_id", None),
             isActive=user.is_active,
             dailyPageLimit=user.daily_page_limit,
             dailyPageUsed=user.daily_page_used,
@@ -85,6 +86,7 @@ async def create_user(
         name=user.name,
         email=user.email,
         role=user.role,
+        groupId=getattr(user, "group_id", None),
         isActive=user.is_active,
         dailyPageLimit=user.daily_page_limit,
         dailyPageUsed=user.daily_page_used,
@@ -117,6 +119,7 @@ async def get_user(
         name=user.name,
         email=user.email,
         role=user.role,
+        groupId=getattr(user, "group_id", None),
         isActive=user.is_active,
         dailyPageLimit=user.daily_page_limit,
         dailyPageUsed=user.daily_page_used,
@@ -145,8 +148,28 @@ async def update_user(
     # Update fields
     if request.name is not None:
         user.name = request.name
+    if request.email is not None and request.email != user.email:
+        # ensure email is unique
+        existing = await db.execute(select(User).where(User.email == request.email))
+        if existing.scalar_one_or_none():
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered")
+        user.email = request.email
+    if request.password is not None and request.password != "":
+        user.password_hash = hash_password(request.password)
     if request.role is not None:
         user.role = request.role
+    if request.groupId is not None:
+        # group assignment is optional; ensure group exists or allow clearing
+        if request.groupId == "":
+            user.group_id = None
+        else:
+            from sqlalchemy import select
+            from app.models import Group
+            result = await db.execute(select(Group).where(Group.id == request.groupId))
+            group = result.scalar_one_or_none()
+            if not group:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Group not found")
+            user.group_id = request.groupId
     if request.isActive is not None:
         user.is_active = request.isActive
     if request.dailyPageLimit is not None:
@@ -160,6 +183,7 @@ async def update_user(
         name=user.name,
         email=user.email,
         role=user.role,
+        groupId=getattr(user, "group_id", None),
         isActive=user.is_active,
         dailyPageLimit=user.daily_page_limit,
         dailyPageUsed=user.daily_page_used,
@@ -225,6 +249,7 @@ async def update_user_quota(
         name=user.name,
         email=user.email,
         role=user.role,
+        groupId=getattr(user, "group_id", None),
         isActive=user.is_active,
         dailyPageLimit=user.daily_page_limit,
         dailyPageUsed=user.daily_page_used,

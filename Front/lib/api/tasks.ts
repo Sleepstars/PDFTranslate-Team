@@ -21,13 +21,13 @@ export const tasksAPI = {
     const formData = new FormData();
     formData.append('file', data.file);
     formData.append('documentName', data.documentName);
-    formData.append('sourceLang', data.sourceLang);
-    formData.append('targetLang', data.targetLang);
-    formData.append('engine', data.engine);
+    if (data.taskType) formData.append('taskType', data.taskType);
+    if (data.sourceLang) formData.append('sourceLang', data.sourceLang);
+    if (data.targetLang) formData.append('targetLang', data.targetLang);
+    if (data.engine) formData.append('engine', data.engine);
     formData.append('priority', data.priority);
     if (data.notes) formData.append('notes', data.notes);
     if (data.modelConfig) formData.append('modelConfig', data.modelConfig);
-    if (data.providerConfigId) formData.append('providerConfigId', data.providerConfigId);
     if (data.providerConfigId) formData.append('providerConfigId', data.providerConfigId);
 
     const res = await fetch('/api/tasks', {

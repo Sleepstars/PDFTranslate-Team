@@ -1,5 +1,4 @@
 import type { CreateProviderRequest, UpdateProviderRequest } from '../types/provider';
-import type { GrantAccessRequest } from '../types/access';
 
 async function fetchAPI(url: string, options?: RequestInit) {
   const res = await fetch(url, { ...options, credentials: 'include' });
@@ -31,16 +30,4 @@ export const adminProvidersAPI = {
 
   delete: (id: string) =>
     fetchAPI(`/api/admin/providers/${id}`, { method: 'DELETE' }),
-
-  listAccess: () => fetchAPI('/api/admin/providers/access/all'),
-
-  grantAccess: (data: GrantAccessRequest) =>
-    fetchAPI('/api/admin/providers/access', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    }),
-
-  revokeAccess: (id: string) =>
-    fetchAPI(`/api/admin/providers/access/${id}`, { method: 'DELETE' }),
 };

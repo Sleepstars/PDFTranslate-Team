@@ -1,3 +1,5 @@
+export type TaskType = 'translation' | 'parsing' | 'parse_and_translate';
+
 export interface Task {
   id: string;
   ownerId: string;
@@ -18,18 +20,24 @@ export interface Task {
   monoOutputUrl?: string;
   dualOutputUrl?: string;
   glossaryOutputUrl?: string;
+  zipOutputUrl?: string;
   progressMessage?: string;
   error?: string;
   pageCount: number;
   providerConfigId?: string;
+  taskType: TaskType;
+  markdownOutputUrl?: string;
+  translatedMarkdownUrl?: string;
+  mineruTaskId?: string;
 }
 
 export interface CreateTaskRequest {
   file: File;
   documentName: string;
-  sourceLang: string;
-  targetLang: string;
-  engine: string;
+  taskType?: TaskType;
+  sourceLang?: string;  // Optional for parsing-only tasks
+  targetLang?: string;  // Optional for parsing-only tasks
+  engine?: string;      // Optional for parsing-only tasks
   priority: 'normal' | 'high';
   notes?: string;
   modelConfig?: string;

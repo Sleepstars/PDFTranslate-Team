@@ -2,38 +2,107 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .config import get_settings
-from .routes import auth, tasks, settings as settings_route, admin_users, admin_providers, users
+from .routes import auth, tasks, settings as settings_route, admin_users, admin_providers, users, admin_groups
 from .redis_client import redis_client
 from .database import engine, Base
 from .auth import create_user
 from .database import AsyncSessionLocal
 from sqlalchemy import select
-from .models import User
+from .models import User, Group
 from .tasks import task_manager
+import logging
+import asyncio
 
+logger = logging.getLogger(__name__)
 settings = get_settings()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
-    await redis_client.connect()
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    logger.info("🚀 Starting PDFTranslate backend...")
 
-    # Create default admin user if not exists
-    async with AsyncSessionLocal() as db:
-        result = await db.execute(select(User).where(User.email == settings.admin_email))
-        if not result.scalar_one_or_none():
-            await create_user(db, "admin", settings.admin_email, settings.admin_name, settings.admin_password)
+    try:
+        logger.info("📡 Connecting to Redis...")
+        await redis_client.connect()
+        logger.info("✅ Redis connected")
+    except Exception as e:
+        logger.error(f"❌ Redis connection failed: {e}")
+        raise
+
+    try:
+        logger.info("🗄️  Initializing database...")
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        logger.info("✅ Database initialized")
+    except Exception as e:
+        logger.error(f"❌ Database initialization failed: {e}")
+        raise
+
+    # Create default group and admin user if not exists
+    try:
+        logger.info("👤 Checking admin user...")
+        async with AsyncSessionLocal() as db:
+            # Ensure default group exists
+            default_group = None
+            try:
+                result = await db.execute(select(Group).where(Group.id == "default"))
+                default_group = result.scalar_one_or_none()
+                if not default_group:
+                    default_group = Group(id="default", name="Default Group")
+                    db.add(default_group)
+                    await db.commit()
+            except Exception:
+                logger.exception("Failed to ensure default group exists")
+
+            result = await db.execute(select(User).where(User.email == settings.admin_email))
+            if not result.scalar_one_or_none():
+                logger.info("Creating default admin user...")
+                await create_user(db, "admin", settings.admin_email, settings.admin_name, settings.admin_password)
+                logger.info("✅ Admin user created")
+            else:
+                logger.info("✅ Admin user exists")
+
+            # Ensure admin is assigned to default group
+            result = await db.execute(select(User).where(User.email == settings.admin_email))
+            admin_user = result.scalar_one_or_none()
+            if admin_user and not getattr(admin_user, "group_id", None):
+                admin_user.group_id = "default"
+                await db.commit()
+    except Exception as e:
+        logger.error(f"❌ Admin user check/creation failed: {e}")
+        # 不阻塞启动，继续运行
 
     # Resume tasks that were running before a crash/restart
-    await task_manager.resume_stalled_tasks()
-    await task_manager.start_queue_monitor()
+    try:
+        logger.info("🔄 Resuming stalled tasks...")
+        # 添加超时保护，避免阻塞启动
+        await asyncio.wait_for(task_manager.resume_stalled_tasks(), timeout=10.0)
+        logger.info("✅ Stalled tasks resumed")
+    except asyncio.TimeoutError:
+        logger.warning("⚠️  Task resumption timed out (10s), continuing startup...")
+    except Exception as e:
+        logger.error(f"⚠️  Task resumption failed: {e}, continuing startup...")
+
+    # Start queue monitor
+    try:
+        logger.info("📊 Starting task queue monitor...")
+        await task_manager.start_queue_monitor()
+        logger.info("✅ Queue monitor started")
+    except Exception as e:
+        logger.error(f"⚠️  Queue monitor failed to start: {e}")
+        # 不阻塞启动，继续运行
+
+    logger.info("🎉 Backend startup complete! Ready to accept requests.")
 
     yield
 
     # Shutdown
-    await redis_client.disconnect()
+    logger.info("🛑 Shutting down backend...")
+    try:
+        await redis_client.disconnect()
+        logger.info("✅ Redis disconnected")
+    except Exception as e:
+        logger.error(f"⚠️  Redis disconnect error: {e}")
 
 app = FastAPI(title=settings.app_name, lifespan=lifespan)
 app.add_middleware(
@@ -49,6 +118,7 @@ app.include_router(tasks.router, prefix=settings.api_prefix)
 app.include_router(settings_route.router, prefix=settings.api_prefix)
 app.include_router(admin_users.router)
 app.include_router(admin_providers.router)
+app.include_router(admin_groups.router)
 app.include_router(users.router)
 
 

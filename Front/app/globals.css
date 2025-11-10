@@ -5,24 +5,24 @@
 @layer base {
   :root {
     --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    --foreground: 20 14.3% 4.1%;
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 20 14.3% 4.1%;
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    --popover-foreground: 20 14.3% 4.1%;
+    --primary: 24 95% 53%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 30 40% 96%;
+    --secondary-foreground: 24 95% 53%;
+    --muted: 30 40% 96%;
+    --muted-foreground: 25 5.3% 44.7%;
+    --accent: 30 80% 95%;
+    --accent-foreground: 24 95% 53%;
     --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 30 30% 90%;
+    --input: 30 30% 90%;
+    --ring: 24 95% 53%;
     --radius: 0.5rem;
 
     /* Status badge colors */
@@ -32,30 +32,30 @@
     --warning-foreground: 48 96% 89%;
     --error: 0 84% 60%;
     --error-foreground: 0 86% 97%;
-    --info: 221 83% 53%;
-    --info-foreground: 210 40% 98%;
+    --info: 24 95% 53%;
+    --info-foreground: 0 0% 100%;
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 47.4% 11.2%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 47.4% 11.2%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
+    --background: 20 14.3% 4.1%;
+    --foreground: 30 40% 98%;
+    --card: 24 9.8% 10%;
+    --card-foreground: 30 40% 98%;
+    --popover: 24 9.8% 10%;
+    --popover-foreground: 30 40% 98%;
+    --primary: 24 95% 53%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 24 10% 15%;
+    --secondary-foreground: 30 40% 98%;
+    --muted: 24 10% 15%;
+    --muted-foreground: 25 5% 60%;
+    --accent: 24 10% 15%;
+    --accent-foreground: 24 95% 53%;
     --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
+    --destructive-foreground: 30 40% 98%;
+    --border: 24 10% 15%;
+    --input: 24 10% 15%;
+    --ring: 24 95% 53%;
 
     /* Status badge colors for dark mode */
     --success: 142 70% 45%;
@@ -64,8 +64,8 @@
     --warning-foreground: 48 96% 89%;
     --error: 0 72% 51%;
     --error-foreground: 0 86% 97%;
-    --info: 217 91% 60%;
-    --info-foreground: 222 47% 11%;
+    --info: 24 95% 53%;
+    --info-foreground: 0 0% 100%;
   }
 }
 
@@ -73,5 +73,82 @@
   body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     @apply bg-background text-foreground antialiased;
+    text-autospace: auto; /* Enable automatic spacing between CJK and non-CJK characters */
+  }
+}
+
+/* Text-autospace utility classes for better CJK and Latin text spacing */
+@layer utilities {
+  .text-autospace-auto {
+    text-autospace: auto;
+  }
+
+  .text-autospace-normal {
+    text-autospace: normal;
+  }
+
+  .text-autospace-none {
+    text-autospace: none;
+  }
+}
+
+/* Button animations and interactions */
+@layer components {
+  .btn-scale {
+    @apply transition-all duration-200 ease-out;
+  }
+
+  .btn-scale:hover:not(:disabled) {
+    @apply scale-105;
+  }
+
+  .btn-scale:active:not(:disabled) {
+    @apply scale-95;
+  }
+
+  .btn-scale:disabled {
+    @apply opacity-50 cursor-not-allowed;
+  }
+}
+
+/* Smooth transitions for interactive elements */
+@layer utilities {
+  .transition-smooth {
+    @apply transition-all duration-300 ease-in-out;
+  }
+
+  .hover-lift {
+    @apply transition-all duration-200;
+  }
+
+  .hover-lift:hover {
+    @apply -translate-y-0.5 shadow-md;
+  }
+}
+
+/* Enhanced visual hierarchy */
+@layer components {
+  .card-elevated {
+    @apply bg-card border border-border rounded-lg shadow-sm;
+  }
+
+  .card-elevated:hover {
+    @apply shadow-md transition-shadow duration-200;
+  }
+
+  .section-spacing {
+    @apply space-y-6;
+  }
+
+  .page-header {
+    @apply mb-8;
+  }
+
+  .page-title {
+    @apply text-3xl font-bold tracking-tight mb-2;
+  }
+
+  .page-subtitle {
+    @apply text-muted-foreground text-sm;
   }
 }

@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import type { User } from '@/lib/types/user';
+import type { ProviderConfig } from '@/lib/types/provider';
 
 function buildWebSocketUrl(path: string): string | null {
   if (typeof window === 'undefined') return null;
@@ -54,12 +56,34 @@ export function useAdminUpdates(resource: 'providers' | 'users') {
           const message = JSON.parse(event.data);
 
           if (resource === 'providers') {
-            if (message.type === 'provider.created' || message.type === 'provider.updated' || message.type === 'provider.deleted') {
-              queryClient.invalidateQueries({ queryKey: ['admin', 'providers'] });
+            // 直接更新缓存,避免重新请求
+            if (message.type === 'provider.created') {
+              queryClient.setQueryData(['admin', 'providers'], (old: ProviderConfig[] = []) =>
+                [...old, message.provider]
+              );
+            } else if (message.type === 'provider.updated') {
+              queryClient.setQueryData(['admin', 'providers'], (old: ProviderConfig[] = []) =>
+                old.map(p => p.id === message.provider.id ? message.provider : p)
+              );
+            } else if (message.type === 'provider.deleted') {
+              queryClient.setQueryData(['admin', 'providers'], (old: ProviderConfig[] = []) =>
+                old.filter(p => p.id !== message.providerId)
+              );
             }
           } else if (resource === 'users') {
-            if (message.type === 'user.created' || message.type === 'user.updated' || message.type === 'user.deleted') {
-              queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
+            // 直接更新缓存,避免重新请求
+            if (message.type === 'user.created') {
+              queryClient.setQueryData(['admin', 'users'], (old: User[] = []) =>
+                [...old, message.user]
+              );
+            } else if (message.type === 'user.updated') {
+              queryClient.setQueryData(['admin', 'users'], (old: User[] = []) =>
+                old.map(u => u.id === message.user.id ? message.user : u)
+              );
+            } else if (message.type === 'user.deleted') {
+              queryClient.setQueryData(['admin', 'users'], (old: User[] = []) =>
+                old.filter(u => u.id !== message.userId)
+              );
             }
           }
         } catch (error) {

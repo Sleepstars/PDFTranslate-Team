@@ -4,8 +4,8 @@
     "tasks": "Tasks",
     "admin": "Admin",
     "users": "Users",
+    "groups": "Groups",
     "providers": "Providers",
-    "access": "Access Control",
     "settings": "Settings"
   },
   "users": {
@@ -22,12 +22,20 @@
     "inactive": "Inactive",
     "edit": "Edit",
     "delete": "Delete",
+    "createSuccess": "User created successfully",
+    "createError": "Failed to create user",
+    "deleteSuccess": "User deleted successfully",
+    "deleteError": "Failed to delete user",
+    "updateSuccess": "User updated successfully",
+    "updateError": "Failed to update user",
     "createDialog": {
       "title": "Create User",
       "name": "Name",
       "email": "Email",
       "password": "Password",
       "role": "Role",
+      "group": "Group",
+      "noGroup": "No group",
       "dailyLimit": "Daily Page Limit",
       "user": "User",
       "admin": "Admin",
@@ -42,8 +50,31 @@
       "submit": "Update"
     }
   },
+  "groups": {
+    "title": "Group Management",
+    "description": "Configure allowed providers per group to reduce per-user assignments.",
+    "create": "Create Group",
+    "groups": "Groups",
+    "selectGroup": "Select a group",
+    "groupAccess": "Providers available to this group",
+    "selectProvider": "Select provider...",
+    "addProvider": "Add",
+    "remove": "Remove",
+    "moveUp": "Move Up",
+    "moveDown": "Move Down",
+    "noProviders": "No providers configured for this group",
+    "loading": "Loading...",
+    "createDialog": {
+      "title": "Create Group",
+      "name": "Group Name",
+      "namePlaceholder": "e.g., Product Team A",
+      "cancel": "Cancel",
+      "create": "Create"
+    }
+  },
   "tasks": {
     "title": "My Tasks",
+    "subtitle": "Manage your PDF translation and parsing tasks",
     "description": "Manage your PDF translation tasks",
     "realtime": {
       "connected": "connected",
@@ -54,18 +85,47 @@
     "selected": "selected",
     "delete": "Delete",
     "deleting": "Deleting…",
-    "confirmDelete": "Delete the selected task? This removes associated files permanently.",
+    "bulkDownload": "Bulk Download",
     "confirmBulkDelete": "Delete {count} selected tasks? This removes associated files permanently.",
-    "deleteError": "Some tasks could not be deleted. Please try again.",
+    "deleteSuccess": "Task deleted successfully",
+    "deleteError": "Failed to delete task",
+    "bulkDeleteSuccess": "{count} tasks deleted successfully",
+    "downloadSuccess": "Started downloading {count} file(s)",
+    "noCompletedTasks": "No completed tasks available for download",
+    "noDownloadableFiles": "Selected tasks have no downloadable files",
+    "createSuccess": "Task created successfully",
+    "createError": "Failed to create task",
+    "cancelSuccess": "Task cancelled successfully",
+    "cancelError": "Failed to cancel task",
+    "retrySuccess": "Task retried successfully",
+    "retryError": "Failed to retry task",
+    "emptyState": {
+      "title": "No tasks yet",
+      "description": "Click the 'Create Task' button to start translating your first PDF document",
+      "action": "Create your first task"
+    },
+    "confirmDelete": {
+      "title": "Confirm Delete",
+      "description": "Are you sure you want to delete {count} task(s)? This will permanently remove associated files and cannot be undone.",
+      "confirm": "Delete",
+      "cancel": "Cancel"
+    },
     "document": "Document",
+    "taskType": "Task Type",
     "languages": "Languages",
     "engine": "Engine",
     "progress": "Progress",
     "pages": "Pages",
     "created": "Created",
     "actions": "Actions",
+    "taskTypes": {
+      "translation": "PDF Translation",
+      "parsing": "PDF Parsing",
+      "parseAndTranslate": "Parse + Translate"
+    },
     "detail": "Detail",
     "downloadOriginal": "Download Original",
+    "downloadZip": "Download ZIP (images)",
     "downloadDual": "Download Dual",
     "downloadMono": "Download Mono", 
     "download": "Download",
@@ -77,17 +137,27 @@
     "completedAt": "Completed At",
     "notes": "Notes",
     "close": "Close",
+    "view": "View",
+    "statusLabel": "Status",
     "status": {
       "completed": "Completed",
       "failed": "Failed",
       "processing": "Processing",
       "cancelled": "Cancelled",
-      "pending": "Pending"
+      "pending": "Pending",
+      "queued": "Queued"
     },
+    "downloadMarkdown": "Download Markdown",
+    "downloadTranslatedMarkdown": "Download Translated Markdown",
     "createDialog": {
       "title": "Create Translation Task",
       "pdfFile": "PDF File",
       "documentName": "Document Name",
+      "taskType": "Task Type",
+      "pdfTranslation": "PDF Translation",
+      "pdfParsing": "PDF Parsing",
+      "translateMarkdownAfterParsing": "Translate Markdown after parsing",
+      "parsingProvider": "Parsing Provider",
       "sourceLanguage": "Source Language",
       "targetLanguage": "Target Language",
       "english": "English",
@@ -107,7 +177,10 @@
       "optional": "Optional",
       "cancel": "Cancel",
       "create": "Create Task",
-      "creating": "Creating..."
+      "creating": "Creating...",
+      "dragDrop": "Drag & drop PDF file here",
+      "orClickToSelect": "or click to select file",
+      "dropHere": "Drop file to upload"
     },
     "batchDialog": {
       "title": "Batch Upload PDFs",
@@ -131,9 +204,15 @@
     "actions": "Actions",
     "active": "Active",
     "inactive": "Inactive",
+    "createSuccess": "Provider created successfully",
+    "createError": "Failed to create provider",
+    "deleteSuccess": "Provider deleted successfully",
+    "deleteError": "Failed to delete provider",
+    "updateSuccess": "Provider updated successfully",
+    "updateError": "Failed to update provider",
     "types": {
       "google": "Google Translate API",
-      "deepl": "DeepL Translation API", 
+      "deepl": "DeepL Translation API",
       "openai": "OpenAI GPT Models",
       "azure_openai": "Azure OpenAI Service",
       "ollama": "Ollama Local Models",
@@ -143,7 +222,8 @@
       "siliconflow": "SiliconFlow API",
       "tencent": "Tencent Cloud Translation",
       "grok": "Grok AI",
-      "groq": "Groq API"
+      "groq": "Groq API",
+      "mineru": "MinerU"
     },
     "createDialog": {
       "title": "Create Provider",
@@ -157,6 +237,8 @@
       "requestsPerMinute": "Requests Per Minute (RPM)",
       "rpmDescription": "API rate limit in requests per minute (optional, 1-10000)",
       "apiKey": "API Key",
+      "apiToken": "API Token",
+      "modelVersion": "Model Version",
       "baseUrl": "Base URL (Optional)",
       "baseUrlPlaceholder": "https://api.openai.com/v1",
       "endpoint": "Endpoint",
@@ -168,26 +250,6 @@
       "setAsDefault": "Set as Default",
       "cancel": "Cancel",
       "create": "Create"
-    }
-  },
-  "access": {
-    "title": "Access Control",
-    "description": "Manage user access to translation providers",
-    "grant": "Grant Access",
-    "user": "User",
-    "provider": "Provider",
-    "grantedAt": "Granted At",
-    "actions": "Actions",
-    "revoke": "Revoke",
-    "grantDialog": {
-      "title": "Grant Provider Access",
-      "user": "User",
-      "selectUser": "Select user...",
-      "provider": "Provider",
-      "selectProvider": "Select provider...",
-      "setAsDefault": "Set as default for this user",
-      "cancel": "Cancel",
-      "grant": "Grant Access"
     }
   },
   "settings": {

@@ -8,12 +8,13 @@
 - 👥 **用户管理**：管理员可创建、编辑、删除用户，管理用户配额
 - 📊 **配额系统**：每日页数限制，自动重置，实时配额显示
 - 🔧 **翻译服务配置**：灵活配置多个翻译引擎，支持 12+ 翻译服务
-- 🔑 **访问控制**：细粒度的用户-服务访问权限管理
+- 👥 **分组管理**：基于分组的访问控制，统一管理用户权限
 - 🎨 **现代化 UI**：基于 Tailwind CSS 和 shadcn/ui 的全新管理界面
 
 ## 📅 最近更新
 
 - **2025-11-09**：任务列表新增复选框、全选与批量删除，支持清理任意状态的历史任务并同步清除 S3 文件。
+- **2025-11-11**：修复任务删除未清理 MinerU `images/` 与 ZIP 产物的问题；现在会删除 `outputs/{ownerId}/{taskId}/` 与 `mineru/{mineruTaskId}/` 前缀下的所有对象。
 - **2025-11-09**：后端启动时会自动恢复重启前卡在 `processing` 的任务，将其重新排队并继续执行。
 - **2025-11-09**：修复批量上传任务未携带 `providerConfigId` 的问题，现在批量翻译会正确使用所选的自定义翻译服务（包括第三方 OpenAI 代理）。
 
@@ -23,7 +24,7 @@ app/                    # FastAPI 后端源码
 ├── auth.py             # 用户认证与会话管理
 ├── config.py           # 应用配置管理
 ├── database.py         # PostgreSQL 数据库集成
-├── models.py           # SQLAlchemy 数据模型（User, Task, Provider, Access）
+├── models.py           # SQLAlchemy 数据模型（User, Task, Provider, Group）
 ├── schemas.py          # Pydantic 数据验证模型
 ├── dependencies.py     # 依赖注入和权限中间件
 ├── quota.py            # 配额管理系统
@@ -47,7 +48,7 @@ Front/                      # Next.js 15 前端
 │   │   └── admin/          # 管理后台
 │   │       ├── users/      # 用户管理
 │   │       ├── providers/  # 服务配置
-│   │       └── access/     # 访问管理
+│   │       └── groups/     # 分组管理
 │   └── login/              # 登录页面
 ├── components/             # UI 组件
 │   ├── ui/                 # shadcn/ui 基础组件
@@ -70,7 +71,7 @@ pixi.toml           # 跨语言开发环境
 - 📊 **配额管理**：每日页数限制，自动 UTC 午夜重置，实时配额显示和低配额警告
 - 📄 **任务管理**：完整的翻译任务生命周期管理（创建、进度跟踪、状态更新、结果下载、批量删除历史任务）
 - 🔧 **服务配置**：灵活配置多个翻译引擎，支持 Google、DeepL、OpenAI、Azure、Gemini 等 12+ 服务
-- 🔑 **访问控制**：细粒度的用户-服务访问权限管理，支持默认服务设置
+- 👥 **分组管理**：基于分组的访问控制，统一管理用户权限和服务访问
 
 ### 技术特性
 - 🗄️ **数据持久化**：PostgreSQL 数据库存储用户、任务、服务配置，Redis 缓存加速
@@ -110,6 +111,8 @@ pixi run install-frontend
 cp .env.example .env
 
 # 3. 运行数据库迁移
+# 说明：自 2025-11-10 起，Alembic 迁移已合并为“单文件基线”，适用于全新部署。
+# 如为旧库升级，请先备份数据并清空数据库，再执行以下命令：
 pixi run alembic upgrade head
 
 # 4. 初始化默认数据（创建管理员用户和默认服务）
@@ -141,7 +144,7 @@ pixi run alembic upgrade head # 运行数据库迁移
 uv venv && source .venv/bin/activate
 uv pip install -r requirements.txt
 
-# 运行数据库迁移
+# 运行数据库迁移（已合并为单文件基线，适用于全新部署）
 alembic upgrade head
 
 # 初始化默认数据
@@ -256,16 +259,22 @@ v1.0.0 开始，推荐通过 Web 界面管理翻译服务：
 
 完整配置说明请参考：[docs/MULTI_USER_GUIDE.md](docs/MULTI_USER_GUIDE.md)
 
-### 用户访问控制
+### 基于分组的访问控制
 
-管理员可以为每个用户分配可用的翻译服务：
+管理员可以通过分组统一管理用户的服务访问权限：
 
-1. 进入"访问管理"页面
-2. 点击"授予访问权限"
-3. 选择用户和服务
-4. 可选设置为该用户的默认服务
+1. 进入"分组管理"页面
+2. 创建分组（如"产品团队A"、"研发团队"等）
+3. 为分组添加可用的翻译服务，并可拖拽排序
+4. 在"用户管理"中将用户分配到对应分组
 
-用户在创建翻译任务时，只能选择被授权的服务。
+**分组特性：**
+- 每个用户可以属于 0 或 1 个分组
+- 分组内的服务按 `sort_order` 排序
+- 前端会按分组顺序自动选择默认服务：
+  - 解析任务（MinerU）默认选择分组中的第一个 MinerU 配置
+  - 翻译任务默认选择分组中的第一个非 MinerU 配置
+- **没有分组的用户无法使用任何服务**（必须由管理员分配到分组）
 
 ## API 文档
 
@@ -311,10 +320,12 @@ v1.0.0 开始，推荐通过 Web 界面管理翻译服务：
 - `PATCH /api/admin/providers/{id}` - 更新服务配置
 - `DELETE /api/admin/providers/{id}` - 删除服务配置
 
-**访问控制管理**：
-- `GET /api/admin/providers/access/all` - 获取所有访问授权
-- `POST /api/admin/providers/access` - 授予访问权限
-- `DELETE /api/admin/providers/access/{id}` - 撤销访问权限
+**分组管理**：
+- `GET /api/admin/groups` - 获取分组列表
+- `POST /api/admin/groups` - 创建分组
+- `GET /api/admin/groups/{id}` - 获取分组详情
+- `PATCH /api/admin/groups/{id}` - 更新分组配置
+- `DELETE /api/admin/groups/{id}` - 删除分组
 
 详细 API 文档请参考：[docs/API_REFERENCE.md](docs/API_REFERENCE.md)
 
@@ -348,7 +359,7 @@ npm run lint     # 代码检查
 # 生成迁移文件
 pixi run alembic revision --autogenerate -m "描述"
 
-# 执行迁移
+# 执行迁移（单文件基线）
 pixi run alembic upgrade head
 
 # 查看当前版本
@@ -375,22 +386,23 @@ pixi run python scripts/test_e2e_flow.py
 ## 架构设计
 
 ### 数据模型
-- **User**：用户信息，包含角色（admin/user）、配额限制、使用统计
+- **User**：用户信息，包含角色（admin/user）、配额限制、使用统计、所属分组
 - **TranslationTask**：翻译任务，包含源文件、目标语言、状态、页数、关联服务
 - **TranslationProviderConfig**：翻译服务配置，存储引擎类型、API 密钥等设置
-- **UserProviderAccess**：用户-服务访问映射，控制用户可使用的翻译服务
+- **Group**：用户分组，用于统一管理用户权限
+- **GroupProviderAccess**：分组-服务访问映射，控制分组可使用的翻译服务
 
 ### 角色权限模型
 - **管理员（admin）**：
-  - 管理所有用户（创建、编辑、删除、配额管理）
+  - 管理所有用户（创建、编辑、删除、配额管理、分组分配）
   - 管理翻译服务配置
-  - 管理用户-服务访问权限
+  - 管理分组和分组权限
   - 查看所有任务
 
 - **普通用户（user）**：
   - 创建翻译任务（受配额限制）
   - 查看自己的任务
-  - 使用被授权的翻译服务
+  - 使用所属分组授权的翻译服务
   - 查看自己的配额状态
 
 ### 配额管理流程
@@ -403,7 +415,7 @@ pixi run python scripts/test_e2e_flow.py
 
 ### 异步任务流程
 1. 用户选择翻译服务并创建任务
-2. 系统检查用户是否有该服务的访问权限
+2. 系统检查用户所属分组是否有该服务的访问权限
 3. 检查并扣除用户配额
 4. 任务入队 Redis，状态为 `queued`
 5. Worker 异步处理，状态变为 `processing`
@@ -461,12 +473,11 @@ pixi run python scripts/test_e2e_flow.py
 4. 设置是否启用和是否为默认服务
 5. 点击"创建"
 
-#### 3. 授予服务访问权限
-1. 进入"访问管理"
-2. 点击"授予访问权限"
-3. 选择用户和服务
-4. 可选设置为该用户的默认服务
-5. 点击"授予"
+#### 3. 管理分组和权限
+1. 进入"分组管理"
+2. 创建分组（如"产品团队"、"研发团队"）
+3. 为分组添加可用的翻译服务
+4. 在"用户管理"中将用户分配到对应分组
 
 ### 普通用户操作
 

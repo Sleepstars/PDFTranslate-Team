@@ -8,10 +8,12 @@ import { Badge } from '@/components/ui/badge';
 import { ProviderConfig, UpdateProviderRequest } from '@/lib/types/provider';
 import { useAdminUpdates } from '@/lib/hooks/use-admin-updates';
 import { useTranslations } from 'next-intl';
+import { toast } from 'sonner';
+import { SkeletonTable } from '@/components/ui/skeleton';
 
 const PROVIDER_TYPES = [
   'google', 'deepl', 'openai', 'azure_openai', 'ollama', 'gemini',
-  'deepseek', 'zhipu', 'siliconflow', 'tencent', 'grok', 'groq'
+  'deepseek', 'zhipu', 'siliconflow', 'tencent', 'grok', 'groq', 'mineru'
 ];
 
 const PROVIDERS_WITH_MODEL_FIELD = new Set([
@@ -45,12 +47,35 @@ export default function AdminProvidersPage() {
 
   const deleteMutation = useMutation({
     mutationFn: adminProvidersAPI.delete,
+    onMutate: async (providerId) => {
+      // 取消正在进行的查询
+      await queryClient.cancelQueries({ queryKey: ['admin', 'providers'] });
+
+      // 保存之前的数据用于回滚
+      const previousProviders = queryClient.getQueryData(['admin', 'providers']);
+
+      // 乐观更新:立即从列表中移除 provider
+      queryClient.setQueryData(['admin', 'providers'], (old: ProviderConfig[] = []) =>
+        old.filter(provider => provider.id !== providerId)
+      );
+
+      return { previousProviders };
+    },
     onSuccess: () => {
+      toast.success(t('deleteSuccess'));
+    },
+    onError: (_err, _providerId, context) => {
+      // 失败时回滚
+      if (context?.previousProviders) {
+        queryClient.setQueryData(['admin', 'providers'], context.previousProviders);
+      }
+      toast.error(t('deleteError'));
+    },
+    onSettled: () => {
+      // 最终同步服务器数据
       queryClient.invalidateQueries({ queryKey: ['admin', 'providers'] });
     },
   });
-
-  if (isLoading) return <div className="flex items-center justify-center h-64">{_tCommon('loading')}</div>;
 
   return (
     <div className="space-y-4">
@@ -65,20 +90,23 @@ export default function AdminProvidersPage() {
         </Button>
       </div>
 
-      <div className="bg-card border border-border rounded-lg overflow-visible">
-        <table className="w-full">
-          <thead className="bg-muted/50 border-b border-border">
-            <tr className="text-xs text-muted-foreground">
-              <th className="px-4 py-2.5 text-left font-medium">{t('name')}</th>
-              <th className="px-4 py-2.5 text-left font-medium">{t('type')}</th>
-              <th className="px-4 py-2.5 text-left font-medium">{t('description')}</th>
-              <th className="px-4 py-2.5 text-left font-medium">{t('status')}</th>
-              <th className="px-4 py-2.5 text-left font-medium">{t('default')}</th>
-              <th className="px-4 py-2.5 text-right font-medium">{t('actions')}</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {providers.map((provider: ProviderConfig) => (
+      {isLoading ? (
+        <SkeletonTable rows={5} columns={6} />
+      ) : (
+        <div className="bg-card border border-border rounded-lg overflow-x-auto">
+          <table className="w-full min-w-[700px]">
+            <thead className="bg-muted/50 border-b border-border">
+              <tr className="text-xs text-muted-foreground">
+                <th className="px-4 py-2.5 text-left font-medium">{t('name')}</th>
+                <th className="px-4 py-2.5 text-left font-medium">{t('type')}</th>
+                <th className="px-4 py-2.5 text-left font-medium">{t('description')}</th>
+                <th className="px-4 py-2.5 text-left font-medium">{t('status')}</th>
+                <th className="px-4 py-2.5 text-left font-medium">{t('default')}</th>
+                <th className="px-4 py-2.5 text-right font-medium">{t('actions')}</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {providers.map((provider: ProviderConfig) => (
               <tr key={provider.id} className="hover:bg-muted/30 transition-colors">
                 <td className="px-4 py-2.5 text-sm font-medium">{provider.name}</td>
                 <td className="px-4 py-2.5">
@@ -114,10 +142,11 @@ export default function AdminProvidersPage() {
                   </div>
                 </td>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {showDialog && <ProviderDialog onClose={() => setShowDialog(false)} />}
       {editProvider && <EditProviderDialog provider={editProvider} onClose={() => setEditProvider(null)} />}
@@ -126,7 +155,6 @@ export default function AdminProvidersPage() {
 }
 
 function ProviderDialog({ onClose }: { onClose: () => void }) {
-  const queryClient = useQueryClient();
   const [formData, setFormData] = useState<{
     name: string;
     providerType: string;
@@ -153,7 +181,12 @@ function ProviderDialog({ onClose }: { onClose: () => void }) {
   const createMutation = useMutation({
     mutationFn: adminProvidersAPI.create,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin', 'providers'] });
+      // 成功后立即关闭对话框，不等待数据同步
+      onClose();
+      // WebSocket 会自动更新数据，无需手动 invalidate
+    },
+    onError: () => {
+      // 失败时仍然关闭对话框，让用户看到错误提示
       onClose();
     },
   });
@@ -373,6 +406,34 @@ function ProviderDialog({ onClose }: { onClose: () => void }) {
                 </div>
               </>
             )}
+
+            {formData.providerType === 'mineru' && (
+              <>
+                <div className="mb-3">
+                  <label className="block text-sm font-medium mb-1">{t('apiToken')}</label>
+                  <input
+                    type="password"
+                    className="w-full border border-input rounded px-3 py-2 bg-background"
+                    value={formData.settings.api_token || ''}
+                    onChange={(e) => updateSettings('api_token', e.target.value)}
+                    placeholder="MinerU API Token"
+                    required
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">Get your API token from https://mineru.net</p>
+                </div>
+                <div className="mb-3">
+                  <label className="block text-sm font-medium mb-1">{t('modelVersion')}</label>
+                  <select
+                    className="w-full border border-input rounded px-3 py-2 bg-background"
+                    value={formData.settings.model_version || 'vlm'}
+                    onChange={(e) => updateSettings('model_version', e.target.value)}
+                  >
+                    <option value="vlm">VLM (Vision Language Model)</option>
+                  </select>
+                  <p className="text-xs text-muted-foreground mt-1">MinerU model version for PDF parsing</p>
+                </div>
+              </>
+            )}
           </div>
 
           <div className="flex items-center space-x-4">
@@ -424,9 +485,32 @@ function EditProviderDialog({ provider, onClose }: { provider: ProviderConfig; o
 
   const updateMutation = useMutation({
     mutationFn: (data: UpdateProviderRequest) => adminProvidersAPI.update(provider.id, data),
+    onMutate: async (updatedData) => {
+      // 取消正在进行的查询
+      await queryClient.cancelQueries({ queryKey: ['admin', 'providers'] });
+
+      // 保存之前的数据用于回滚
+      const previousProviders = queryClient.getQueryData(['admin', 'providers']);
+
+      // 乐观更新:立即更新 provider 信息
+      queryClient.setQueryData(['admin', 'providers'], (old: ProviderConfig[] = []) =>
+        old.map(p => p.id === provider.id ? { ...p, ...updatedData } : p)
+      );
+
+      return { previousProviders };
+    },
+    onError: (_err, _updatedData, context) => {
+      // 失败时回滚
+      if (context?.previousProviders) {
+        queryClient.setQueryData(['admin', 'providers'], context.previousProviders);
+      }
+    },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin', 'providers'] });
       onClose();
+    },
+    onSettled: () => {
+      // 最终同步服务器数据
+      queryClient.invalidateQueries({ queryKey: ['admin', 'providers'] });
     },
   });
 

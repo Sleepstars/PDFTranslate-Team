@@ -75,6 +75,32 @@ class S3Client:
         except ClientError:
             pass
 
+    def delete_prefix(self, prefix: str):
+        """Delete all objects under a given prefix.
+
+        Best-effort: ignores missing keys and continues on partial failures.
+        """
+        try:
+            paginator = self.s3.get_paginator('list_objects_v2')
+            for page in paginator.paginate(Bucket=self.bucket, Prefix=prefix):
+                contents = page.get('Contents') or []
+                if not contents:
+                    continue
+                # Batch delete up to 1000 objects per request
+                objects = [{'Key': obj['Key']} for obj in contents if 'Key' in obj]
+                # Some S3-compatible providers may not support delete_objects; fall back if needed
+                try:
+                    self.s3.delete_objects(Bucket=self.bucket, Delete={'Objects': objects})
+                except ClientError:
+                    for obj in objects:
+                        try:
+                            self.delete_file(obj['Key'])
+                        except ClientError:
+                            pass
+        except ClientError:
+            # Ignore prefix delete errors
+            pass
+
 def get_s3(config: Optional[dict] = None):
     if not config:
         raise ValueError("Please provide an S3 configuration from the database")

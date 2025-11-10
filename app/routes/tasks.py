@@ -11,6 +11,7 @@ from ..tasks import task_manager
 from ..database import get_db
 from ..models import User
 from ..quota import check_quota, consume_quota, count_pdf_pages
+from ..access import assert_provider_access
 from ..auth import get_session
 from ..config import get_settings
 from ..websocket_manager import task_ws_manager
@@ -100,9 +101,10 @@ async def list_tasks(
 async def create_task(
     file: UploadFile = File(...),
     documentName: str = Form(...),
-    sourceLang: str = Form(...),
-    targetLang: str = Form(...),
-    engine: str = Form(...),
+    taskType: str = Form("translation"),  # New field: translation, parsing, parse_and_translate
+    sourceLang: str = Form(None),  # Optional for parsing-only tasks
+    targetLang: str = Form(None),  # Optional for parsing-only tasks
+    engine: str = Form(None),  # Optional for parsing-only tasks
     priority: str = Form("normal"),
     notes: str = Form(None),
     modelConfig: str = Form(None),
@@ -110,6 +112,30 @@ async def create_task(
     user_obj: User = Depends(get_current_user_from_db),
     db: AsyncSession = Depends(get_db)
 ):
+    # Validate taskType
+    if taskType not in ["translation", "parsing", "parse_and_translate"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid taskType. Must be one of: translation, parsing, parse_and_translate"
+        )
+
+    # Validate required fields based on task type
+    if taskType == "translation":
+        if not all([sourceLang, targetLang, engine]):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="sourceLang, targetLang, and engine are required for translation tasks"
+            )
+    elif taskType == "parse_and_translate":
+        if not all([sourceLang, targetLang, engine]):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="sourceLang, targetLang, and engine are required for parse_and_translate tasks"
+            )
+
+    # Enforce provider access by task type
+    await assert_provider_access(user_obj, providerConfigId, taskType, db)
+
     # Read file and count pages
     file_data = await file.read()
     page_count = count_pdf_pages(file_data)
@@ -133,9 +159,10 @@ async def create_task(
 
     payload = {
         "documentName": documentName,
-        "sourceLang": sourceLang,
-        "targetLang": targetLang,
-        "engine": engine,
+        "taskType": taskType,
+        "sourceLang": sourceLang or "",
+        "targetLang": targetLang or "",
+        "engine": engine or "",
         "priority": priority,
         "notes": notes,
         "modelConfig": model_config_dict,
@@ -193,6 +220,9 @@ async def create_batch_tasks(
 ):
     """批量创建翻译任务"""
     try:
+        # Enforce provider access for translation tasks
+        await assert_provider_access(user_obj, providerConfigId, "translation", db)
+
         document_names = json.loads(documentNames)
         if len(files) != len(document_names):
             raise HTTPException(status_code=400, detail="Files count must match document names count")

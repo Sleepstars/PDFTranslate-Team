@@ -1,10 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminSettingsAPI, S3ConfigRequest } from '@/lib/api/admin-settings';
 import { Button } from '@/components/ui/button';
 import { useTranslations } from 'next-intl';
+import { SkeletonForm } from '@/components/ui/skeleton';
 
 export default function AdminSettingsPage() {
   const queryClient = useQueryClient();
@@ -28,7 +29,7 @@ export default function AdminSettingsPage() {
   });
 
   // Update form when data loads
-  useState(() => {
+  useEffect(() => {
     if (s3Config) {
       setFormData({
         endpoint: s3Config.endpoint,
@@ -39,7 +40,7 @@ export default function AdminSettingsPage() {
         ttl_days: s3Config.ttl_days,
       });
     }
-  });
+  }, [s3Config]);
 
   const updateMutation = useMutation({
     mutationFn: adminSettingsAPI.updateS3Config,
@@ -80,16 +81,17 @@ export default function AdminSettingsPage() {
     testMutation.mutate(formData);
   };
 
-  if (isLoading) return <div>{_tCommon('loading')}</div>;
-
   return (
     <div className="max-w-4xl mx-auto">
       <h1 className="text-2xl font-bold mb-6">{t('title')}</h1>
 
-      <div className="bg-card border border-border rounded-lg shadow p-6">
-        <h2 className="text-xl font-semibold mb-4">{t('s3Config')}</h2>
+      {isLoading ? (
+        <SkeletonForm fields={6} />
+      ) : (
+        <div className="bg-card border border-border rounded-lg shadow p-6">
+          <h2 className="text-xl font-semibold mb-4">{t('s3Config')}</h2>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium mb-1">
               {t('s3Endpoint')}
@@ -133,7 +135,7 @@ export default function AdminSettingsPage() {
               />
               <button
                 type="button"
-                className="absolute right-2 top-2 text-sm text-blue-600 hover:text-blue-800"
+                className="absolute right-2 top-2 text-sm text-primary hover:text-primary/80"
                 onClick={() => setShowSecretKey(!showSecretKey)}
               >
                 {showSecretKey ? t('hide') : t('show')}
@@ -210,9 +212,10 @@ export default function AdminSettingsPage() {
             >
               {updateMutation.isPending ? t('saving') : t('saveConfiguration')}
             </Button>
-          </div>
-        </form>
-      </div>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 }

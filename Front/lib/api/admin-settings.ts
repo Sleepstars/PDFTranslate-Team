@@ -20,6 +20,33 @@ export interface S3TestResponse {
   message: string;
 }
 
+export interface SystemSettings {
+  allowRegistration: boolean;
+}
+
+export interface UpdateSystemSettingsRequest {
+  allowRegistration: boolean;
+}
+
+export interface EmailSettings {
+  smtpHost?: string | null;
+  smtpPort?: number | null;
+  smtpUsername?: string | null;
+  smtpUseTLS: boolean;
+  smtpFromEmail?: string | null;
+  allowedEmailSuffixes: string[];
+}
+
+export interface UpdateEmailSettingsRequest {
+  smtpHost?: string;
+  smtpPort?: number;
+  smtpUsername?: string;
+  smtpPassword?: string; // not returned by GET; only set when updating
+  smtpUseTLS?: boolean;
+  smtpFromEmail?: string;
+  allowedEmailSuffixes?: string[];
+}
+
 async function fetchAPI(url: string, options?: RequestInit) {
   const res = await fetch(url, { ...options, credentials: 'include' });
   if (!res.ok) {
@@ -43,6 +70,28 @@ export const adminSettingsAPI = {
   testS3Connection: (data: S3ConfigRequest): Promise<S3TestResponse> =>
     fetchAPI('/api/admin/settings/s3/test', {
       method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    }),
+
+  // System
+  getSystem: (): Promise<SystemSettings> =>
+    fetchAPI('/api/admin/settings/system'),
+
+  updateSystem: (data: UpdateSystemSettingsRequest): Promise<{ message: string }> =>
+    fetchAPI('/api/admin/settings/system', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    }),
+
+  // Email
+  getEmail: (): Promise<EmailSettings> =>
+    fetchAPI('/api/admin/settings/email'),
+
+  updateEmail: (data: UpdateEmailSettingsRequest): Promise<{ message: string }> =>
+    fetchAPI('/api/admin/settings/email', {
+      method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     }),

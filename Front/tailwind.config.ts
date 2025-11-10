@@ -69,6 +69,13 @@ const config: Config = {
     },
   },
   plugins: [animatePlugin],
+  
+  // Add custom text-autospace utilities
+  safelist: [
+    'text-autospace-auto',
+    'text-autospace-normal',
+    'text-autospace-none'
+  ],
 };
 
 export default config;

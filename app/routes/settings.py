@@ -1,13 +1,18 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from pydantic import BaseModel, Field
-from typing import Optional
 from ..database import get_db
 from ..models import SystemSetting, User
 from ..dependencies import require_admin
 from ..settings_manager import get_s3_config
 from ..s3_client import S3Client
+from ..schemas import (
+    SystemSettingsResponse,
+    UpdateSystemSettingsRequest,
+    EmailSettingsResponse,
+    UpdateEmailSettingsRequest,
+)
 
 router = APIRouter(prefix="/admin/settings", tags=["settings"])
 
@@ -27,6 +32,120 @@ class S3ConfigResponse(BaseModel):
     bucket: str
     region: str
     ttl_days: int
+
+
+# -----------------
+# System Settings
+# -----------------
+
+@router.get("/system", response_model=SystemSettingsResponse)
+async def get_system_settings(
+    admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    result = await db.execute(select(SystemSetting).where(SystemSetting.key == "allow_registration"))
+    setting = result.scalar_one_or_none()
+    allow = False
+    if setting and setting.value is not None:
+        allow = (setting.value.lower() == "true" or setting.value == "1")
+    return SystemSettingsResponse(allowRegistration=allow)
+
+
+@router.put("/system")
+async def update_system_settings(
+    request: UpdateSystemSettingsRequest,
+    admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    result = await db.execute(select(SystemSetting).where(SystemSetting.key == "allow_registration"))
+    setting = result.scalar_one_or_none()
+    value = "true" if request.allowRegistration else "false"
+    if setting:
+        setting.value = value
+    else:
+        db.add(SystemSetting(key="allow_registration", value=value))
+    await db.commit()
+    return {"message": "System settings updated"}
+
+
+# -----------------
+# Email (SMTP) Settings
+# -----------------
+
+def _parse_bool(value: str | None, default: bool = False) -> bool:
+    if value is None:
+        return default
+    return value.lower() in ("true", "1", "yes", "y")
+
+
+@router.get("/email", response_model=EmailSettingsResponse)
+async def get_email_settings(
+    admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    async def get(key: str) -> str:
+        result = await db.execute(select(SystemSetting).where(SystemSetting.key == key))
+        row = result.scalar_one_or_none()
+        return row.value if row and row.value is not None else ""
+
+    host = await get("smtp_host")
+    port_raw = await get("smtp_port")
+    username = await get("smtp_username")
+    use_tls = _parse_bool(await get("smtp_use_tls"), default=False)
+    from_email = await get("smtp_from_email")
+    suffixes_raw = await get("allowed_email_suffixes")
+
+    try:
+        port = int(port_raw) if port_raw else None
+    except ValueError:
+        port = None
+
+    suffixes = [s.strip() for s in suffixes_raw.split(",") if s.strip()] if suffixes_raw else []
+
+    return EmailSettingsResponse(
+        smtpHost=host or None,
+        smtpPort=port,
+        smtpUsername=username or None,
+        smtpUseTLS=use_tls,
+        smtpFromEmail=from_email or None,
+        allowedEmailSuffixes=suffixes,
+    )
+
+
+@router.put("/email")
+async def update_email_settings(
+    request: UpdateEmailSettingsRequest,
+    admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    # Build key/value map; only persist provided fields, leave others untouched
+    settings_map: dict[str, str] = {}
+
+    if request.smtpHost is not None:
+        settings_map["smtp_host"] = request.smtpHost
+    if request.smtpPort is not None:
+        settings_map["smtp_port"] = str(request.smtpPort)
+    if request.smtpUsername is not None:
+        settings_map["smtp_username"] = request.smtpUsername
+    if request.smtpPassword is not None and request.smtpPassword != "":
+        settings_map["smtp_password"] = request.smtpPassword
+    if request.smtpUseTLS is not None:
+        settings_map["smtp_use_tls"] = "true" if request.smtpUseTLS else "false"
+    if request.smtpFromEmail is not None:
+        settings_map["smtp_from_email"] = request.smtpFromEmail
+    if request.allowedEmailSuffixes is not None:
+        settings_map["allowed_email_suffixes"] = ",".join([s.strip() for s in request.allowedEmailSuffixes if s.strip()])
+
+    for key, value in settings_map.items():
+        result = await db.execute(select(SystemSetting).where(SystemSetting.key == key))
+        row = result.scalar_one_or_none()
+        if row:
+            row.value = value
+        else:
+            db.add(SystemSetting(key=key, value=value))
+
+    await db.commit()
+    return {"message": "Email settings updated"}
 
 
 @router.get("/s3", response_model=S3ConfigResponse)

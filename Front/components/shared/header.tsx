@@ -2,11 +2,15 @@
 
 import { useAuth } from '@/lib/hooks/use-auth';
 import { useTheme } from 'next-themes';
-import { Moon, Sun, User, Languages } from 'lucide-react';
+import { Moon, Sun, User, Languages, Menu } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import { useRouter, usePathname } from 'next/navigation';
 
-export function Header() {
+interface HeaderProps {
+  onMenuClick?: () => void;
+}
+
+export function Header({ onMenuClick }: HeaderProps) {
   const { user, logout } = useAuth();
   const { theme, setTheme } = useTheme();
   const locale = useLocale();
@@ -21,8 +25,16 @@ export function Header() {
   };
 
   return (
-    <header className="bg-card border-b border-border px-6 py-3 flex items-center justify-end gap-2">
+    <header className="bg-card border-b border-border px-4 md:px-6 py-3 flex items-center justify-between md:justify-end gap-2">
       <button
+        onClick={onMenuClick}
+        className="md:hidden p-2 hover:bg-muted rounded-md transition-colors"
+        aria-label="Toggle menu"
+      >
+        <Menu className="h-5 w-5" />
+      </button>
+      <div className="flex items-center gap-2">
+        <button
         onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
         className="p-2 hover:bg-muted rounded-md transition-colors"
       >
@@ -52,6 +64,7 @@ export function Header() {
             {t('logout')}
           </button>
         </div>
+      </div>
       </div>
     </header>
   );

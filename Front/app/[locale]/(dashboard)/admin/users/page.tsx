@@ -1,14 +1,17 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useDeferredValue } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminUsersAPI } from '@/lib/api/admin-users';
+import { adminGroupsAPI, type Group } from '@/lib/api/admin-groups';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { User } from '@/lib/types/user';
 import { useAdminUpdates } from '@/lib/hooks/use-admin-updates';
 import { Search, MoreVertical } from 'lucide-react';
 import { useTranslations } from 'next-intl';
+import { toast } from 'sonner';
+import { SkeletonTable } from '@/components/ui/skeleton';
 
 export default function AdminUsersPage() {
   const queryClient = useQueryClient();
@@ -25,28 +28,42 @@ export default function AdminUsersPage() {
     refetchOnWindowFocus: !isRealtimeConnected,
   });
 
+  const { data: groups = [] } = useQuery({
+    queryKey: ['admin', 'groups'],
+    queryFn: adminGroupsAPI.list,
+  });
+
   const createMutation = useMutation({
     mutationFn: adminUsersAPI.create,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
+      toast.success(t('createSuccess'));
       setShowDialog(false);
+      // WebSocket 会自动更新数据，无需手动 invalidate
+    },
+    onError: () => {
+      toast.error(t('createError'));
     },
   });
 
   const deleteMutation = useMutation({
     mutationFn: adminUsersAPI.delete,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
+      toast.success(t('deleteSuccess'));
+      // WebSocket 会自动更新数据，无需手动 invalidate
+    },
+    onError: () => {
+      toast.error(t('deleteError'));
     },
   });
 
+  // 使用 useDeferredValue 延迟搜索查询,避免每次输入都触发过滤
+  const deferredSearchQuery = useDeferredValue(searchQuery);
+
   const filteredUsers = useMemo(() =>
     users.filter((user: User) =>
-      user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.name.toLowerCase().includes(searchQuery.toLowerCase())
-    ), [users, searchQuery]);
-
-  if (isLoading) return <div className="flex items-center justify-center h-64">Loading...</div>;
+      user.email.toLowerCase().includes(deferredSearchQuery.toLowerCase()) ||
+      user.name.toLowerCase().includes(deferredSearchQuery.toLowerCase())
+    ), [users, deferredSearchQuery]);
 
   return (
     <div className="space-y-4">
@@ -72,19 +89,23 @@ export default function AdminUsersPage() {
         <div className="ml-auto text-sm text-muted-foreground">{t('actions')}</div>
       </div>
 
-      <div className="bg-card border border-border rounded-lg overflow-visible">
-        <table className="w-full">
-          <thead className="bg-muted/50 border-b border-border">
-            <tr className="text-xs text-muted-foreground">
-              <th className="px-4 py-2.5 text-left font-medium">{t('email')}</th>
-              <th className="px-4 py-2.5 text-left font-medium">{t('status')}</th>
-              <th className="px-4 py-2.5 text-left font-medium">{t('role')}</th>
-              <th className="px-4 py-2.5 text-left font-medium">{t('used')}</th>
-              <th className="px-4 py-2.5 text-right font-medium">{t('actions')}</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {filteredUsers.map((user: User) => {
+      {isLoading ? (
+        <SkeletonTable rows={5} columns={5} />
+      ) : (
+        <div className="bg-card border border-border rounded-lg">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[600px]">
+              <thead className="bg-muted/50 border-b border-border">
+                <tr className="text-xs text-muted-foreground">
+                  <th className="px-4 py-2.5 text-left font-medium">{t('email')}</th>
+                  <th className="px-4 py-2.5 text-left font-medium">{t('status')}</th>
+                  <th className="px-4 py-2.5 text-left font-medium">{t('role')}</th>
+                  <th className="px-4 py-2.5 text-left font-medium">{t('used')}</th>
+                  <th className="px-4 py-2.5 text-right font-medium">{t('actions')}</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {filteredUsers.map((user: User) => {
               const usagePercent = user.dailyPageLimit > 0 ? (user.dailyPageUsed / user.dailyPageLimit) * 100 : 0;
               return (
                 <tr key={user.id} className="hover:bg-muted/30 transition-colors">
@@ -111,16 +132,17 @@ export default function AdminUsersPage() {
                       </div>
                     </div>
                   </td>
-                  <td className="px-4 py-2.5 text-right">
-                    <div className="relative inline-block">
-                      <button
-                        onClick={() => setActiveMenu(activeMenu === user.id ? null : user.id)}
-                        className="p-1 hover:bg-muted rounded transition-colors"
-                      >
-                        <MoreVertical className="h-4 w-4" />
-                      </button>
-                      {activeMenu === user.id && (
-                        <div className="absolute right-0 mt-1 w-32 bg-popover border border-border rounded-md shadow-lg z-10">
+                  <td className="px-4 py-2.5 text-right relative">
+                    <button
+                      onClick={() => setActiveMenu(activeMenu === user.id ? null : user.id)}
+                      className="p-1 hover:bg-muted rounded transition-colors"
+                    >
+                      <MoreVertical className="h-4 w-4" />
+                    </button>
+                    {activeMenu === user.id && (
+                      <>
+                        <div className="fixed inset-0 z-40" onClick={() => setActiveMenu(null)} />
+                        <div className="absolute right-0 mt-1 w-32 bg-popover border border-border rounded-md shadow-lg z-50">
                           <button
                             onClick={() => {
                               setEditUser(user);
@@ -140,18 +162,20 @@ export default function AdminUsersPage() {
                             {t('delete')}
                           </button>
                         </div>
-                      )}
-                    </div>
+                      </>
+                    )}
                   </td>
                 </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+                );
+              })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {showDialog && <UserDialog onClose={() => setShowDialog(false)} onCreate={createMutation.mutate} />}
-      {editUser && <EditUserDialog user={editUser} onClose={() => setEditUser(null)} />}
+      {editUser && <EditUserDialog user={editUser} groups={groups as Group[]} onClose={() => setEditUser(null)} />}
     </div>
   );
 }
@@ -257,22 +281,26 @@ function UserDialog({ onClose, onCreate }: { onClose: () => void; onCreate: (dat
   );
 }
 
-function EditUserDialog({ user, onClose }: { user: User; onClose: () => void }) {
+function EditUserDialog({ user, groups, onClose }: { user: User; groups: Group[]; onClose: () => void }) {
   const queryClient = useQueryClient();
   const t = useTranslations('users.editDialog');
   const tCreate = useTranslations('users.createDialog');
   const [formData, setFormData] = useState({
     name: user.name,
     role: user.role,
+    groupId: user.groupId || '',
     isActive: user.isActive,
     dailyPageLimit: user.dailyPageLimit,
   });
   const [error, setError] = useState<string | null>(null);
 
   const updateMutation = useMutation({
-    mutationFn: (data: { name?: string; role?: 'admin' | 'user'; isActive?: boolean; dailyPageLimit?: number }) => adminUsersAPI.update(user.id, data),
+    mutationFn: (data: { name?: string; role?: 'admin' | 'user'; groupId?: string; isActive?: boolean; dailyPageLimit?: number }) => adminUsersAPI.update(user.id, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
+      onClose();
+      // WebSocket 会自动更新数据，无需手动 invalidate
+    },
+    onError: () => {
       onClose();
     },
   });
@@ -312,6 +340,19 @@ function EditUserDialog({ user, onClose }: { user: User; onClose: () => void }) 
             >
               <option value="user">{tCreate('user')}</option>
               <option value="admin">{tCreate('admin')}</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1.5">{tCreate('group')}</label>
+            <select
+              className="w-full h-9 border-input bg-background border rounded-md px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              value={formData.groupId}
+              onChange={(e) => setFormData({ ...formData, groupId: e.target.value })}
+            >
+              <option value="">{tCreate('noGroup')}</option>
+              {groups.map((g) => (
+                <option key={g.id} value={g.id}>{g.name}</option>
+              ))}
             </select>
           </div>
           <div>

@@ -13,7 +13,7 @@
 3. [Task Endpoints](#task-endpoints)
 4. [Admin - User Management](#admin---user-management)
 5. [Admin - Provider Management](#admin---provider-management)
-6. [Admin - Access Control](#admin---access-control)
+6. [Admin - Group Management](#admin---group-management)
 7. [Error Responses](#error-responses)
 
 ---
@@ -60,7 +60,7 @@ Logout and invalidate session.
 }
 ```
 
-Fields `monoOutputUrl`, `dualOutputUrl`, and `glossaryOutputUrl` provide direct download links for the mono, dual, and glossary artifacts. `progressMessage` surfaces the live stage text that now drives the finer-grained progress bar (values come from BabelDOC events).
+Fields `monoOutputUrl`, `dualOutputUrl`, and `glossaryOutputUrl` provide direct download links for the mono, dual, and glossary artifacts. `zipOutputUrl` exposes the raw MinerU ZIP bundle (with the `images/` directory intact) so parsing workflows can retrieve every extracted asset at once, while `markdownOutputUrl` now rewrites image references to the tenant's S3 bucket for direct viewing. `progressMessage` surfaces the live stage text that now drives the finer-grained progress bar (values come from BabelDOC events).
 
 ---
 
@@ -124,7 +124,14 @@ Get current user's quota status.
 
 ### GET /api/users/me/providers
 
-Get translation providers accessible to the current user.
+Returns provider configurations the current user can select when creating tasks.
+
+Selection rules:
+- If the user belongs to a group, providers granted to that group are returned in group order.
+- If the user has no group, an empty list is returned (no providers available).
+- The first MinerU provider and the first non‑MinerU provider are flagged with `isDefault: true` to support sensible defaults for parsing vs. translation.
+
+The list includes only providers granted through the user's **Group** (translation engines, OCR models, MinerU parsers, etc.)
 
 **Response (200 OK):**
 ```json
@@ -134,16 +141,37 @@ Get translation providers accessible to the current user.
     "name": "Google Translate (Free)",
     "providerType": "google",
     "isActive": true,
-    "isDefault": true
+    "isDefault": true,
+    "settings": {}
   },
   {
-    "id": "deepl-pro",
-    "name": "DeepL Pro",
-    "providerType": "deepl",
+    "id": "mineru-shared",
+    "name": "MinerU Parser",
+    "providerType": "mineru",
     "isActive": true,
-    "isDefault": false
+    "isDefault": false,
+    "settings": {
+      "model_version": "vlm"
+    }
   }
 ]
+
+```
+
+> **Note:** MinerU providers omit their `api_token` field in this response. Tokens remain securely stored in the backend, but clients still reference the provider ID when submitting parsing tasks.
+
+### PATCH /api/admin/users/{id}
+
+Update user fields. Supports `name`, `role`, `isActive`, `dailyPageLimit`, and `groupId`.
+
+```json
+{
+  "name": "Jane",
+  "role": "user",
+  "isActive": true,
+  "dailyPageLimit": 100,
+  "groupId": "default" // or empty string to clear
+}
 ```
 
 ---
@@ -253,11 +281,15 @@ _2025-11-09 更新：后端重启后会自动将上次停在 `processing` 状态
     "dualOutputUrl": "https://s3.../dual.pdf",
     "monoOutputUrl": "https://s3.../mono.pdf",
     "glossaryOutputUrl": "https://s3.../glossary.csv",
+    "zipOutputUrl": "https://s3.../output.zip",
+    "markdownOutputUrl": "https://s3.../output.md",
     "createdAt": "2025-11-08T12:00:00Z",
     "updatedAt": "2025-11-08T12:30:00Z"
   }
 ]
 ```
+
+> **2025-11-11** – Responses now expose `zipOutputUrl` for MinerU parsing tasks so clients can download the original ZIP (with `images/`) directly. `markdownOutputUrl` already points inline image links to tenant-owned S3 URLs, so previews stay intact even if the ZIP is never downloaded.
 
 ---
 
@@ -284,6 +316,8 @@ _Use case_: 在前端“任务详情”面板或调试工具中，结合轮询�
   "dualOutputUrl": "https://s3.../dual.pdf",
   "monoOutputUrl": "https://s3.../mono.pdf",
   "glossaryOutputUrl": "https://s3.../glossary.csv",
+  "zipOutputUrl": "https://s3.../output.zip",
+  "markdownOutputUrl": "https://s3.../output.md",
   "createdAt": "2025-11-08T12:00:00Z",
   "updatedAt": "2025-11-08T12:30:00Z"
 }
@@ -362,9 +396,14 @@ Cancel a queued or processing task.
 
 ### DELETE /api/tasks/{id}
 
-Delete any task you own (queued/processing tasks are canceled and removed before deletion). All related S3 files (input/output/glossary) are deleted together.
+Delete any task you own (queued/processing tasks are canceled and removed before deletion). All related S3 files are deleted together, including:
+- input PDF
+- mono/dual/glossary outputs
+- markdown and zip artifacts (parsing / parse+translate)
+- MinerU mirrored images under `mineru/{mineruTaskId}/images/`
 
 _2025-11-09 更新：新增批量删除任务支持，前端可通过复选框选择任意状态的任务。_
+_2025-11-11 更新：删除任务时会清理 `outputs/{ownerId}/{taskId}/` 与 `mineru/{mineruTaskId}/` 前缀下的所有对象（包含 ZIP 与 images 目录），避免残留文件。_
 
 **Response (204 No Content)**
 
@@ -606,10 +645,13 @@ Provider-specific settings:
 - **deepl**: `api_key`, `endpoint`, `max_concurrency`, `requests_per_minute`
 - **ollama**: `endpoint`, `model`, `max_concurrency`, `requests_per_minute`
 - **tencent**: `secret_id`, `secret_key`, `max_concurrency`, `requests_per_minute`
+- **mineru**: `api_token` (required), `model_version` (defaults to `vlm`), `max_concurrency`, `requests_per_minute`
 - **gemini, deepseek, zhipu, siliconflow, grok, groq**: `api_key`, `endpoint`, `model`, `max_concurrency`, `requests_per_minute`
 
+> **2025-11-10** – MinerU provider settings now persist `api_token`/`model_version`. After updating the backend, open **Admin → Provider**, edit your MinerU entry, and re-save to ensure the token is stored。
+
 > **2025-11-09** – The backend now feeds these credentials directly into pdf2zh-next's mandatory `translate_engine_settings`. Provider settings saved in **Admin → Provider** are automatically merged with any per-task `modelConfig` overrides (task-level keys win). Always include the required keys (or set the matching environment variables such as `OPENAI_API_KEY`, `DEEPL_AUTH_KEY`, `AZURE_OPENAI_API_KEY`, `TENCENT_SECRET_ID`, `TENCENT_SECRET_KEY`) to avoid validation errors like `translate_engine_settings -> Field required`.
->
+> 
 > Example payload that satisfies the new requirement:
 > ```json
 > {
@@ -800,78 +842,6 @@ Test S3 connection with provided credentials.
 
 ---
 
-## Admin - Access Control
-
-**All endpoints require `admin` role.**
-
-### GET /api/admin/providers/access/all
-
-Get all user-provider access grants.
-
-**Response (200 OK):**
-```json
-[
-  {
-    "id": "access_123",
-    "userId": "user_456",
-    "providerConfigId": "google-free",
-    "isDefault": true,
-    "createdAt": "2025-11-08T10:00:00Z",
-    "user": {
-      "email": "user@example.com",
-      "name": "Regular User"
-    },
-    "provider": {
-      "name": "Google Translate (Free)",
-      "providerType": "google"
-    }
-  }
-]
-```
-
----
-
-### POST /api/admin/providers/access
-
-Grant a user access to a provider.
-
-**Request:**
-```json
-{
-  "userId": "user_456",
-  "providerConfigId": "deepl-pro",
-  "isDefault": false
-}
-```
-
-**Response (201 Created):**
-```json
-{
-  "id": "access_456",
-  "userId": "user_456",
-  "providerConfigId": "deepl-pro",
-  "isDefault": false,
-  "createdAt": "2025-11-08T15:00:00Z"
-}
-```
-
-**Errors:**
-- `400 Bad Request`: Access already exists
-- `404 Not Found`: User or provider not found
-
----
-
-### DELETE /api/admin/providers/access/{id}
-
-Revoke a user's access to a provider.
-
-**Response (204 No Content)**
-
-**Errors:**
-- `404 Not Found`: Access grant not found
-
----
-
 ## Error Responses
 
 All error responses follow this format:
@@ -898,4 +868,79 @@ All error responses follow this format:
 ---
 
 **API Reference Version:** 1.0  
-**Last Updated:** 2025-11-08
+**Last Updated:** 2025-11-10
+## Admin - Group Management
+
+### GET /api/admin/groups
+
+List groups.
+
+Response:
+```json
+[
+  { "id": "default", "name": "Default Group", "createdAt": "2025-11-10T10:00:00Z" }
+]
+```
+
+### POST /api/admin/groups
+
+Create a group.
+
+Request:
+```json
+{ "name": "Team A" }
+```
+Response:
+```json
+{ "id": "<uuid>", "name": "Team A", "createdAt": "..." }
+```
+
+### GET /api/admin/groups/{groupId}/access
+
+List provider access mappings for a group (sorted by `sortOrder`, then `createdAt`).
+
+Response (200 OK):
+```json
+[
+  { "id": "map_1", "groupId": "default", "providerConfigId": "mineru-shared", "sortOrder": 0, "createdAt": "..." },
+  { "id": "map_2", "groupId": "default", "providerConfigId": "openai-proxy", "sortOrder": 1, "createdAt": "..." }
+]
+```
+
+### POST /api/admin/groups/{groupId}/access
+
+Grant a provider to the group.
+
+Request:
+```json
+{ "providerConfigId": "<provider UUID>", "sortOrder": 0 }
+```
+
+Response (201 Created):
+```json
+{ "id": "map_1", "groupId": "default", "providerConfigId": "<provider UUID>", "sortOrder": 0, "createdAt": "..." }
+```
+
+Errors:
+- 404 if group or provider not found
+- 400 if already granted
+
+### DELETE /api/admin/groups/{groupId}/access/{providerId}
+
+Revoke a provider from the group.
+
+Response: `204 No Content`
+
+### POST /api/admin/groups/{groupId}/access/reorder
+
+Reorder providers for a group. The array index becomes the new `sortOrder`.
+
+Request:
+```json
+{ "providerIds": ["mineru-shared", "openai-proxy"] }
+```
+
+Response:
+```json
+{ "ok": true }
+```

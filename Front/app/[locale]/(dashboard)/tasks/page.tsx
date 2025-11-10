@@ -6,10 +6,16 @@ import { tasksAPI } from '@/lib/api/tasks';
 import { usersAPI } from '@/lib/api/users';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Task } from '@/lib/types/task';
+import { EmptyState } from '@/components/ui/empty-state';
+import { SkeletonTable } from '@/components/ui/skeleton';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { Task, TasksListResponse } from '@/lib/types/task';
 import { ProviderConfig } from '@/lib/types/provider';
 import { useTaskUpdates } from '@/lib/hooks/use-task-updates';
 import { useTranslations } from 'next-intl';
+import { toast } from 'sonner';
+import { FileText, Upload, Download, Trash2 } from 'lucide-react';
+import { useDropzone } from 'react-dropzone';
 
 export default function TasksPage() {
   const queryClient = useQueryClient();
@@ -19,12 +25,12 @@ export default function TasksPage() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const [detailTask, setDetailTask] = useState<Task | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const isRealtimeConnected = useTaskUpdates();
   const refetchOnWindowFocus = !isRealtimeConnected;
   const refetchInterval = isRealtimeConnected ? false : 4000;
   const selectAllRef = useRef<HTMLInputElement>(null);
   const t = useTranslations('tasks');
-  const _tCommon = useTranslations('common');
 
   const getStatusText = (status: string) => {
     return t(`status.${status}`) || status;
@@ -54,14 +60,76 @@ export default function TasksPage() {
 
   const cancelMutation = useMutation({
     mutationFn: tasksAPI.cancel,
+    onMutate: async (taskId) => {
+      // 取消正在进行的查询
+      await queryClient.cancelQueries({ queryKey: ['tasks'] });
+
+      // 保存之前的数据用于回滚
+      const previousTasks = queryClient.getQueryData(['tasks']);
+
+      // 乐观更新:立即更新任务状态为 cancelled
+      queryClient.setQueryData(['tasks'], (old: TasksListResponse | undefined) => {
+        if (!old) return old;
+        return {
+          ...old,
+          tasks: old.tasks.map(task =>
+            task.id === taskId ? { ...task, status: 'cancelled' as const } : task
+          ),
+        };
+      });
+
+      return { previousTasks };
+    },
     onSuccess: () => {
+      toast.success(t('cancelSuccess'));
+    },
+    onError: (_err, _taskId, context) => {
+      // 失败时回滚
+      if (context?.previousTasks) {
+        queryClient.setQueryData(['tasks'], context.previousTasks);
+      }
+      toast.error(t('cancelError'));
+    },
+    onSettled: () => {
+      // 最终同步服务器数据
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
     },
   });
 
   const retryMutation = useMutation({
     mutationFn: tasksAPI.retry,
+    onMutate: async (taskId) => {
+      // 取消正在进行的查询
+      await queryClient.cancelQueries({ queryKey: ['tasks'] });
+
+      // 保存之前的数据用于回滚
+      const previousTasks = queryClient.getQueryData(['tasks']);
+
+      // 乐观更新:立即更新任务状态为 pending
+      queryClient.setQueryData(['tasks'], (old: TasksListResponse | undefined) => {
+        if (!old) return old;
+        return {
+          ...old,
+          tasks: old.tasks.map(task =>
+            task.id === taskId ? { ...task, status: 'pending' as const, progress: 0 } : task
+          ),
+        };
+      });
+
+      return { previousTasks };
+    },
     onSuccess: () => {
+      toast.success(t('retrySuccess'));
+    },
+    onError: (_err, _taskId, context) => {
+      // 失败时回滚
+      if (context?.previousTasks) {
+        queryClient.setQueryData(['tasks'], context.previousTasks);
+      }
+      toast.error(t('retryError'));
+    },
+    onSettled: () => {
+      // 最终同步服务器数据
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
     },
   });
@@ -107,81 +175,270 @@ export default function TasksPage() {
     });
   };
 
-  const handleBulkDelete = async () => {
+  const handleBulkDownload = () => {
     if (!hasSelection) return;
-    const count = selectedTaskIds.size;
-    const confirmMessage = count === 1
-      ? 'Delete the selected task? This removes associated files permanently.'
-      : `Delete ${count} selected tasks? This removes associated files permanently.`;
-    if (!window.confirm(confirmMessage)) return;
-    setIsDeleting(true);
-    try {
-      await Promise.all(Array.from(selectedTaskIds).map((id) => tasksAPI.delete(id)));
-      setSelectedTaskIds(new Set());
-      await queryClient.invalidateQueries({ queryKey: ['tasks'] });
-    } catch (error) {
-      console.error('Failed to delete tasks', error);
-      window.alert('Some tasks could not be deleted. Please try again.');
-    } finally {
-      setIsDeleting(false);
+
+    const selectedTasks = tasks.filter(task => selectedTaskIds.has(task.id));
+    const completedTasks = selectedTasks.filter(task => task.status === 'completed');
+
+    if (completedTasks.length === 0) {
+      toast.error(t('noCompletedTasks'));
+      return;
+    }
+
+    let downloadCount = 0;
+    completedTasks.forEach(task => {
+      // 根据任务类型下载不同的文件
+      if (task.taskType === 'parsing') {
+        // 解析任务：下载 markdown
+        if (task.markdownOutputUrl) {
+          window.open(task.markdownOutputUrl, '_blank');
+          downloadCount++;
+        }
+      } else if (task.taskType === 'translation') {
+        // 翻译任务：优先下载双语版，其次单语版，最后普通版
+        if (task.dualOutputUrl) {
+          window.open(task.dualOutputUrl, '_blank');
+          downloadCount++;
+        } else if (task.monoOutputUrl) {
+          window.open(task.monoOutputUrl, '_blank');
+          downloadCount++;
+        } else if (task.outputUrl) {
+          window.open(task.outputUrl, '_blank');
+          downloadCount++;
+        }
+      } else if (task.taskType === 'parse_and_translate') {
+        // 解析+翻译任务：下载翻译后的 markdown
+        if (task.translatedMarkdownUrl) {
+          window.open(task.translatedMarkdownUrl, '_blank');
+          downloadCount++;
+        } else if (task.dualOutputUrl) {
+          window.open(task.dualOutputUrl, '_blank');
+          downloadCount++;
+        } else if (task.monoOutputUrl) {
+          window.open(task.monoOutputUrl, '_blank');
+          downloadCount++;
+        } else if (task.outputUrl) {
+          window.open(task.outputUrl, '_blank');
+          downloadCount++;
+        }
+      }
+    });
+
+    if (downloadCount > 0) {
+      toast.success(t('downloadSuccess', { count: downloadCount }));
+    } else {
+      toast.error(t('noDownloadableFiles'));
     }
   };
 
-  if (isLoading) return <div className="flex items-center justify-center h-64">{_tCommon('loading')}</div>;
+  const confirmBulkDelete = async () => {
+    if (!hasSelection) return;
+    const count = selectedTaskIds.size;
+
+    // 乐观更新:立即从 UI 中移除选中的任务
+    await queryClient.cancelQueries({ queryKey: ['tasks'] });
+    const previousTasks = queryClient.getQueryData(['tasks']);
+
+    queryClient.setQueryData(['tasks'], (old: TasksListResponse | undefined) => {
+      if (!old) return old;
+      return {
+        ...old,
+        tasks: old.tasks.filter(task => !selectedTaskIds.has(task.id)),
+      };
+    });
+
+    setSelectedTaskIds(new Set());
+    setIsDeleting(true);
+    setShowDeleteConfirm(false);
+
+    try {
+      // 后台执行删除操作
+      await Promise.all(Array.from(selectedTaskIds).map((id) => tasksAPI.delete(id)));
+      toast.success(count === 1 ? t('deleteSuccess') : t('bulkDeleteSuccess', { count }));
+    } catch (error) {
+      console.error('Failed to delete tasks', error);
+      // 失败时回滚
+      if (previousTasks) {
+        queryClient.setQueryData(['tasks'], previousTasks);
+      }
+      toast.error(t('deleteError'));
+    } finally {
+      setIsDeleting(false);
+      // 最终同步服务器数据
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        <div>
+          <h1 className="text-2xl font-semibold mb-1">{t('title')}</h1>
+        </div>
+        <SkeletonTable rows={8} columns={9} />
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-semibold mb-1">{t('title')}</h1>
-        <p className="text-sm text-muted-foreground">
-          Realtime status: {isRealtimeConnected ? <span className="text-green-600 dark:text-green-400">{t('realtime.connected')}</span> : <span className="text-yellow-600 dark:text-yellow-400">{t('realtime.reconnecting')}</span>}
-        </p>
+    <div className="section-spacing">
+      <div className="page-header">
+        <h1 className="page-title">{t('title')}</h1>
+        <p className="page-subtitle">{t('subtitle')}</p>
       </div>
 
-      <div className="flex items-center gap-3">
-        <Button onClick={() => setShowDialog(true)} size="sm" className="h-9">
-          + {t('create')}
-        </Button>
-        <Button variant="outline" onClick={() => setShowBatchDialog(true)} size="sm" className="h-9">
-          {t('batch')}
-        </Button>
-      </div>
-
-      {hasSelection && (
-        <div className="flex items-center justify-between rounded-lg border border-border bg-muted px-4 py-3">
-          <div className="text-sm text-muted-foreground">{selectedTaskIds.size} {t('selected')}</div>
-          <Button variant="destructive" size="sm" onClick={handleBulkDelete} disabled={isDeleting}>
-            {isDeleting ? t('deleting') : t('delete')}
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <Button onClick={() => setShowDialog(true)} size="sm" className="h-9">
+            + {t('create')}
+          </Button>
+          <Button variant="outline" onClick={() => setShowBatchDialog(true)} size="sm" className="h-9">
+            {t('batch')}
           </Button>
         </div>
-      )}
 
-      <div className="bg-card border border-border rounded-lg overflow-visible">
-        <table className="w-full">
-          <thead className="bg-muted/50 border-b border-border">
-            <tr className="text-xs text-muted-foreground">
-              <th className="px-4 py-2.5 text-left font-medium w-12">
-                <input
-                  ref={selectAllRef}
-                  type="checkbox"
-                  className="h-4 w-4 rounded border-input text-primary focus-visible:ring-2 focus-visible:ring-primary"
-                  onChange={handleSelectAllToggle}
-                  checked={tasks.length > 0 && allSelected}
-                />
-              </th>
-              <th className="px-4 py-2.5 text-left font-medium min-w-[200px]">{t('document')}</th>
-              <th className="px-4 py-2.5 text-left font-medium">{t('languages')}</th>
-              <th className="px-4 py-2.5 text-left font-medium">{t('engine')}</th>
-              <th className="px-4 py-2.5 text-left font-medium">{t('status')}</th>
-              <th className="px-4 py-2.5 text-left font-medium w-[120px]">{t('progress')}</th>
-              <th className="px-4 py-2.5 text-left font-medium">{t('pages')}</th>
-              <th className="px-4 py-2.5 text-left font-medium">{t('created')}</th>
-              <th className="px-4 py-2.5 text-right font-medium">{t('actions')}</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
+        {hasSelection && (
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">{selectedTaskIds.size} {t('selected')}</span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleBulkDownload}
+              className="h-9 gap-1.5"
+            >
+              <Download className="h-4 w-4" />
+              {t('bulkDownload')}
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => setShowDeleteConfirm(true)}
+              disabled={isDeleting}
+              className="h-9 gap-1.5"
+            >
+              <Trash2 className="h-4 w-4" />
+              {isDeleting ? t('deleting') : t('delete')}
+            </Button>
+          </div>
+        )}
+      </div>
+
+      {tasks.length === 0 ? (
+        <EmptyState
+          icon={FileText}
+          title={t('emptyState.title')}
+          description={t('emptyState.description')}
+          actionLabel={t('emptyState.action')}
+          onAction={() => setShowDialog(true)}
+        />
+      ) : (
+        <>
+          {/* Mobile Card View */}
+          <div className="md:hidden space-y-3">
             {tasks.map((task: Task) => (
-              <tr key={task.id} className="hover:bg-muted/30 transition-colors">
+              <div key={task.id} className="card-elevated p-4 space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-3 flex-1 min-w-0">
+                    <input
+                      type="checkbox"
+                      className="mt-1 h-4 w-4 rounded border-input text-primary focus-visible:ring-2 focus-visible:ring-primary flex-shrink-0"
+                      onChange={() => toggleTaskSelection(task.id)}
+                      checked={selectedTaskIds.has(task.id)}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-medium text-sm truncate">{task.documentName}</h3>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {task.sourceLang} → {task.targetLang}
+                      </p>
+                    </div>
+                  </div>
+                  <Badge variant={
+                    task.status === 'completed' ? 'success' :
+                    task.status === 'failed' ? 'error' :
+                    task.status === 'processing' ? 'info' :
+                    task.status === 'cancelled' ? 'secondary' :
+                    'warning'
+                  } className="text-xs flex-shrink-0">
+                    {getStatusText(task.status)}
+                  </Badge>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-primary rounded-full transition-all duration-500 ease-out"
+                      style={{ width: `${task.progress}%` }}
+                    />
+                  </div>
+                  <span className="text-xs text-muted-foreground tabular-nums">{task.progress}%</span>
+                </div>
+
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <div className="flex items-center gap-3">
+                    <span>{providerMap.get(task.providerConfigId || '')?.name || task.engine}</span>
+                    <span>{task.pageCount} {t('pages')}</span>
+                  </div>
+                  <span>{new Date(task.createdAt).toLocaleDateString()}</span>
+                </div>
+
+                <div className="flex gap-2 pt-2 border-t border-border">
+                  <button
+                    onClick={() => setDetailTask(task)}
+                    className="flex-1 px-3 py-1.5 text-xs bg-accent hover:bg-accent/80 rounded-md transition-colors"
+                  >
+                    {t('view')}
+                  </button>
+                  {task.status === 'processing' && (
+                    <button
+                      onClick={() => cancelMutation.mutate(task.id)}
+                      className="flex-1 px-3 py-1.5 text-xs bg-destructive/10 text-destructive hover:bg-destructive/20 rounded-md transition-colors"
+                      disabled={cancelMutation.isPending}
+                    >
+                      {t('cancel')}
+                    </button>
+                  )}
+                  {task.status === 'failed' && (
+                    <button
+                      onClick={() => retryMutation.mutate(task.id)}
+                      className="flex-1 px-3 py-1.5 text-xs bg-primary/10 text-primary hover:bg-primary/20 rounded-md transition-colors"
+                      disabled={retryMutation.isPending}
+                    >
+                      {t('retry')}
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Desktop Table View */}
+          <div className="hidden md:block card-elevated overflow-x-auto">
+            <table className="w-full min-w-[800px]">
+            <thead className="bg-muted/50 border-b border-border">
+              <tr className="text-xs text-muted-foreground">
+                <th className="px-4 py-2.5 text-left font-medium w-12">
+                  <input
+                    ref={selectAllRef}
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-input text-primary focus-visible:ring-2 focus-visible:ring-primary"
+                    onChange={handleSelectAllToggle}
+                    checked={tasks.length > 0 && allSelected}
+                  />
+                </th>
+                <th className="px-4 py-2.5 text-left font-medium min-w-[200px]">{t('document')}</th>
+                <th className="px-4 py-2.5 text-left font-medium">{t('languages')}</th>
+                <th className="px-4 py-2.5 text-left font-medium">{t('engine')}</th>
+                <th className="px-4 py-2.5 text-left font-medium">{t('statusLabel')}</th>
+                <th className="px-4 py-2.5 text-left font-medium w-[120px]">{t('progress')}</th>
+                <th className="px-4 py-2.5 text-left font-medium">{t('pages')}</th>
+                <th className="px-4 py-2.5 text-left font-medium">{t('created')}</th>
+                <th className="px-4 py-2.5 text-right font-medium">{t('actions')}</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {tasks.map((task: Task) => (
+              <tr key={task.id} className="hover:bg-muted/50 transition-all duration-200 hover:shadow-sm">
                 <td className="px-4 py-2.5">
                   <input
                     type="checkbox"
@@ -212,11 +469,11 @@ export default function TasksPage() {
                   <div className="flex items-center gap-2">
                     <div className="w-16 h-1.5 bg-muted rounded-full overflow-hidden">
                       <div
-                        className="h-full bg-primary rounded-full transition-all"
+                        className="h-full bg-primary rounded-full transition-all duration-500 ease-out"
                         style={{ width: `${task.progress}%` }}
                       />
                     </div>
-                    <span className="text-xs text-muted-foreground min-w-[2.5rem]">{task.progress}%</span>
+                    <span className="text-xs text-muted-foreground min-w-[2.5rem] tabular-nums">{task.progress}%</span>
                   </div>
                 </td>
                 <td className="px-4 py-2.5 text-sm">{task.pageCount}</td>
@@ -320,19 +577,32 @@ export default function TasksPage() {
             ))}
           </tbody>
         </table>
-      </div>
+        </div>
+        </>
+      )}
 
       {showDialog && <CreateTaskDialog providers={providers} onClose={() => setShowDialog(false)} />}
       {showBatchDialog && <BatchUploadDialog providers={providers} onClose={() => setShowBatchDialog(false)} />}
       {detailTask && <TaskDetailDialog task={detailTask} providerName={providerMap.get(detailTask.providerConfigId || '')?.name} onClose={() => setDetailTask(null)} />}
+
+      {showDeleteConfirm && (
+        <ConfirmDialog
+          title={t('confirmDelete.title')}
+          description={t('confirmDelete.description', { count: selectedTaskIds.size })}
+          confirmLabel={t('confirmDelete.confirm')}
+          cancelLabel={t('confirmDelete.cancel')}
+          variant="destructive"
+          onConfirm={confirmBulkDelete}
+          onCancel={() => setShowDeleteConfirm(false)}
+        />
+      )}
     </div>
   );
 }
 
 function TaskDetailDialog({ task, providerName, onClose }: { task: Task; providerName?: string; onClose: () => void }) {
   const t = useTranslations('tasks');
-  const _tCommon = useTranslations('common');
-  
+
   const getStatusText = (status: string) => {
     return t(`status.${status}`) || status;
   };
@@ -452,22 +722,58 @@ function CreateTaskDialog({ onClose, providers }: { onClose: () => void; provide
   const [file, setFile] = useState<File | null>(null);
   const [formData, setFormData] = useState({
     documentName: '',
+    taskType: 'translation' as 'translation' | 'parsing',
     sourceLang: 'en',
     targetLang: 'zh',
     engine: 'openai',
     priority: 'normal' as 'normal' | 'high',
     notes: '',
     providerConfigId: '',
+    translationProviderConfigId: '', // 用于解析任务的翻译提供商
   });
+  const [translateAfterParsing, setTranslateAfterParsing] = useState(false);
   const t = useTranslations('tasks.createDialog');
-  const _tCommon = useTranslations('common');
+
+  // Auto-select default providers by category (group order or flags)
+  useEffect(() => {
+    if (!providers || providers.length === 0) return;
+
+    const mineruProviders = providers.filter((p) => p.providerType === 'mineru');
+    const translationProviders = providers.filter((p) => p.providerType !== 'mineru');
+    const defaultMineru = mineruProviders.find((p) => p.isDefault) || mineruProviders[0];
+    const defaultTranslation = translationProviders.find((p) => p.isDefault) || translationProviders[0];
+
+    setFormData((prev) => {
+      const next = { ...prev };
+      if (prev.taskType === 'translation') {
+        if (!prev.providerConfigId && defaultTranslation) {
+          next.providerConfigId = defaultTranslation.id;
+          next.engine = defaultTranslation.providerType || prev.engine;
+        }
+      } else {
+        // parsing task
+        if (!prev.providerConfigId && defaultMineru) {
+          next.providerConfigId = defaultMineru.id;
+          next.engine = defaultMineru.providerType || prev.engine;
+        }
+        if (translateAfterParsing && !prev.translationProviderConfigId && defaultTranslation) {
+          next.translationProviderConfigId = defaultTranslation.id;
+        }
+      }
+      return next;
+    });
+  }, [providers, translateAfterParsing]);
 
   const createMutation = useMutation({
     mutationFn: tasksAPI.create,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
       queryClient.invalidateQueries({ queryKey: ['users', 'quota'] });
+      toast.success(t('createSuccess'));
       onClose();
+    },
+    onError: (error: any) => {
+      toast.error(error?.message || t('createError'));
     },
   });
 
@@ -475,14 +781,36 @@ function CreateTaskDialog({ onClose, providers }: { onClose: () => void; provide
     e.preventDefault();
     if (!file) return;
 
+    // 根据任务类型和勾选状态构建请求
+    let taskType: 'translation' | 'parsing' | 'parse_and_translate';
+    let providerConfigId: string;
+
+    if (formData.taskType === 'translation') {
+      taskType = 'translation';
+      providerConfigId = formData.providerConfigId;
+    } else if (formData.taskType === 'parsing' && translateAfterParsing) {
+      taskType = 'parse_and_translate';
+      providerConfigId = formData.translationProviderConfigId;
+    } else {
+      taskType = 'parsing';
+      providerConfigId = formData.providerConfigId;
+    }
+
     createMutation.mutate({
       file,
-      ...formData,
+      documentName: formData.documentName,
+      taskType,
+      sourceLang: formData.sourceLang,
+      targetLang: formData.targetLang,
+      engine: formData.engine,
+      priority: formData.priority,
+      notes: formData.notes,
+      providerConfigId,
     });
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0];
+  const onDrop = (acceptedFiles: File[]) => {
+    const selectedFile = acceptedFiles[0];
     if (selectedFile) {
       setFile(selectedFile);
       if (!formData.documentName) {
@@ -491,20 +819,46 @@ function CreateTaskDialog({ onClose, providers }: { onClose: () => void; provide
     }
   };
 
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop,
+    accept: { 'application/pdf': ['.pdf'] },
+    multiple: false,
+    noClick: false,
+  });
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center overflow-y-auto z-50">
       <div className="bg-card rounded-lg p-6 w-full max-w-2xl my-8 border border-border">
         <h2 className="text-xl font-bold mb-4">{t('title')}</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium mb-1">{t('pdfFile')}</label>
-            <input
-              type="file"
-              accept=".pdf"
-              onChange={handleFileChange}
-              className="w-full border border-input rounded px-3 py-2 bg-background"
-              required
-            />
+            <label className="block text-sm font-medium mb-2">{t('pdfFile')}</label>
+            <div
+              {...getRootProps()}
+              className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-all ${
+                isDragActive
+                  ? 'border-primary bg-primary/5'
+                  : file
+                  ? 'border-success bg-success/5'
+                  : 'border-border hover:border-primary/50 hover:bg-accent/50'
+              }`}
+            >
+              <input {...getInputProps()} />
+              <Upload className="w-12 h-12 mx-auto mb-3 text-muted-foreground" />
+              {file ? (
+                <div>
+                  <p className="text-sm font-medium text-success mb-1">✓ {file.name}</p>
+                  <p className="text-xs text-muted-foreground">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
+                </div>
+              ) : isDragActive ? (
+                <p className="text-sm text-primary">{t('dropHere')}</p>
+              ) : (
+                <div>
+                  <p className="text-sm font-medium mb-1">{t('dragDrop')}</p>
+                  <p className="text-xs text-muted-foreground">{t('orClickToSelect')}</p>
+                </div>
+              )}
+            </div>
           </div>
 
           <div>
@@ -518,66 +872,147 @@ function CreateTaskDialog({ onClose, providers }: { onClose: () => void; provide
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium mb-1">{t('sourceLanguage')}</label>
-              <select
-                className="w-full border border-input rounded px-3 py-2 bg-background"
-                value={formData.sourceLang}
-                onChange={(e) => setFormData({ ...formData, sourceLang: e.target.value })}
-              >
-                <option value="en">{t('english')}</option>
-                <option value="zh">{t('chinese')}</option>
-                <option value="ja">{t('japanese')}</option>
-                <option value="ko">{t('korean')}</option>
-                <option value="fr">{t('french')}</option>
-                <option value="de">{t('german')}</option>
-                <option value="es">{t('spanish')}</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-1">{t('targetLanguage')}</label>
-              <select
-                className="w-full border border-input rounded px-3 py-2 bg-background"
-                value={formData.targetLang}
-                onChange={(e) => setFormData({ ...formData, targetLang: e.target.value })}
-              >
-                <option value="zh">{t('chinese')}</option>
-                <option value="en">{t('english')}</option>
-                <option value="ja">{t('japanese')}</option>
-                <option value="ko">{t('korean')}</option>
-                <option value="fr">{t('french')}</option>
-                <option value="de">{t('german')}</option>
-                <option value="es">{t('spanish')}</option>
-              </select>
-            </div>
-          </div>
-
           <div>
-            <label className="block text-sm font-medium mb-1">{t('translationProvider')}</label>
+            <label className="block text-sm font-medium mb-1">{t('taskType')}</label>
             <select
               className="w-full border border-input rounded px-3 py-2 bg-background"
-              value={formData.providerConfigId}
+              value={formData.taskType}
               onChange={(e) => {
-                const provider = providers.find((p) => p.id === e.target.value);
-                setFormData({
-                  ...formData,
-                  providerConfigId: e.target.value,
-                  engine: provider?.providerType || 'openai',
-                });
+                const newTaskType = e.target.value as 'translation' | 'parsing';
+                setFormData({ ...formData, taskType: newTaskType });
+                // 切换到解析任务时，重置翻译选项
+                if (newTaskType === 'parsing') {
+                  setTranslateAfterParsing(false);
+                }
               }}
-              required
             >
-              <option value="">{t('selectProvider')}</option>
-              {providers.map((provider) => (
-                <option key={provider.id} value={provider.id}>
-                  {provider.name} ({provider.providerType})
-                  {provider.isDefault && ` ${t('default')}`}
-                </option>
-              ))}
+              <option value="translation">{t('pdfTranslation')}</option>
+              <option value="parsing">{t('pdfParsing')}</option>
             </select>
           </div>
+
+          {/* PDF 解析任务的额外选项 */}
+          {formData.taskType === 'parsing' && (
+            <div className="flex items-center space-x-2 p-3 bg-muted/50 rounded-md">
+              <input
+                type="checkbox"
+                id="translateAfterParsing"
+                checked={translateAfterParsing}
+                onChange={(e) => setTranslateAfterParsing(e.target.checked)}
+                className="w-4 h-4 rounded border-input"
+              />
+              <label htmlFor="translateAfterParsing" className="text-sm font-medium cursor-pointer">
+                {t('translateMarkdownAfterParsing')}
+              </label>
+            </div>
+          )}
+
+          {/* 翻译任务或解析后翻译时显示语言选择 */}
+          {(formData.taskType === 'translation' || (formData.taskType === 'parsing' && translateAfterParsing)) && (
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">{t('sourceLanguage')}</label>
+                <select
+                  className="w-full border border-input rounded px-3 py-2 bg-background"
+                  value={formData.sourceLang}
+                  onChange={(e) => setFormData({ ...formData, sourceLang: e.target.value })}
+                >
+                  <option value="en">{t('english')}</option>
+                  <option value="zh">{t('chinese')}</option>
+                  <option value="ja">{t('japanese')}</option>
+                  <option value="ko">{t('korean')}</option>
+                  <option value="fr">{t('french')}</option>
+                  <option value="de">{t('german')}</option>
+                  <option value="es">{t('spanish')}</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1">{t('targetLanguage')}</label>
+                <select
+                  className="w-full border border-input rounded px-3 py-2 bg-background"
+                  value={formData.targetLang}
+                  onChange={(e) => setFormData({ ...formData, targetLang: e.target.value })}
+                >
+                  <option value="zh">{t('chinese')}</option>
+                  <option value="en">{t('english')}</option>
+                  <option value="ja">{t('japanese')}</option>
+                  <option value="ko">{t('korean')}</option>
+                  <option value="fr">{t('french')}</option>
+                  <option value="de">{t('german')}</option>
+                  <option value="es">{t('spanish')}</option>
+                </select>
+              </div>
+            </div>
+          )}
+
+          {/* 解析服务提供商（仅解析任务） */}
+          {formData.taskType === 'parsing' && (
+            <div>
+              <label className="block text-sm font-medium mb-1">{t('parsingProvider')}</label>
+              <select
+                className="w-full border border-input rounded px-3 py-2 bg-background"
+                value={formData.providerConfigId}
+                onChange={(e) => {
+                  const provider = providers.find((p) => p.id === e.target.value);
+                  setFormData({
+                    ...formData,
+                    providerConfigId: e.target.value,
+                    engine: provider?.providerType || 'mineru',
+                  });
+                }}
+                required
+              >
+                <option value="">{t('selectProvider')}</option>
+                {providers
+                  .filter((provider) => provider.providerType === 'mineru')
+                  .map((provider) => (
+                    <option key={provider.id} value={provider.id}>
+                      {provider.name} ({provider.providerType})
+                      {provider.isDefault && ` ${t('default')}`}
+                    </option>
+                  ))}
+              </select>
+            </div>
+          )}
+
+          {/* 翻译服务提供商（翻译任务或解析后翻译） */}
+          {(formData.taskType === 'translation' || (formData.taskType === 'parsing' && translateAfterParsing)) && (
+            <div>
+              <label className="block text-sm font-medium mb-1">{t('translationProvider')}</label>
+              <select
+                className="w-full border border-input rounded px-3 py-2 bg-background"
+                value={formData.taskType === 'translation' ? formData.providerConfigId : formData.translationProviderConfigId}
+                onChange={(e) => {
+                  const provider = providers.find((p) => p.id === e.target.value);
+                  if (formData.taskType === 'translation') {
+                    setFormData({
+                      ...formData,
+                      providerConfigId: e.target.value,
+                      engine: provider?.providerType || 'openai',
+                    });
+                  } else {
+                    // 解析后翻译，保存到单独的字段
+                    setFormData({
+                      ...formData,
+                      translationProviderConfigId: e.target.value,
+                    });
+                  }
+                }}
+                required
+              >
+                <option value="">{t('selectProvider')}</option>
+                {providers
+                  .filter((provider) => provider.providerType !== 'mineru')
+                  .map((provider) => (
+                    <option key={provider.id} value={provider.id}>
+                      {provider.name} ({provider.providerType})
+                      {provider.isDefault && ` ${t('default')}`}
+                    </option>
+                  ))}
+              </select>
+            </div>
+          )}
 
           <div>
             <label className="block text-sm font-medium mb-1">{t('priority')}</label>
@@ -628,6 +1063,20 @@ function BatchUploadDialog({ onClose, providers }: { onClose: () => void; provid
   const [error, setError] = useState<string | null>(null);
   const t = useTranslations('tasks.batchDialog');
   const tCreate = useTranslations('tasks.createDialog');
+
+  // Auto-select default translation provider for batch
+  useEffect(() => {
+    if (!providers || providers.length === 0) return;
+    const translationProviders = providers.filter((p) => p.providerType !== 'mineru');
+    const defaultTranslation = translationProviders.find((p) => p.isDefault) || translationProviders[0];
+    if (defaultTranslation && !formData.providerConfigId) {
+      setFormData((prev) => ({
+        ...prev,
+        providerConfigId: defaultTranslation.id,
+        engine: defaultTranslation.providerType || prev.engine,
+      }));
+    }
+  }, [providers]);
 
   const batchMutation = useMutation({
     mutationFn: tasksAPI.createBatch,

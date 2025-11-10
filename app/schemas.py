@@ -21,6 +21,7 @@ class UserResponse(BaseModel):
     email: EmailStr
     role: str
     isActive: bool
+    groupId: Optional[str] = None
     dailyPageLimit: int
     dailyPageUsed: int
     lastQuotaReset: datetime
@@ -37,9 +38,12 @@ class CreateUserRequest(BaseModel):
 
 class UpdateUserRequest(BaseModel):
     name: Optional[str] = Field(default=None, min_length=1)
+    email: Optional[EmailStr] = None
+    password: Optional[str] = Field(default=None, min_length=8)
     role: Optional[Literal['admin', 'user']] = None
     isActive: Optional[bool] = None
     dailyPageLimit: Optional[int] = Field(default=None, ge=0)
+    groupId: Optional[str] = None
 
 
 class UpdateQuotaRequest(BaseModel):
@@ -82,6 +86,11 @@ class GenericProviderSettings(BaseProviderSettings):
     endpoint: Optional[str] = None
 
 
+class MinerUProviderSettings(BaseProviderSettings):
+    api_token: Optional[str] = None
+    model_version: str = Field(default="vlm")
+
+
 class ProviderConfigResponse(BaseModel):
     id: str
     name: str
@@ -111,25 +120,12 @@ class UpdateProviderConfigRequest(BaseModel):
     settings: Optional[dict] = None
 
 
-class UserProviderAccessResponse(BaseModel):
-    id: str
-    userId: str
-    providerConfigId: str
-    isDefault: bool
-    createdAt: datetime
-
-
-class GrantProviderAccessRequest(BaseModel):
-    userId: str
-    providerConfigId: str
-    isDefault: bool = False
-
-
 class CreateTaskRequest(BaseModel):
     documentName: str = Field(..., min_length=1)
-    sourceLang: str = Field(..., min_length=1)
-    targetLang: str = Field(..., min_length=1)
-    engine: str = Field(..., min_length=1)
+    taskType: Literal['translation', 'parsing', 'parse_and_translate'] = 'translation'
+    sourceLang: Optional[str] = None  # Optional for parsing-only tasks
+    targetLang: Optional[str] = None  # Optional for parsing-only tasks
+    engine: Optional[str] = None  # Optional for parsing-only tasks
     priority: Literal['normal', 'high'] = 'normal'
     notes: Optional[str] = Field(default=None, max_length=500)
     providerConfigId: Optional[str] = None
@@ -158,10 +154,15 @@ class TaskResponse(BaseModel):
     monoOutputUrl: Optional[str]
     dualOutputUrl: Optional[str]
     glossaryOutputUrl: Optional[str]
+    zipOutputUrl: Optional[str]
     progressMessage: Optional[str]
     error: Optional[str]
     pageCount: int
     providerConfigId: Optional[str]
+    taskType: str
+    markdownOutputUrl: Optional[str]
+    translatedMarkdownUrl: Optional[str]
+    mineruTaskId: Optional[str]
 
 
 class TasksEnvelope(BaseModel):
@@ -170,3 +171,59 @@ class TasksEnvelope(BaseModel):
 
 class TaskEnvelope(BaseModel):
     task: TaskResponse
+
+
+# Groups
+class GroupResponse(BaseModel):
+    id: str
+    name: str
+    createdAt: datetime
+
+
+class CreateGroupRequest(BaseModel):
+    name: str = Field(..., min_length=1)
+
+
+class GroupProviderAccessResponse(BaseModel):
+    id: str
+    groupId: str
+    providerConfigId: str
+    sortOrder: int
+    createdAt: datetime
+
+
+class GrantGroupProviderAccessRequest(BaseModel):
+    providerConfigId: str
+    sortOrder: int | None = None
+
+
+class ReorderGroupProvidersRequest(BaseModel):
+    providerIds: list[str]
+
+
+# Admin Settings
+class SystemSettingsResponse(BaseModel):
+    allowRegistration: bool
+
+
+class UpdateSystemSettingsRequest(BaseModel):
+    allowRegistration: bool
+
+
+class EmailSettingsResponse(BaseModel):
+    smtpHost: Optional[str]
+    smtpPort: Optional[int]
+    smtpUsername: Optional[str]
+    smtpUseTLS: bool
+    smtpFromEmail: Optional[EmailStr]
+    allowedEmailSuffixes: list[str]
+
+
+class UpdateEmailSettingsRequest(BaseModel):
+    smtpHost: Optional[str] = None
+    smtpPort: Optional[int] = Field(default=None, ge=1, le=65535)
+    smtpUsername: Optional[str] = None
+    smtpPassword: Optional[str] = Field(default=None, min_length=1)
+    smtpUseTLS: Optional[bool] = None
+    smtpFromEmail: Optional[EmailStr] = None
+    allowedEmailSuffixes: Optional[list[str]] = None

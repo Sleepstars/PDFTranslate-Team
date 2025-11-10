@@ -6,7 +6,7 @@ import json
 
 from app.database import get_db
 from app.dependencies import get_current_user_from_db
-from app.models import User, UserProviderAccess, TranslationProviderConfig
+from app.models import User, TranslationProviderConfig, GroupProviderAccess
 from app.schemas import UserResponse, ProviderConfigResponse
 from app.quota import get_quota_status
 from pydantic import BaseModel
@@ -55,42 +55,68 @@ async def get_user_providers(
     db: AsyncSession = Depends(get_db)
 ):
     """Get providers available to current user"""
-    # Get user's provider access
-    result = await db.execute(
-        select(UserProviderAccess)
-        .where(UserProviderAccess.user_id == user.id)
-    )
-    accesses = result.scalars().all()
-    
-    if not accesses:
-        return []
-    
-    # Get provider configs
-    provider_ids = [access.provider_config_id for access in accesses]
-    result = await db.execute(
-        select(TranslationProviderConfig)
-        .where(
-            TranslationProviderConfig.id.in_(provider_ids),
-            TranslationProviderConfig.is_active == True
-        )
-    )
-    providers = result.scalars().all()
-    
-    # Create a map of default providers
-    default_map = {access.provider_config_id: access.is_default for access in accesses}
-    
-    return [
-        ProviderConfigResponse(
-            id=provider.id,
-            name=provider.name,
-            providerType=provider.provider_type,
-            description=provider.description,
-            isActive=provider.is_active,
-            isDefault=default_map.get(provider.id, False),
-            settings=json.loads(provider.settings),
-            createdAt=provider.created_at,
-            updatedAt=provider.updated_at
-        )
-        for provider in providers
-    ]
+    # Prefer group-based provider access if group is assigned
+    response: list[ProviderConfigResponse] = []
 
+    if getattr(user, "group_id", None):
+        # Load group mapping with sort order
+        result = await db.execute(
+            select(GroupProviderAccess.provider_config_id, GroupProviderAccess.sort_order)
+            .where(GroupProviderAccess.group_id == user.group_id)
+        )
+        mapping_rows = result.all()
+        provider_order = {pid: sort for (pid, sort) in mapping_rows}
+        provider_ids = list(provider_order.keys())
+
+        if provider_ids:
+            result = await db.execute(
+                select(TranslationProviderConfig)
+                .where(
+                    TranslationProviderConfig.id.in_(provider_ids),
+                    TranslationProviderConfig.is_active == True
+                )
+            )
+            group_providers = result.scalars().all()
+
+            # Sort by group's sort_order (then by created_at)
+            group_providers.sort(key=lambda p: (provider_order.get(p.id, 0), p.created_at))
+
+            # Determine defaults per category: first mineru, first non-mineru
+            seen_mineru = False
+            seen_translation = False
+
+            for provider in group_providers:
+                try:
+                    settings_dict = json.loads(provider.settings or "{}")
+                except json.JSONDecodeError:
+                    settings_dict = {}
+
+                if provider.provider_type == "mineru" and isinstance(settings_dict, dict):
+                    settings_dict = {k: v for k, v in settings_dict.items() if k != "api_token"}
+
+                is_default = False
+                if provider.provider_type == "mineru" and not seen_mineru:
+                    is_default = True
+                    seen_mineru = True
+                elif provider.provider_type != "mineru" and not seen_translation:
+                    is_default = True
+                    seen_translation = True
+
+                response.append(
+                    ProviderConfigResponse(
+                        id=provider.id,
+                        name=provider.name,
+                        providerType=provider.provider_type,
+                        description=provider.description,
+                        isActive=provider.is_active,
+                        isDefault=is_default,
+                        settings=settings_dict,
+                        createdAt=provider.created_at,
+                        updatedAt=provider.updated_at
+                    )
+                )
+
+            return response
+
+    # No group assigned: return empty list (no providers available)
+    return response

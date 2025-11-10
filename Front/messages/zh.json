@@ -4,8 +4,8 @@
     "tasks": "任务",
     "admin": "管理",
     "users": "用户管理",
+    "groups": "分组",
     "providers": "提供者配置",
-    "access": "访问控制",
     "settings": "系统设置"
   },
   "users": {
@@ -22,12 +22,20 @@
     "inactive": "禁用",
     "edit": "编辑",
     "delete": "删除",
+    "createSuccess": "用户创建成功",
+    "createError": "用户创建失败",
+    "deleteSuccess": "用户已删除",
+    "deleteError": "删除失败",
+    "updateSuccess": "用户信息已更新",
+    "updateError": "更新失败",
     "createDialog": {
       "title": "创建用户",
       "name": "姓名",
       "email": "邮箱",
       "password": "密码",
       "role": "角色",
+      "group": "分组",
+      "noGroup": "无分组",
       "dailyLimit": "每日页数限制",
       "user": "用户",
       "admin": "管理员",
@@ -42,8 +50,31 @@
       "submit": "更新"
     }
   },
+  "groups": {
+    "title": "分组管理",
+    "description": "为分组配置可用的服务提供者，减少逐个用户授权的工作量。",
+    "create": "创建分组",
+    "groups": "分组",
+    "selectGroup": "请选择一个分组",
+    "groupAccess": "分组可用的提供者",
+    "selectProvider": "选择提供者...",
+    "addProvider": "添加",
+    "remove": "移除",
+    "moveUp": "上移",
+    "moveDown": "下移",
+    "noProviders": "该分组尚未配置可用的提供者",
+    "loading": "加载中...",
+    "createDialog": {
+      "title": "创建分组",
+      "name": "分组名称",
+      "namePlaceholder": "例如：产品团队A",
+      "cancel": "取消",
+      "create": "创建"
+    }
+  },
   "tasks": {
     "title": "我的任务",
+    "subtitle": "管理您的 PDF 翻译和解析任务",
     "description": "管理您的PDF翻译任务",
     "realtime": {
       "connected": "已连接",
@@ -54,18 +85,47 @@
     "selected": "已选择",
     "delete": "删除",
     "deleting": "删除中…",
-    "confirmDelete": "删除选中的任务？这将永久删除相关文件。",
+    "bulkDownload": "批量下载",
     "confirmBulkDelete": "删除 {count} 个选中的任务？这将永久删除相关文件。",
-    "deleteError": "部分任务删除失败，请重试。",
+    "deleteSuccess": "任务已删除",
+    "deleteError": "删除失败，请重试",
+    "bulkDeleteSuccess": "已删除 {count} 个任务",
+    "downloadSuccess": "已开始下载 {count} 个文件",
+    "noCompletedTasks": "没有已完成的任务可供下载",
+    "noDownloadableFiles": "选中的任务没有可下载的文件",
+    "createSuccess": "任务创建成功",
+    "createError": "任务创建失败",
+    "cancelSuccess": "任务已取消",
+    "cancelError": "取消失败",
+    "retrySuccess": "任务已重试",
+    "retryError": "重试失败",
+    "emptyState": {
+      "title": "还没有任务",
+      "description": "点击「创建任务」按钮开始翻译您的第一个 PDF 文档",
+      "action": "创建第一个任务"
+    },
+    "confirmDelete": {
+      "title": "确认删除",
+      "description": "确定要删除 {count} 个任务吗？此操作将永久删除相关文件，无法恢复。",
+      "confirm": "删除",
+      "cancel": "取消"
+    },
     "document": "文档",
+    "taskType": "任务类型",
     "languages": "语言",
     "engine": "引擎",
     "progress": "进度",
     "pages": "页数",
     "created": "创建时间",
     "actions": "操作",
+    "taskTypes": {
+      "translation": "PDF 翻译",
+      "parsing": "PDF 解析",
+      "parseAndTranslate": "解析 + 翻译"
+    },
     "detail": "详情",
     "downloadOriginal": "下载原文",
+    "downloadZip": "下载ZIP（含图片）",
     "downloadDual": "下载双语",
     "downloadMono": "下载单语", 
     "download": "下载",
@@ -77,17 +137,27 @@
     "completedAt": "完成时间",
     "notes": "备注",
     "close": "关闭",
+    "view": "查看",
+    "statusLabel": "状态",
     "status": {
       "completed": "已完成",
       "failed": "失败",
       "processing": "处理中",
       "cancelled": "已取消",
-      "pending": "等待中"
+      "pending": "等待中",
+      "queued": "排队中"
     },
+    "downloadMarkdown": "下载 Markdown",
+    "downloadTranslatedMarkdown": "下载翻译后的 Markdown",
     "createDialog": {
       "title": "创建翻译任务",
       "pdfFile": "PDF文件",
       "documentName": "文档名称",
+      "taskType": "任务类型",
+      "pdfTranslation": "PDF 翻译",
+      "pdfParsing": "PDF 解析",
+      "translateMarkdownAfterParsing": "解析后翻译 Markdown",
+      "parsingProvider": "解析服务提供商",
       "sourceLanguage": "源语言",
       "targetLanguage": "目标语言",
       "english": "英语",
@@ -107,7 +177,10 @@
       "optional": "可选",
       "cancel": "取消",
       "create": "创建任务",
-      "creating": "创建中..."
+      "creating": "创建中...",
+      "dragDrop": "拖拽 PDF 文件到此处",
+      "orClickToSelect": "或点击选择文件",
+      "dropHere": "松开以上传文件"
     },
     "batchDialog": {
       "title": "批量上传PDF",
@@ -131,9 +204,15 @@
     "actions": "操作",
     "active": "正常",
     "inactive": "禁用",
+    "createSuccess": "提供商创建成功",
+    "createError": "提供商创建失败",
+    "deleteSuccess": "提供商已删除",
+    "deleteError": "删除失败",
+    "updateSuccess": "提供商信息已更新",
+    "updateError": "更新失败",
     "types": {
       "google": "Google翻译",
-      "deepl": "DeepL", 
+      "deepl": "DeepL",
       "openai": "OpenAI",
       "azure_openai": "Azure OpenAI",
       "ollama": "Ollama",
@@ -143,7 +222,8 @@
       "siliconflow": "硅基流动",
       "tencent": "腾讯云翻译",
       "grok": "Grok",
-      "groq": "Groq"
+      "groq": "Groq",
+      "mineru": "MinerU"
     },
     "createDialog": {
       "title": "创建提供者",
@@ -157,6 +237,8 @@
       "requestsPerMinute": "每分钟请求数 (RPM)",
       "rpmDescription": "API速率限制，每分钟请求数（可选，1-10000）",
       "apiKey": "API密钥",
+      "apiToken": "API Token",
+      "modelVersion": "模型版本",
       "baseUrl": "基础URL (可选)",
       "baseUrlPlaceholder": "https://api.openai.com/v1",
       "endpoint": "端点",
@@ -168,26 +250,6 @@
       "setAsDefault": "设为默认",
       "cancel": "取消",
       "create": "创建"
-    }
-  },
-  "access": {
-    "title": "访问控制",
-    "description": "管理用户对翻译提供者的访问权限",
-    "grant": "授权访问",
-    "user": "用户",
-    "provider": "提供者",
-    "grantedAt": "授权时间",
-    "actions": "操作",
-    "revoke": "撤销",
-    "grantDialog": {
-      "title": "授权提供者访问",
-      "user": "用户",
-      "selectUser": "选择用户...",
-      "provider": "提供者",
-      "selectProvider": "选择提供者...",
-      "setAsDefault": "设为该用户的默认",
-      "cancel": "取消",
-      "grant": "授权访问"
     }
   },
   "settings": {

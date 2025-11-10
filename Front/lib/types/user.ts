@@ -3,6 +3,7 @@ export interface User {
   name: string;
   email: string;
   role: 'admin' | 'user';
+  groupId?: string;
   isActive: boolean;
   dailyPageLimit: number;
   dailyPageUsed: number;
@@ -21,6 +22,7 @@ export interface CreateUserRequest {
 export interface UpdateUserRequest {
   name?: string;
   role?: 'admin' | 'user';
+  groupId?: string;
   isActive?: boolean;
   dailyPageLimit?: number;
 }
