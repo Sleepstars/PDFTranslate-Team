@@ -269,7 +269,7 @@ pixi run install-frontend
 
 ```bash
 cd Front
-npm run build
+bun run build
 cd ..
 ```
 
