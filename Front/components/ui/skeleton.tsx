@@ -66,3 +66,24 @@ export function SkeletonForm({ fields = 6 }: { fields?: number }) {
   );
 }
 
+export function SkeletonStatCard() {
+  return (
+    <div className="p-6 border rounded-lg bg-card">
+      <div className="h-4 bg-muted rounded w-2/3 mb-3 animate-pulse" />
+      <div className="h-9 bg-muted rounded w-1/2 animate-pulse" />
+    </div>
+  );
+}
+
+export function SkeletonChart() {
+  return (
+    <div className="p-6 border rounded-lg bg-card">
+      <div className="flex justify-between items-center mb-4">
+        <div className="h-6 bg-muted rounded w-1/4 animate-pulse" />
+        <div className="h-9 bg-muted rounded w-24 animate-pulse" />
+      </div>
+      <div className="h-[300px] bg-muted/30 rounded animate-pulse" />
+    </div>
+  );
+}
+

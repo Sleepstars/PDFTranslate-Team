@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminSettingsAPI, S3ConfigRequest } from '@/lib/api/admin-settings';
 import { Button } from '@/components/ui/button';
@@ -39,6 +39,20 @@ export default function AdminSettingsS3Page() {
       ttl_days: 7,
     };
   });
+
+  // Update form data when s3Config is loaded
+  useEffect(() => {
+    if (s3Config) {
+      setFormData({
+        endpoint: s3Config.endpoint,
+        access_key: s3Config.access_key,
+        secret_key: '', // Don't populate secret key for security
+        bucket: s3Config.bucket,
+        region: s3Config.region,
+        ttl_days: s3Config.ttl_days,
+      });
+    }
+  }, [s3Config]);
 
   const updateMutation = useMutation({
     mutationFn: adminSettingsAPI.updateS3Config,

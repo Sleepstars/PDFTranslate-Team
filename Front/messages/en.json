@@ -6,7 +6,9 @@
     "users": "Users",
     "groups": "Access Control",
     "providers": "Providers",
-    "settings": "Settings"
+    "settings": "Settings",
+    "analytics": "Analytics",
+    "adminTasks": "All Tasks"
   },
   "users": {
     "title": "User Management",
@@ -67,6 +69,7 @@
     "loading": "Loading...",
     "default": "Default",
     "priorityOrder": "Priority Order",
+    "granted": "Granted",
     "createDialog": {
       "title": "Create Group",
       "name": "Group Name",
@@ -152,6 +155,10 @@
     },
     "downloadMarkdown": "Download Markdown",
     "downloadTranslatedMarkdown": "Download Translated Markdown",
+    "priority": {
+      "normal": "Normal",
+      "high": "High"
+    },
     "createDialog": {
       "title": "Create Translation Task",
       "pdfFile": "PDF File",
@@ -398,9 +405,50 @@
     "create": "Create",
     "submit": "Submit",
     "yes": "Yes",
-    "no": "No"
+    "no": "No",
+    "previous": "Previous",
+    "next": "Next"
   },
   "header": {
     "logout": "Logout"
+  },
+  "admin": {
+    "analytics": {
+      "title": "Analytics Dashboard",
+      "description": "View system-wide statistics and user activity",
+      "todayTranslations": "Today's Translations",
+      "todayPages": "Today's Pages",
+      "totalUsers": "Total Users",
+      "activeUsers": "Active Users (7 days)",
+      "dailyTrend": "Daily Trend",
+      "days": "days",
+      "translations": "Translations",
+      "pages": "Pages",
+      "topUsers": "Top Users by Consumption",
+      "userName": "User Name",
+      "userEmail": "Email",
+      "totalTasks": "Total Tasks",
+      "totalPages": "Total Pages"
+    },
+    "tasks": {
+      "title": "All Tasks",
+      "description": "View and manage all users' tasks",
+      "filters": "Filters",
+      "filterByUserId": "Filter by User ID...",
+      "allStatuses": "All Statuses",
+      "allPriorities": "All Priorities",
+      "dateFrom": "From Date",
+      "dateTo": "To Date",
+      "clearFilters": "Clear Filters",
+      "documentName": "Document",
+      "owner": "Owner",
+      "status": "Status",
+      "priority": "Priority",
+      "pages": "Pages",
+      "progress": "Progress",
+      "createdAt": "Created At",
+      "noTasks": "No tasks found",
+      "showing": "Showing {from}-{to} of {total}"
+    }
   }
 }

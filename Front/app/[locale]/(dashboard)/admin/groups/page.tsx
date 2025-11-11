@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useRef, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminGroupsAPI, type Group, type GroupProviderAccess } from '@/lib/api/admin-groups';
 import { adminProvidersAPI } from '@/lib/api/admin-providers';
@@ -33,7 +33,7 @@ export default function AdminGroupsPage() {
   const effectiveSelectedGroupId = selectedGroupId || groups[0]?.id || '';
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold mb-1">{t('title')}</h1>
@@ -48,13 +48,20 @@ export default function AdminGroupsPage() {
         <SkeletonTable rows={5} columns={4} />
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <div className="bg-card border border-border rounded-lg p-3">
-            <h2 className="text-sm font-medium mb-2">{t('groups')}</h2>
+          <div className="bg-card border border-border rounded-lg p-6">
+            <h2 className="text-sm font-medium mb-3">{t('groups')}</h2>
             <div className="space-y-1">
               {groups.map((g) => (
                 <button
                   key={g.id}
-                  className={`w-full text-left px-3 py-2 rounded hover:bg-muted transition-colors ${effectiveSelectedGroupId === g.id ? 'bg-muted' : ''}`}
+                  className={`
+                    w-full text-left px-3 py-2 rounded
+                    hover:bg-muted transition-all
+                    ${effectiveSelectedGroupId === g.id
+                      ? 'bg-muted border-l-4 border-primary pl-2'
+                      : 'border-l-4 border-transparent'
+                    }
+                  `}
                   onClick={() => setSelectedGroupId(g.id)}
                 >
                   <div className="text-sm font-medium">{g.name}</div>
@@ -86,13 +93,26 @@ function SortableItem({ id, children }: { id: string; children: React.ReactNode 
 
   const style = {
     transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
+    transition: isDragging ? undefined : transition, // 拖拽时禁用过渡，避免不跟手
   };
 
   return (
-    <div ref={setNodeRef} style={style} className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg">
-      <div {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing">
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`
+        flex items-center gap-3 p-3 rounded-lg
+        ${isDragging
+          ? 'bg-primary/10 shadow-lg scale-105 border-2 border-primary z-50 cursor-grabbing'
+          : 'bg-muted/30 border-2 border-transparent'
+        }
+      `}
+    >
+      <div
+        {...attributes}
+        {...listeners}
+        className="cursor-grab active:cursor-grabbing hover:text-primary transition-colors"
+      >
         <GripVertical className="h-5 w-5 text-muted-foreground" />
       </div>
       {children}
@@ -105,6 +125,9 @@ function GroupAccessPanel({ groupId, providers }: { groupId: string; providers: 
   const queryClient = useQueryClient();
   const [pendingChanges, setPendingChanges] = useState<Set<string>>(new Set());
 
+  // 使用 ref 存储防抖定时器
+  const invalidateTimerRef = useRef<NodeJS.Timeout | null>(null);
+
   const { data: accessList = [], isLoading } = useQuery<GroupProviderAccess[]>({
     queryKey: ['admin', 'groups', groupId, 'access'],
     queryFn: () => adminGroupsAPI.listAccess(groupId),
@@ -112,6 +135,16 @@ function GroupAccessPanel({ groupId, providers }: { groupId: string; providers: 
 
   const providerMap = useMemo(() => new Map(providers.map((p) => [p.id, p])), [providers]);
   const grantedIds = useMemo(() => new Set(accessList.map((a) => a.providerConfigId)), [accessList]);
+
+  // 防抖的 invalidate 函数
+  const debouncedInvalidate = useCallback(() => {
+    if (invalidateTimerRef.current) {
+      clearTimeout(invalidateTimerRef.current);
+    }
+    invalidateTimerRef.current = setTimeout(() => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'groups', groupId, 'access'] });
+    }, 300); // 300ms 内的多次调用只执行最后一次
+  }, [queryClient, groupId]);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -122,15 +155,95 @@ function GroupAccessPanel({ groupId, providers }: { groupId: string; providers: 
 
   const grantMutation = useMutation({
     mutationFn: (providerId: string) => adminGroupsAPI.grantAccess(groupId, providerId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin', 'groups', groupId, 'access'] });
+    onMutate: async (providerId) => {
+      // 取消正在进行的查询，避免覆盖乐观更新
+      await queryClient.cancelQueries({ queryKey: ['admin', 'groups', groupId, 'access'] });
+
+      // 乐观更新：立即添加新的授权记录
+      queryClient.setQueryData<GroupProviderAccess[]>(['admin', 'groups', groupId, 'access'], (old) => {
+        if (!old) return old;
+        // 检查是否已存在，避免重复添加
+        if (old.some(a => a.providerConfigId === providerId)) return old;
+        // 添加新记录到末尾
+        return [...old, {
+          id: `temp-${providerId}`, // 临时 ID，服务器返回后会被真实 ID 替换
+          groupId,
+          providerConfigId: providerId,
+          createdAt: new Date().toISOString(),
+        }];
+      });
+    },
+    onError: (_err, providerId) => {
+      // 发生错误时，移除乐观添加的记录
+      queryClient.setQueryData<GroupProviderAccess[]>(['admin', 'groups', groupId, 'access'], (old) => {
+        if (!old) return old;
+        return old.filter(a => a.providerConfigId !== providerId);
+      });
+      // 清除 pending 状态
+      setPendingChanges((prev) => {
+        const next = new Set(prev);
+        next.delete(providerId);
+        return next;
+      });
+    },
+    onSuccess: (_data, providerId) => {
+      // 成功后立即清除 pending 状态
+      setPendingChanges((prev) => {
+        const next = new Set(prev);
+        next.delete(providerId);
+        return next;
+      });
+    },
+    onSettled: () => {
+      // 使用防抖的 invalidate，避免多个并发请求冲突
+      debouncedInvalidate();
     },
   });
 
   const revokeMutation = useMutation({
     mutationFn: (providerId: string) => adminGroupsAPI.revokeAccess(groupId, providerId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin', 'groups', groupId, 'access'] });
+    onMutate: async (providerId) => {
+      // 取消正在进行的查询
+      await queryClient.cancelQueries({ queryKey: ['admin', 'groups', groupId, 'access'] });
+
+      // 乐观更新：立即移除授权记录
+      queryClient.setQueryData<GroupProviderAccess[]>(['admin', 'groups', groupId, 'access'], (old) => {
+        if (!old) return old;
+        // 过滤掉被撤销的 provider
+        return old.filter(a => a.providerConfigId !== providerId);
+      });
+    },
+    onError: (_err, providerId) => {
+      // 发生错误时，重新添加被移除的记录
+      queryClient.setQueryData<GroupProviderAccess[]>(['admin', 'groups', groupId, 'access'], (old) => {
+        if (!old) return old;
+        // 检查是否已存在，避免重复添加
+        if (old.some(a => a.providerConfigId === providerId)) return old;
+        return [...old, {
+          id: `temp-${providerId}`,
+          groupId,
+          providerConfigId: providerId,
+          createdAt: new Date().toISOString(),
+        }];
+      });
+      // 清除 pending 状态
+      setPendingChanges((prev) => {
+        const next = new Set(prev);
+        next.delete(providerId);
+        return next;
+      });
+    },
+    onSuccess: (_data, providerId) => {
+      // 成功后立即清除 pending 状态
+      setPendingChanges((prev) => {
+        const next = new Set(prev);
+        next.delete(providerId);
+        return next;
+      });
+    },
+    onSettled: () => {
+      // 使用防抖的 invalidate，避免多个并发请求冲突
+      debouncedInvalidate();
     },
   });
 
@@ -174,35 +287,20 @@ function GroupAccessPanel({ groupId, providers }: { groupId: string; providers: 
   };
 
   const handleProviderToggle = (providerId: string, isCurrentlyGranted: boolean) => {
+    // 添加到 pending 状态，防止重复点击
     setPendingChanges((prev) => new Set(prev).add(providerId));
 
     if (isCurrentlyGranted) {
-      revokeMutation.mutate(providerId, {
-        onSettled: () => {
-          setPendingChanges((prev) => {
-            const next = new Set(prev);
-            next.delete(providerId);
-            return next;
-          });
-        },
-      });
+      revokeMutation.mutate(providerId);
     } else {
-      grantMutation.mutate(providerId, {
-        onSettled: () => {
-          setPendingChanges((prev) => {
-            const next = new Set(prev);
-            next.delete(providerId);
-            return next;
-          });
-        },
-      });
+      grantMutation.mutate(providerId);
     }
   };
 
   return (
     <div className="bg-card border border-border rounded-lg">
-      <div className="p-4 border-b border-border">
-        <h2 className="text-sm font-medium mb-3">{t('groupAccess')}</h2>
+      <div className="p-6 border-b border-border">
+        <h3 className="text-sm font-medium mb-3">{t('groupAccess')}</h3>
         <div className="space-y-2 max-h-[400px] overflow-y-auto">
           {isLoading ? (
             <div className="text-sm text-muted-foreground">{t('loading')}</div>
@@ -216,9 +314,15 @@ function GroupAccessPanel({ groupId, providers }: { groupId: string; providers: 
               return (
                 <label
                   key={provider.id}
-                  className={`flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-muted/50 transition-colors cursor-pointer ${
-                    isGranted ? 'bg-primary/5 border-primary/20' : ''
-                  } ${isPending ? 'opacity-50 pointer-events-none' : ''}`}
+                  className={`
+                    flex items-center gap-3 p-3 rounded-lg border
+                    transition-all cursor-pointer
+                    ${isGranted
+                      ? 'bg-green-50 dark:bg-green-950/20 border-green-500/50 hover:bg-green-100 dark:hover:bg-green-950/30'
+                      : 'border-border hover:bg-muted/50'
+                    }
+                    ${isPending ? 'opacity-50 pointer-events-none' : ''}
+                  `}
                 >
                   <input
                     type="checkbox"
@@ -231,6 +335,11 @@ function GroupAccessPanel({ groupId, providers }: { groupId: string; providers: 
                     <div className="text-sm font-medium">{provider.name}</div>
                     <div className="text-xs text-muted-foreground">{provider.providerType}</div>
                   </div>
+                  {isGranted && (
+                    <div className="text-xs font-medium text-green-600 dark:text-green-400">
+                      ✓ {t('granted')}
+                    </div>
+                  )}
                 </label>
               );
             })
@@ -239,7 +348,7 @@ function GroupAccessPanel({ groupId, providers }: { groupId: string; providers: 
       </div>
 
       {accessList.length > 0 && (
-        <div className="p-4">
+        <div className="p-6">
           <h3 className="text-sm font-medium mb-3">{t('priorityOrder')}</h3>
           <div className={reorderMutation.isPending ? 'pointer-events-none opacity-60' : ''}>
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>

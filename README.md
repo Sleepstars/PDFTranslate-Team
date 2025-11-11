@@ -137,6 +137,13 @@ pixi run alembic upgrade head # 运行数据库迁移
 
 ⚠️ **生产环境请立即修改默认密码！**
 
+### 账号安全与忘记密码
+
+- 可在“后台 → 设置 → 系统”启用 ALTCHA（需配置 Secret Key）。
+- 可在“后台 → 设置 → 邮件”配置 SMTP（Host/Port/Username/Password/TLS/From）。
+- 启用后，登录/注册/忘记密码/重置密码均需完成 ALTCHA 验证。
+- 前端入口页面：`/login`、`/register`、`/forgot-password`、`/reset-password`。
+
 ### 手动安装
 
 如暂不使用 Pixi，可通过传统方式安装：

@@ -289,3 +289,33 @@ class UpdateEmailSettingsRequest(BaseModel):
     smtpUseTLS: Optional[bool] = None
     smtpFromEmail: Optional[EmailStr] = None
     allowedEmailSuffixes: Optional[list[str]] = None
+
+
+# Admin Analytics
+class AnalyticsOverviewResponse(BaseModel):
+    todayTranslations: int
+    todayPages: int
+    totalUsers: int
+    activeUsers: int
+
+
+class DailyStatsItem(BaseModel):
+    date: str
+    translations: int
+    pages: int
+
+
+class DailyStatsResponse(BaseModel):
+    stats: list[DailyStatsItem]
+
+
+class TopUserItem(BaseModel):
+    userId: str
+    userName: str
+    userEmail: EmailStr
+    totalPages: int
+    totalTasks: int
+
+
+class TopUsersResponse(BaseModel):
+    users: list[TopUserItem]
