@@ -19,6 +19,17 @@ class RegisterRequest(BaseModel):
     altchaPayload: Optional[str] = None
 
 
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+    altchaPayload: Optional[str] = None
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    newPassword: str = Field(..., min_length=8)
+    altchaPayload: Optional[str] = None
+
+
 class SessionResponse(BaseModel):
     user: Optional[dict]
 

@@ -2,15 +2,19 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from ..auth import create_session, delete_session, get_token_from_request, authenticate_user
+from ..auth import create_session, delete_session, get_token_from_request, authenticate_user, hash_password
 from ..config import PublicUser, get_settings
 from ..dependencies import get_optional_user
-from ..schemas import LoginRequest, RegisterRequest
+from ..schemas import LoginRequest, RegisterRequest, ForgotPasswordRequest, ResetPasswordRequest
 from ..database import get_db
-from ..models import User, SystemSetting
+from ..models import User, SystemSetting, PasswordResetToken
 from ..utils.altcha import create_challenge, verify_solution
-from datetime import datetime, timezone
-import bcrypt
+from datetime import datetime, timezone, timedelta
+import sqlalchemy as sa
+import hashlib
+from secrets import token_urlsafe
+
+RESET_TOKEN_TTL_MINUTES = 30
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -18,6 +22,19 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 @router.post("/login")
 async def login(payload: LoginRequest, response: Response, db: AsyncSession = Depends(get_db)):
     settings = get_settings()
+    # ALTCHA if enabled
+    result = await db.execute(select(SystemSetting).where(SystemSetting.key == "altcha_enabled"))
+    altcha_enabled_setting = result.scalar_one_or_none()
+    if altcha_enabled_setting and altcha_enabled_setting.value.lower() in ("true", "1"):
+        if not payload.altchaPayload:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="ALTCHA verification required")
+        # Get secret key
+        result = await db.execute(select(SystemSetting).where(SystemSetting.key == "altcha_secret_key"))
+        secret_setting = result.scalar_one_or_none()
+        if not secret_setting or not secret_setting.value:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="ALTCHA is not configured properly")
+        if not verify_solution(payload.altchaPayload, secret_setting.value):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="ALTCHA verification failed")
     user = await authenticate_user(db, payload.email, payload.password)
 
     if not user:
@@ -140,8 +157,8 @@ async def register(
     if existing_user:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered")
 
-    # Hash password
-    password_hash = bcrypt.hashpw(payload.password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+    # Hash password (Argon2)
+    password_hash = hash_password(payload.password)
 
     # Create new user
     new_user = User(
@@ -175,3 +192,124 @@ async def register(
     )
 
     return {"user": public_user, "message": "Registration successful"}
+
+
+@router.post("/forgot-password")
+async def forgot_password(
+    payload: ForgotPasswordRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db)
+):
+    # Always return generic success to avoid account enumeration
+    generic_ok = {"message": "If the email exists, a reset link has been sent."}
+
+    # ALTCHA if enabled
+    result = await db.execute(select(SystemSetting).where(SystemSetting.key == "altcha_enabled"))
+    altcha_enabled_setting = result.scalar_one_or_none()
+    if altcha_enabled_setting and altcha_enabled_setting.value.lower() in ("true", "1"):
+        if not payload.altchaPayload:
+            return generic_ok
+        result = await db.execute(select(SystemSetting).where(SystemSetting.key == "altcha_secret_key"))
+        secret_setting = result.scalar_one_or_none()
+        if not secret_setting or not secret_setting.value:
+            return generic_ok
+        if not verify_solution(payload.altchaPayload, secret_setting.value):
+            return generic_ok
+
+    # Find user by email
+    result = await db.execute(select(User).where(User.email == payload.email))
+    user = result.scalar_one_or_none()
+    if not user or not user.is_active:
+        return generic_ok
+
+    # Create token (single-use)
+    raw_token = token_urlsafe(32)
+    token_hash = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+    expires_at = datetime.now(timezone.utc) + timedelta(minutes=RESET_TOKEN_TTL_MINUTES)
+
+    # Revoke existing unused tokens for this user (optional cleanup)
+    await db.execute(
+        sa.text(
+            "UPDATE password_reset_tokens SET used = true WHERE user_id = :uid AND used = false"
+        ),
+        {"uid": user.id},
+    )
+
+    prt = PasswordResetToken(
+        id=token_urlsafe(12),
+        user_id=user.id,
+        token_hash=token_hash,
+        expires_at=expires_at,
+        used=False,
+    )
+    db.add(prt)
+    await db.commit()
+
+    # Build reset link
+    try:
+        origin = request.headers.get("Origin") or request.headers.get("Referer") or "http://localhost:3000"
+        # crude parse base
+        base = origin.split("/")
+        base_url = f"{base[0]}//{base[2]}" if len(base) > 2 else origin
+    except Exception:
+        base_url = "http://localhost:3000"
+
+    # Try to infer locale from referer path
+    path = (request.headers.get("Referer") or "/").split(base_url)[-1]
+    locale = path.split("/")[1] if len(path.split("/")) > 1 and path.split("/")[1] else "en"
+    reset_url = f"{base_url}/{locale}/reset-password?token={raw_token}"
+
+    # Send email
+    from ..emailer import send_email
+    subject = "Password reset request"
+    text = f"Click the link to reset your password (valid {RESET_TOKEN_TTL_MINUTES} minutes):\n{reset_url}"
+    try:
+        await send_email(db, user.email, subject, text)
+    except Exception:
+        # Do not leak details; still return generic OK
+        return generic_ok
+
+    return generic_ok
+
+
+@router.post("/reset-password")
+async def reset_password(
+    payload: ResetPasswordRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    # ALTCHA if enabled
+    result = await db.execute(select(SystemSetting).where(SystemSetting.key == "altcha_enabled"))
+    altcha_enabled_setting = result.scalar_one_or_none()
+    if altcha_enabled_setting and altcha_enabled_setting.value.lower() in ("true", "1"):
+        if not payload.altchaPayload:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="ALTCHA verification required")
+        result = await db.execute(select(SystemSetting).where(SystemSetting.key == "altcha_secret_key"))
+        secret_setting = result.scalar_one_or_none()
+        if not secret_setting or not secret_setting.value:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="ALTCHA is not configured properly")
+        if not verify_solution(payload.altchaPayload, secret_setting.value):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="ALTCHA verification failed")
+
+    # Validate token
+    if len(payload.newPassword) < 8:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Password too short")
+
+    token_hash = hashlib.sha256(payload.token.encode("utf-8")).hexdigest()
+    result = await db.execute(select(PasswordResetToken).where(PasswordResetToken.token_hash == token_hash))
+    prt = result.scalar_one_or_none()
+    now = datetime.now(timezone.utc)
+    if not prt or prt.used or prt.expires_at.replace(tzinfo=timezone.utc) < now:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired token")
+
+    # Load user
+    result = await db.execute(select(User).where(User.id == prt.user_id))
+    user = result.scalar_one_or_none()
+    if not user or not user.is_active:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired token")
+
+    # Update password using argon2 helper
+    from ..auth import hash_password
+    user.password_hash = hash_password(payload.newPassword)
+    prt.used = True
+    await db.commit()
+    return {"message": "Password has been reset."}

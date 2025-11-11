@@ -88,6 +88,10 @@ async def update_system_settings(
             db.add(SystemSetting(key=key, value=value))
 
     await db.commit()
+
+    from ..websocket_manager import admin_ws_manager
+    await admin_ws_manager.broadcast("settings.system.updated", {})
+
     return {"message": "System settings updated"}
 
 
@@ -168,6 +172,10 @@ async def update_email_settings(
             db.add(SystemSetting(key=key, value=value))
 
     await db.commit()
+
+    from ..websocket_manager import admin_ws_manager
+    await admin_ws_manager.broadcast("settings.email.updated", {})
+
     return {"message": "Email settings updated"}
 
 
@@ -213,6 +221,10 @@ async def update_s3_settings(
             db.add(SystemSetting(key=key, value=str(value)))
 
     await db.commit()
+
+    from ..websocket_manager import admin_ws_manager
+    await admin_ws_manager.broadcast("settings.s3.updated", {})
+
     return {"message": "S3 configuration updated successfully"}
 
 

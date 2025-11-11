@@ -46,7 +46,19 @@ function upsertTask(existing: TasksListResponse | undefined, updated: Task): Tas
 
   const tasks = existing.tasks ?? [];
   const index = tasks.findIndex((task) => task.id === updated.id);
-  const nextTasks = index === -1 ? [updated, ...tasks] : tasks.map((task) => (task.id === updated.id ? updated : task));
+
+  // Merge with existing to avoid losing stable fields (e.g., inputUrl from S3)
+  const nextTasks = index === -1
+    ? [updated, ...tasks]
+    : tasks.map((task) => {
+        if (task.id !== updated.id) return task;
+        const merged: Task = { ...task, ...updated };
+        // Preserve previously known inputUrl when websocket update omits it
+        if (!updated.inputUrl && task.inputUrl) {
+          merged.inputUrl = task.inputUrl;
+        }
+        return merged;
+      });
   const currentTotal = typeof existing.total === 'number' ? existing.total : tasks.length;
   const total = index === -1 ? currentTotal + 1 : currentTotal;
 

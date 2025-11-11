@@ -17,7 +17,13 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from sqlalchemy import text, inspect
 from app.database import engine, AsyncSessionLocal
-from app.models import User, TranslationProviderConfig, UserProviderAccess, TranslationTask
+from app.models import (
+    User,
+    TranslationProviderConfig,
+    TranslationTask,
+    Group,
+    GroupProviderAccess,
+)
 
 
 async def check_database_connection():
@@ -42,7 +48,8 @@ async def check_tables_exist():
         "users",
         "translation_tasks",
         "translation_provider_configs",
-        "user_provider_access",
+        "groups",
+        "group_provider_access",
     ]
     
     try:
@@ -160,12 +167,12 @@ async def check_default_data():
             provider_count = provider_count_result.scalar()
             print(f"  ℹ️  Total providers: {provider_count}")
             
-            # Count total access grants
+            # Count total group access grants
             access_count_result = await db.execute(
-                text("SELECT COUNT(*) FROM user_provider_access")
+                text("SELECT COUNT(*) FROM group_provider_access")
             )
             access_count = access_count_result.scalar()
-            print(f"  ℹ️  Total access grants: {access_count}")
+            print(f"  ℹ️  Total group access grants: {access_count}")
             
             return True
     except Exception as e:
@@ -193,23 +200,23 @@ async def check_foreign_keys():
             else:
                 print("  ❌ translation_tasks -> translation_provider_configs FK missing")
             
-            # Check user_provider_access foreign keys
-            access_fks = inspector.get_foreign_keys("user_provider_access")
-            has_user_fk = any(fk["referred_table"] == "users" for fk in access_fks)
+            # Check group_provider_access foreign keys
+            access_fks = inspector.get_foreign_keys("group_provider_access")
+            has_group_fk = any(fk["referred_table"] == "groups" for fk in access_fks)
             has_provider_fk = any(
                 fk["referred_table"] == "translation_provider_configs"
                 for fk in access_fks
             )
-            
-            if has_user_fk:
-                print("  ✅ user_provider_access -> users FK exists")
+
+            if has_group_fk:
+                print("  ✅ group_provider_access -> groups FK exists")
             else:
-                print("  ❌ user_provider_access -> users FK missing")
-            
+                print("  ❌ group_provider_access -> groups FK missing")
+
             if has_provider_fk:
-                print("  ✅ user_provider_access -> translation_provider_configs FK exists")
+                print("  ✅ group_provider_access -> translation_provider_configs FK exists")
             else:
-                print("  ❌ user_provider_access -> translation_provider_configs FK missing")
+                print("  ❌ group_provider_access -> translation_provider_configs FK missing")
             
             return True
     except Exception as e:
@@ -258,4 +265,3 @@ async def main():
 if __name__ == "__main__":
     exit_code = asyncio.run(main())
     sys.exit(exit_code)
-

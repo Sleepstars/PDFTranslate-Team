@@ -303,6 +303,7 @@ class TaskManager:
 
         redis = await get_redis()
         await redis.enqueue_task(task_id, task.priority)
+        await task_ws_manager.send_task_update(task.owner_id, task.to_dict())
         self._schedule(task_id)
         return task
 
@@ -317,6 +318,7 @@ class TaskManager:
                 task.progress_message = "任务已取消"
                 await db.commit()
                 await db.refresh(task)
+                await task_ws_manager.send_task_update(task.owner_id, task.to_dict())
             return task
 
     async def delete_task(self, task_id: str, owner_id: str) -> str:
@@ -364,6 +366,8 @@ class TaskManager:
 
             await db.delete(task)
             await db.commit()
+
+        await task_ws_manager.send_task_update(task_owner_id, {"id": task_id, "status": "deleted"})
 
         if s3_client:
             unique_keys = {key for key in s3_keys if key}

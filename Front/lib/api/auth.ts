@@ -70,3 +70,29 @@ export async function getCurrentUser(): Promise<User | null> {
   const data = await res.json();
   return data.user;
 }
+
+export async function requestPasswordReset(email: string, altchaPayload?: string): Promise<void> {
+  const res = await fetch('/auth/forgot-password', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, altchaPayload }),
+    credentials: 'include',
+  });
+  if (!res.ok) {
+    // still treat as success to avoid enumeration
+    await res.text().catch(() => {});
+  }
+}
+
+export async function resetPassword(token: string, newPassword: string, altchaPayload?: string): Promise<void> {
+  const res = await fetch('/auth/reset-password', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token, newPassword, altchaPayload }),
+    credentials: 'include',
+  });
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({ detail: 'Reset failed' }));
+    throw new Error(error.detail || 'Reset failed');
+  }
+}

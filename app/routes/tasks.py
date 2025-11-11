@@ -181,11 +181,15 @@ async def create_task(
     except MissingS3Configuration as exc:
         from ..quota import refund_quota
         await refund_quota(user_obj, page_count, db)
+        from ..websocket_manager import task_ws_manager
+        await task_ws_manager.send_task_update(user_obj.id, {"type": "quota_refund", "pages": page_count, "reasonKey": "s3ConfigError"})
         raise HTTPException(status_code=503, detail=str(exc))
     except Exception:
         # Refund quota if task creation fails
         from ..quota import refund_quota
         await refund_quota(user_obj, page_count, db)
+        from ..websocket_manager import task_ws_manager
+        await task_ws_manager.send_task_update(user_obj.id, {"type": "quota_refund", "pages": page_count, "reasonKey": "taskCreationFailed"})
         raise
 
 
@@ -302,6 +306,8 @@ async def create_batch_tasks(
             # 如果任务创建失败，回滚配额
             from ..quota import refund_quota
             await refund_quota(user_obj, total_pages, db)
+            from ..websocket_manager import task_ws_manager
+            await task_ws_manager.send_task_update(user_obj.id, {"type": "quota_refund", "pages": total_pages, "reasonKey": "batchCreationFailed"})
             # 保持错误信息
             if isinstance(e, HTTPException):
                 raise e

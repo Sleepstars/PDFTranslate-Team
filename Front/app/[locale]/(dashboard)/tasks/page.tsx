@@ -28,6 +28,7 @@ export default function TasksPage() {
   const [detailTask, setDetailTask] = useState<Task | null>(null);
   const [menuPos, setMenuPos] = useState<{ top: number; left: number; id: string } | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [taskToDelete, setTaskToDelete] = useState<string | null>(null);
   const isRealtimeConnected = useTaskUpdates();
   const refetchOnWindowFocus = !isRealtimeConnected;
   const refetchInterval = isRealtimeConnected ? false : 4000;
@@ -177,6 +178,24 @@ export default function TasksPage() {
     });
   };
 
+  const downloadFile = async (url: string, filename: string) => {
+    try {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(blobUrl);
+    } catch (error) {
+      console.error(`Failed to download ${filename}:`, error);
+      toast.error(t('downloadError'));
+    }
+  };
+
   const handleBulkDownload = async () => {
     if (!hasSelection) return;
 
@@ -216,21 +235,7 @@ export default function TasksPage() {
 
     for (let i = 0; i < downloads.length; i++) {
       await new Promise(resolve => setTimeout(resolve, i * 200));
-      const { url, filename } = downloads[i];
-      try {
-        const response = await fetch(url);
-        const blob = await response.blob();
-        const blobUrl = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = blobUrl;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(blobUrl);
-      } catch (error) {
-        console.error(`Failed to download ${filename}:`, error);
-      }
+      await downloadFile(downloads[i].url, downloads[i].filename);
     }
   };
 
@@ -268,6 +273,38 @@ export default function TasksPage() {
     } finally {
       setIsDeleting(false);
       // 最终同步服务器数据
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+    }
+  };
+
+  const confirmSingleDelete = async () => {
+    if (!taskToDelete) return;
+
+    await queryClient.cancelQueries({ queryKey: ['tasks'] });
+    const previousTasks = queryClient.getQueryData(['tasks']);
+
+    queryClient.setQueryData(['tasks'], (old: TasksListResponse | undefined) => {
+      if (!old) return old;
+      return {
+        ...old,
+        tasks: old.tasks.filter(task => task.id !== taskToDelete),
+      };
+    });
+
+    setIsDeleting(true);
+    setTaskToDelete(null);
+
+    try {
+      await tasksAPI.delete(taskToDelete);
+      toast.success(t('deleteSuccess'));
+    } catch (error) {
+      console.error('Failed to delete task', error);
+      if (previousTasks) {
+        queryClient.setQueryData(['tasks'], previousTasks);
+      }
+      toast.error(t('deleteError'));
+    } finally {
+      setIsDeleting(false);
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
     }
   };
@@ -429,7 +466,7 @@ export default function TasksPage() {
                   />
                 </th>
                 <th className="px-4 py-2.5 text-left font-medium min-w-[200px]">{t('document')}</th>
-                <th className="px-4 py-2.5 text-left font-medium">{t('languages')}</th>
+                <th className="px-4 py-2.5 text-left font-medium">{t('taskType')}</th>
                 <th className="px-4 py-2.5 text-left font-medium">{t('engine')}</th>
                 <th className="px-4 py-2.5 text-left font-medium">{t('statusLabel')}</th>
                 <th className="px-4 py-2.5 text-left font-medium w-[120px]">{t('progress')}</th>
@@ -451,7 +488,7 @@ export default function TasksPage() {
                 </td>
                 <td className="px-4 py-2.5 text-sm font-medium">{task.documentName}</td>
                 <td className="px-4 py-2.5 text-sm whitespace-nowrap">
-                  {task.sourceLang} → {task.targetLang}
+                  {t(`taskTypes.${task.taskType === 'parse_and_translate' ? 'parseAndTranslate' : task.taskType}`)}
                 </td>
                 <td className="px-4 py-2.5">
                   <Badge variant="info" className="text-xs">{providerMap.get(task.providerConfigId || '')?.name || task.engine}</Badge>
@@ -527,7 +564,7 @@ export default function TasksPage() {
                         {task.inputUrl && (
                           <button
                             onClick={() => {
-                              window.open(task.inputUrl!, '_blank');
+                              downloadFile(task.inputUrl!, `${task.documentName}_original.pdf`);
                               setActiveMenu(null);
                             }}
                             className="w-full px-3 py-2 text-left text-sm hover:bg-muted transition-colors"
@@ -538,7 +575,7 @@ export default function TasksPage() {
                         {task.status === 'completed' && task.dualOutputUrl && (
                           <button
                             onClick={() => {
-                              window.open(task.dualOutputUrl!, '_blank');
+                              downloadFile(task.dualOutputUrl!, `${task.documentName}_dual.pdf`);
                               setActiveMenu(null);
                               setMenuPos(null);
                             }}
@@ -550,7 +587,7 @@ export default function TasksPage() {
                         {task.status === 'completed' && task.monoOutputUrl && (
                           <button
                             onClick={() => {
-                              window.open(task.monoOutputUrl!, '_blank');
+                              downloadFile(task.monoOutputUrl!, `${task.documentName}_mono.pdf`);
                               setActiveMenu(null);
                               setMenuPos(null);
                             }}
@@ -562,7 +599,7 @@ export default function TasksPage() {
                         {task.status === 'completed' && !task.dualOutputUrl && !task.monoOutputUrl && task.outputUrl && (
                           <button
                             onClick={() => {
-                              window.open(task.outputUrl!, '_blank');
+                              downloadFile(task.outputUrl!, `${task.documentName}.pdf`);
                               setActiveMenu(null);
                               setMenuPos(null);
                             }}
@@ -574,7 +611,7 @@ export default function TasksPage() {
                         {task.status === 'completed' && task.zipOutputUrl && (
                           <button
                             onClick={() => {
-                              window.open(task.zipOutputUrl!, '_blank');
+                              downloadFile(task.zipOutputUrl!, `${task.documentName}.zip`);
                               setActiveMenu(null);
                               setMenuPos(null);
                             }}
@@ -586,7 +623,7 @@ export default function TasksPage() {
                         {task.status === 'completed' && task.markdownOutputUrl && (
                           <button
                             onClick={() => {
-                              window.open(task.markdownOutputUrl!, '_blank');
+                              downloadFile(task.markdownOutputUrl!, `${task.documentName}.md`);
                               setActiveMenu(null);
                               setMenuPos(null);
                             }}
@@ -619,6 +656,16 @@ export default function TasksPage() {
                             {t('retry')}
                           </button>
                         )}
+                        <button
+                          onClick={() => {
+                            setTaskToDelete(task.id);
+                            setActiveMenu(null);
+                            setMenuPos(null);
+                          }}
+                          className="w-full px-3 py-2 text-left text-sm hover:bg-muted transition-colors text-destructive"
+                        >
+                          {t('delete')}
+                        </button>
                       </div>
                     </Portal>
                   )}
@@ -633,7 +680,7 @@ export default function TasksPage() {
 
       {showDialog && <CreateTaskDialog providers={providers} onClose={() => setShowDialog(false)} />}
       {showBatchDialog && <BatchUploadDialog providers={providers} onClose={() => setShowBatchDialog(false)} />}
-      {detailTask && <TaskDetailDialog task={detailTask} providerName={providerMap.get(detailTask.providerConfigId || '')?.name} onClose={() => setDetailTask(null)} />}
+      {detailTask && <TaskDetailDialog task={detailTask} providerName={providerMap.get(detailTask.providerConfigId || '')?.name} onClose={() => setDetailTask(null)} downloadFile={downloadFile} />}
 
       {showDeleteConfirm && (
         <ConfirmDialog
@@ -646,17 +693,29 @@ export default function TasksPage() {
           onCancel={() => setShowDeleteConfirm(false)}
         />
       )}
+
+      {taskToDelete && (
+        <ConfirmDialog
+          title={t('confirmDelete.title')}
+          description={t('confirmDelete.description', { count: 1 })}
+          confirmLabel={t('confirmDelete.confirm')}
+          cancelLabel={t('confirmDelete.cancel')}
+          variant="destructive"
+          onConfirm={confirmSingleDelete}
+          onCancel={() => setTaskToDelete(null)}
+        />
+      )}
     </div>
   );
 }
 
-function TaskDetailDialog({ task, providerName, onClose }: { task: Task; providerName?: string; onClose: () => void }) {
+function TaskDetailDialog({ task, providerName, onClose, downloadFile }: { task: Task; providerName?: string; onClose: () => void; downloadFile: (url: string, filename: string) => Promise<void> }) {
   const t = useTranslations('tasks');
 
   const getStatusText = (status: string) => {
     return t(`status.${status}`) || status;
   };
-  
+
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50" onClick={onClose}>
       <div className="bg-card border border-border rounded-lg p-6 w-full max-w-2xl shadow-xl" onClick={(e) => e.stopPropagation()}>
@@ -740,32 +799,32 @@ function TaskDetailDialog({ task, providerName, onClose }: { task: Task; provide
         <div className="flex justify-between mt-6">
           <div className="flex gap-2">
             {task.inputUrl && (
-              <Button variant="outline" size="sm" onClick={() => window.open(task.inputUrl!, '_blank')}>
+              <Button variant="outline" size="sm" onClick={() => downloadFile(task.inputUrl!, `${task.documentName}_original.pdf`)}>
                 {t('downloadOriginal')}
               </Button>
             )}
             {task.status === 'completed' && task.dualOutputUrl && (
-              <Button variant="outline" size="sm" onClick={() => window.open(task.dualOutputUrl!, '_blank')}>
+              <Button variant="outline" size="sm" onClick={() => downloadFile(task.dualOutputUrl!, `${task.documentName}_dual.pdf`)}>
                 {t('downloadDual')}
               </Button>
             )}
             {task.status === 'completed' && task.monoOutputUrl && (
-              <Button variant="outline" size="sm" onClick={() => window.open(task.monoOutputUrl!, '_blank')}>
+              <Button variant="outline" size="sm" onClick={() => downloadFile(task.monoOutputUrl!, `${task.documentName}_mono.pdf`)}>
                 {t('downloadMono')}
               </Button>
             )}
             {task.status === 'completed' && !task.dualOutputUrl && !task.monoOutputUrl && task.outputUrl && (
-              <Button variant="outline" size="sm" onClick={() => window.open(task.outputUrl!, '_blank')}>
+              <Button variant="outline" size="sm" onClick={() => downloadFile(task.outputUrl!, `${task.documentName}.pdf`)}>
                 {t('download')}
               </Button>
             )}
             {task.status === 'completed' && task.zipOutputUrl && (
-              <Button variant="outline" size="sm" onClick={() => window.open(task.zipOutputUrl!, '_blank')}>
+              <Button variant="outline" size="sm" onClick={() => downloadFile(task.zipOutputUrl!, `${task.documentName}.zip`)}>
                 {t('downloadZip')}
               </Button>
             )}
             {task.status === 'completed' && task.markdownOutputUrl && (
-              <Button variant="outline" size="sm" onClick={() => window.open(task.markdownOutputUrl!, '_blank')}>
+              <Button variant="outline" size="sm" onClick={() => downloadFile(task.markdownOutputUrl!, `${task.documentName}.md`)}>
                 {t('downloadMarkdown')}
               </Button>
             )}

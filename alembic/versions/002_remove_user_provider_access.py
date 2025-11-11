@@ -17,13 +17,11 @@ depends_on = None
 
 
 def upgrade() -> None:
-    """Drop user_provider_access table and its indexes."""
-    # Drop indexes first
-    op.drop_index('ix_user_provider_access_provider_config_id', table_name='user_provider_access')
-    op.drop_index('ix_user_provider_access_user_id', table_name='user_provider_access')
-
-    # Drop the table
-    op.drop_table('user_provider_access')
+    """Drop user_provider_access table and its indexes (idempotent)."""
+    # Use IF EXISTS to tolerate databases created without this table
+    op.execute('DROP INDEX IF EXISTS ix_user_provider_access_provider_config_id')
+    op.execute('DROP INDEX IF EXISTS ix_user_provider_access_user_id')
+    op.execute('DROP TABLE IF EXISTS user_provider_access')
 
 
 def downgrade() -> None:

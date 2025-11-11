@@ -1,7 +1,6 @@
 from datetime import datetime, timedelta, timezone
 from secrets import token_urlsafe
 from typing import Optional
-from passlib.context import CryptContext
 from fastapi import Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,7 +11,6 @@ import json
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError, InvalidHash
 
-# Use argon2 directly instead of passlib to avoid bcrypt compatibility issues
 ph = PasswordHasher()
 
 def hash_password(password: str) -> str:

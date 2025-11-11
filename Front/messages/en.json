@@ -4,7 +4,7 @@
     "tasks": "Tasks",
     "admin": "Admin",
     "users": "Users",
-    "groups": "Groups",
+    "groups": "Access Control",
     "providers": "Providers",
     "settings": "Settings"
   },
@@ -197,6 +197,14 @@
       "creating": "Creating...",
       "filesSelected": "files selected",
       "dragMoreFiles": "Drag & drop more files or click to add"
+    },
+    "notifications": {
+      "quotaRefund": "Quota refunded: {pages} pages",
+      "quotaRefundReasons": {
+        "s3ConfigError": "S3 configuration error",
+        "taskCreationFailed": "Task creation failed",
+        "batchCreationFailed": "Batch task creation failed"
+      }
     }
   },
   "providers": {
@@ -205,7 +213,7 @@
     "create": "Create Provider",
     "name": "Name",
     "type": "Type",
-    "description": "Description",
+    "providerDescription": "Description",
     "status": "Status",
     "default": "Default",
     "actions": "Actions",
@@ -278,6 +286,9 @@
     "systemConfig": "System",
     "emailConfig": "Email",
     "s3Config": "S3 Storage Configuration",
+    "systemUpdated": "System settings updated",
+    "emailUpdated": "Email settings updated",
+    "s3Updated": "S3 configuration updated",
     "s3Endpoint": "S3 Endpoint",
     "s3EndpointDescription": "(Optional, leave empty for AWS S3)",
     "accessKey": "Access Key",
@@ -331,8 +342,32 @@
     "password": "Password",
     "login": "Login",
     "loggingIn": "Logging in...",
+    "forgotPassword": "Forgot password?",
     "noAccount": "Don't have an account?",
-    "registerHere": "Register here"
+    "registerHere": "Register here",
+    "altchaRequired": "Please complete verification"
+  },
+  "forgotPassword": {
+    "title": "Forgot Password",
+    "email": "Email",
+    "sendLink": "Send reset link",
+    "sent": "If the email exists, a reset link has been sent.",
+    "backToLogin": "Back to login",
+    "altchaRequired": "Please complete verification"
+  },
+  "resetPassword": {
+    "title": "Reset Password",
+    "token": "Token",
+    "newPassword": "New Password",
+    "confirmPassword": "Confirm Password",
+    "reset": "Reset Password",
+    "done": "Your password has been reset.",
+    "backToLogin": "Back to login",
+    "tokenRequired": "Reset token is required",
+    "passwordTooShort": "Password must be at least 8 characters",
+    "passwordMismatch": "Passwords do not match",
+    "resetFailed": "Reset failed, please try again",
+    "altchaRequired": "Please complete verification"
   },
   "register": {
     "title": "Register Account",

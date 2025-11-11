@@ -14,8 +14,8 @@ export function useAuth() {
   });
 
   const loginMutation = useMutation({
-    mutationFn: ({ email, password }: { email: string; password: string }) =>
-      login(email, password),
+    mutationFn: ({ email, password, altchaPayload }: { email: string; password: string; altchaPayload?: string }) =>
+      login(email, password, altchaPayload),
     onSuccess: (user) => {
       queryClient.setQueryData(['auth', 'me'], user);
       router.push(user.role === 'admin' ? `/${locale}/admin/users` : `/${locale}/dashboard`);

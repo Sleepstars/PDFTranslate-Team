@@ -16,7 +16,12 @@ sys.path.insert(0, str(project_root))
 
 from sqlalchemy import select, text
 from app.database import get_async_session_context
-from app.models import User, TranslationProviderConfig, UserProviderAccess
+from app.models import (
+    User,
+    TranslationProviderConfig,
+    Group,
+    GroupProviderAccess,
+)
 from app.auth import hash_password
 import uuid
 
@@ -76,33 +81,52 @@ async def seed_default_data():
             print(f"✅ Created default Google Translate provider")
         else:
             print(f"✅ Default Google Translate provider already exists")
-        
-        # 3. Grant all users access to default Google provider
+
+        # 3. Ensure default group exists (created by migration 001, but tolerate manual DBs)
+        result = await db.execute(select(Group).where(Group.id == "default"))
+        default_group = result.scalar_one_or_none()
+        if not default_group:
+            default_group = Group(id="default", name="Default Group")
+            db.add(default_group)
+            await db.commit()
+            print("✅ Created default group 'default'")
+        else:
+            print("✅ Default group exists")
+
+        # 4. Assign all users without a group into the default group
         result = await db.execute(select(User))
         all_users = result.scalars().all()
-        
+        updated_users = 0
         for user in all_users:
-            # Check if user already has access
-            access_result = await db.execute(
-                select(UserProviderAccess).where(
-                    UserProviderAccess.user_id == user.id,
-                    UserProviderAccess.provider_config_id == "google-default"
+            if getattr(user, "group_id", None) is None:
+                user.group_id = "default"
+                updated_users += 1
+        if updated_users:
+            await db.commit()
+        print(f"✅ Assigned {updated_users} user(s) to default group")
+
+        # 5. Grant default group access to the default provider
+        access_exists = await db.execute(
+            select(GroupProviderAccess).where(
+                GroupProviderAccess.group_id == "default",
+                GroupProviderAccess.provider_config_id == "google-default",
+            )
+        )
+        if access_exists.scalar_one_or_none() is None:
+            db.add(
+                GroupProviderAccess(
+                    id=str(uuid.uuid4()),
+                    group_id="default",
+                    provider_config_id="google-default",
+                    sort_order=0,
                 )
             )
-            existing_access = access_result.scalar_one_or_none()
-            
-            if not existing_access:
-                access = UserProviderAccess(
-                    id=str(uuid.uuid4()),
-                    user_id=user.id,
-                    provider_config_id="google-default",
-                    is_default=True
-                )
-                db.add(access)
-                print(f"✅ Granted {user.email} access to Google Translate")
-        
-        await db.commit()
-        print("✅ All users have access to default Google Translate provider")
+            await db.commit()
+            print("✅ Granted default group access to Google Translate")
+        else:
+            print("✅ Default group already has access to Google Translate")
+
+        print("✅ Group-based access initialized")
 
 
 async def check_migration_status():
@@ -165,4 +189,3 @@ async def main():
 if __name__ == "__main__":
     exit_code = asyncio.run(main())
     sys.exit(exit_code)
-

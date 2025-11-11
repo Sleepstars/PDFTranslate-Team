@@ -197,6 +197,14 @@
       "creating": "创建中...",
       "filesSelected": "个文件已选择",
       "dragMoreFiles": "拖拽更多文件或点击添加"
+    },
+    "notifications": {
+      "quotaRefund": "配额已退还 {pages} 页",
+      "quotaRefundReasons": {
+        "s3ConfigError": "S3配置错误",
+        "taskCreationFailed": "任务创建失败",
+        "batchCreationFailed": "批量任务创建失败"
+      }
     }
   },
   "providers": {
@@ -278,6 +286,9 @@
     "systemConfig": "系统配置",
     "emailConfig": "邮件设置",
     "s3Config": "S3存储配置",
+    "systemUpdated": "系统设置已更新",
+    "emailUpdated": "邮件设置已更新",
+    "s3Updated": "S3配置已更新",
     "s3Endpoint": "S3端点",
     "s3EndpointDescription": "（可选，AWS S3留空）",
     "accessKey": "访问密钥",
@@ -331,8 +342,32 @@
     "password": "密码",
     "login": "登录",
     "loggingIn": "登录中...",
+    "forgotPassword": "忘记密码？",
     "noAccount": "还没有账号？",
-    "registerHere": "立即注册"
+    "registerHere": "立即注册",
+    "altchaRequired": "请完成验证"
+  },
+  "forgotPassword": {
+    "title": "找回密码",
+    "email": "邮箱",
+    "sendLink": "发送重置链接",
+    "sent": "如果该邮箱存在，我们已发送重置链接。",
+    "backToLogin": "返回登录",
+    "altchaRequired": "请完成验证"
+  },
+  "resetPassword": {
+    "title": "重置密码",
+    "token": "令牌",
+    "newPassword": "新密码",
+    "confirmPassword": "确认新密码",
+    "reset": "重置密码",
+    "done": "密码已重置。",
+    "backToLogin": "返回登录",
+    "tokenRequired": "需要重置令牌",
+    "passwordTooShort": "密码长度至少为8个字符",
+    "passwordMismatch": "两次输入的密码不一致",
+    "resetFailed": "重置失败，请重试",
+    "altchaRequired": "请完成验证"
   },
   "register": {
     "title": "注册账号",
