@@ -113,6 +113,7 @@
   "tasks": {
     "title": "我的任务",
     "subtitle": "管理您的 PDF 翻译和解析任务",
+    "search": "搜索任务...",
     "description": "管理您的PDF翻译任务",
     "realtime": {
       "connected": "已连接",
@@ -460,13 +461,15 @@
       "userName": "用户名",
       "userEmail": "邮箱",
       "totalTasks": "总任务数",
-      "totalPages": "总页数"
+      "totalPages": "总页数",
+      "searchUsers": "搜索用户..."
     },
     "tasks": {
       "title": "所有任务",
       "description": "查看和管理所有用户的任务",
       "filters": "筛选条件",
       "filterByUserId": "按用户ID筛选...",
+      "filterByEmail": "按邮箱筛选",
       "allStatuses": "所有状态",
       "allPriorities": "所有优先级",
       "dateFrom": "开始日期",

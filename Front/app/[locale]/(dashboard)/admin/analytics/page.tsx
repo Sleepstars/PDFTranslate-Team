@@ -66,19 +66,19 @@ export default function AnalyticsPage() {
           </>
         ) : (
           <>
-            <div className="p-6 bg-card border border-border rounded-lg">
+            <div className="p-6 bg-card rounded-lg">
               <div className="text-sm text-muted-foreground">{t('admin.analytics.todayTranslations')}</div>
               <div className="text-3xl font-bold mt-2">{overview?.todayTranslations ?? 0}</div>
             </div>
-            <div className="p-6 bg-card border border-border rounded-lg">
+            <div className="p-6 bg-card rounded-lg">
               <div className="text-sm text-muted-foreground">{t('admin.analytics.todayPages')}</div>
               <div className="text-3xl font-bold mt-2">{overview?.todayPages ?? 0}</div>
             </div>
-            <div className="p-6 bg-card border border-border rounded-lg">
+            <div className="p-6 bg-card rounded-lg">
               <div className="text-sm text-muted-foreground">{t('admin.analytics.totalUsers')}</div>
               <div className="text-3xl font-bold mt-2">{overview?.totalUsers ?? 0}</div>
             </div>
-            <div className="p-6 bg-card border border-border rounded-lg">
+            <div className="p-6 bg-card rounded-lg">
               <div className="text-sm text-muted-foreground">{t('admin.analytics.activeUsers')}</div>
               <div className="text-3xl font-bold mt-2">{overview?.activeUsers ?? 0}</div>
             </div>
@@ -90,13 +90,13 @@ export default function AnalyticsPage() {
       {isLoadingStats ? (
         <SkeletonChart />
       ) : (
-        <div className="p-6 bg-card border border-border rounded-lg">
+        <div className="p-6 bg-card rounded-lg">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-lg font-medium">{t('admin.analytics.dailyTrend')}</h2>
             <select
               value={days}
               onChange={(e) => setDays(Number(e.target.value))}
-              className="px-3 py-1 border border-input bg-background rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              className="px-3 py-1 border border-border bg-background rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring"
             >
               <option value={7}>7 {t('admin.analytics.days')}</option>
               <option value={30}>30 {t('admin.analytics.days')}</option>
@@ -134,13 +134,13 @@ export default function AnalyticsPage() {
       {isLoadingUsers ? (
         <SkeletonTable rows={10} columns={4} />
       ) : (
-        <div className="bg-card border border-border rounded-lg">
-          <div className="p-6 border-b border-border">
+        <div className="bg-card rounded-lg">
+          <div className="p-6 border-b border-border/50">
             <h2 className="text-lg font-medium">{t('admin.analytics.topUsers')}</h2>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[600px]">
-              <thead className="bg-muted/50 border-b border-border">
+              <thead className="bg-muted/50 border-b border-border/50">
                 <tr className="text-xs text-muted-foreground">
                   <th className="px-4 py-2.5 text-left font-medium">{t('admin.analytics.userName')}</th>
                   <th className="px-4 py-2.5 text-left font-medium">{t('admin.analytics.userEmail')}</th>
@@ -148,7 +148,7 @@ export default function AnalyticsPage() {
                   <th className="px-4 py-2.5 text-right font-medium">{t('admin.analytics.totalPages')}</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border">
+              <tbody className="divide-y divide-border/50">
                 {filteredUsers.map((user) => (
                   <tr key={user.userId} className="hover:bg-muted/30 transition-colors">
                     <td className="px-4 py-2.5 text-sm font-medium">{user.userName}</td>

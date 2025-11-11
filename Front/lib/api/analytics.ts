@@ -73,6 +73,7 @@ export async function getTopUsers(limit: number = 10, days?: number): Promise<To
 
 export async function getAdminTasks(params: {
   ownerId?: string;
+  ownerEmail?: string;
   status?: string;
   engine?: string;
   priority?: string;
@@ -93,4 +94,34 @@ export async function getAdminTasks(params: {
   });
   if (!res.ok) throw new Error('Failed to fetch admin tasks');
   return res.json();
+}
+
+export async function cancelAdminTask(taskId: string): Promise<{ task: any }> {
+  const res = await fetch(`${API_BASE}/api/tasks/${taskId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'cancel' }),
+    credentials: 'include',
+  });
+  if (!res.ok) throw new Error('Failed to cancel task');
+  return res.json();
+}
+
+export async function retryAdminTask(taskId: string): Promise<{ task: any }> {
+  const res = await fetch(`${API_BASE}/api/tasks/${taskId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'retry' }),
+    credentials: 'include',
+  });
+  if (!res.ok) throw new Error('Failed to retry task');
+  return res.json();
+}
+
+export async function deleteAdminTask(taskId: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/tasks/${taskId}`, {
+    method: 'DELETE',
+    credentials: 'include',
+  });
+  if (!res.ok) throw new Error('Failed to delete task');
 }
