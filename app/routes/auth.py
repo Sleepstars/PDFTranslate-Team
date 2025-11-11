@@ -200,7 +200,6 @@ async def register(
     )
 
     evt = EmailVerificationToken(
-        id=token_urlsafe(12),
         user_id=new_user.id,
         token_hash=token_hash,
         expires_at=expires_at,
@@ -339,7 +338,6 @@ async def resend_verification(
     )
 
     evt = EmailVerificationToken(
-        id=token_urlsafe(12),
         user_id=user.id,
         token_hash=token_hash,
         expires_at=expires_at,
@@ -413,7 +411,6 @@ async def forgot_password(
     )
 
     prt = PasswordResetToken(
-        id=token_urlsafe(12),
         user_id=user.id,
         token_hash=token_hash,
         expires_at=expires_at,

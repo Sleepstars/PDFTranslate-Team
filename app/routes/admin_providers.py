@@ -95,7 +95,6 @@ async def create_provider(
 
     # Create new provider
     provider = TranslationProviderConfig(
-        id=str(uuid.uuid4()),
         name=request.name,
         provider_type=request.providerType,
         description=request.description,

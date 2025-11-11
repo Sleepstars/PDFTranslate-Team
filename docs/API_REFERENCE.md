@@ -49,6 +49,7 @@ Login with email and password.
 
 **Errors:**
 - `401 Unauthorized`: Invalid credentials
+- `403 Forbidden`: Email not verified (user must verify email before logging in)
 
 Note on ALTCHA (when enabled):
 - Include `altchaPayload` from the ALTCHA v2 widget in the request body:
@@ -61,6 +62,87 @@ Note on ALTCHA (when enabled):
   ```
 - The payload decodes to JSON fields: `algorithm`, `challenge`, `number`, `salt`, `signature`, `took` (v2 does not include `expires`).
 - Server verification: `sha256(salt + number) == challenge` and `HMAC(secret, challenge + salt) == signature`.
+
+---
+
+### POST /auth/register
+
+Register a new user account. After registration, a verification email will be sent to the provided email address.
+
+**Request:**
+```json
+{
+  "email": "newuser@example.com",
+  "name": "New User",
+  "password": "securepassword123",
+  "altchaPayload": "<base64 JSON>"  // required when ALTCHA is enabled
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "message": "Registration successful. Please check your email to verify your account.",
+  "email": "newuser@example.com"
+}
+```
+
+**Errors:**
+- `400 Bad Request`: Invalid data, email already registered, or email domain not allowed
+- `403 Forbidden`: Registration is disabled
+
+**Notes:**
+- Users must verify their email address before they can log in
+- Verification link expires in 30 minutes
+- Requires SMTP configured in Admin → Settings → Email
+
+---
+
+### POST /auth/verify-email
+
+Verify user's email address using the token sent via email.
+
+**Request:**
+```json
+{
+  "token": "<verification-token>"
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "message": "Email verified successfully. You can now log in."
+}
+```
+
+**Errors:**
+- `400 Bad Request`: Invalid, expired, or already used verification token
+
+---
+
+### POST /auth/resend-verification
+
+Resend email verification link to the user.
+
+**Request:**
+```json
+{
+  "email": "user@example.com"
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "message": "If the email exists and is not verified, a verification link has been sent."
+}
+```
+
+**Notes:**
+- Always returns generic success message to prevent account enumeration
+- Only sends email if the account exists and is not yet verified
+- New verification link expires in 30 minutes
 
 ---
 

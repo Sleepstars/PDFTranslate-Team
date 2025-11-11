@@ -45,29 +45,37 @@ async def lifespan(app: FastAPI):
             # Ensure default group exists
             default_group = None
             try:
-                result = await db.execute(select(Group).where(Group.id == "default"))
+                result = await db.execute(select(Group).where(Group.name == "Default Group"))
                 default_group = result.scalar_one_or_none()
                 if not default_group:
-                    default_group = Group(id="default", name="Default Group")
+                    default_group = Group(name="Default Group")
                     db.add(default_group)
                     await db.commit()
+                    await db.refresh(default_group)
             except Exception:
                 logger.exception("Failed to ensure default group exists")
 
             result = await db.execute(select(User).where(User.email == settings.admin_email))
             if not result.scalar_one_or_none():
                 logger.info("Creating default admin user...")
-                await create_user(db, "admin", settings.admin_email, settings.admin_name, settings.admin_password)
+                await create_user(
+                    db,
+                    settings.admin_email,
+                    settings.admin_name,
+                    settings.admin_password,
+                    email_verified=True  # Admin users don't need email verification
+                )
                 logger.info("✅ Admin user created")
             else:
                 logger.info("✅ Admin user exists")
 
             # Ensure admin is assigned to default group
-            result = await db.execute(select(User).where(User.email == settings.admin_email))
-            admin_user = result.scalar_one_or_none()
-            if admin_user and not getattr(admin_user, "group_id", None):
-                admin_user.group_id = "default"
-                await db.commit()
+            if default_group:
+                result = await db.execute(select(User).where(User.email == settings.admin_email))
+                admin_user = result.scalar_one_or_none()
+                if admin_user and not getattr(admin_user, "group_id", None):
+                    admin_user.group_id = default_group.id
+                    await db.commit()
     except Exception as e:
         logger.error(f"❌ Admin user check/creation failed: {e}")
         # 不阻塞启动，继续运行

@@ -63,7 +63,7 @@ async def create_group(
     admin = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    group = Group(id=str(uuid.uuid4()), name=request.name, created_at=datetime.utcnow())
+    group = Group(name=request.name, created_at=datetime.utcnow())
     db.add(group)
     await db.commit()
     await db.refresh(group)
@@ -229,7 +229,6 @@ async def merge_groups(
                 else:
                     # Add new provider to target group
                     new_access = GroupProviderAccess(
-                        id=str(uuid.uuid4()),
                         group_id=target_group_id,
                         provider_config_id=provider_id,
                         sort_order=source_access.sort_order,
@@ -330,7 +329,6 @@ async def grant_group_access(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Already granted")
 
     mapping = GroupProviderAccess(
-        id=str(uuid.uuid4()),
         group_id=group_id,
         provider_config_id=request.providerConfigId,
         sort_order=request.sortOrder or 0,

@@ -65,20 +65,20 @@ async def authenticate_user(db: AsyncSession, email: str, password: str) -> Opti
 
 async def create_user(
     db: AsyncSession,
-    user_id: str,
     email: str,
     name: str,
     password: str,
     role: str = "admin",
-    daily_page_limit: int = 50
+    daily_page_limit: int = 50,
+    email_verified: bool = False
 ) -> User:
     user = User(
-        id=user_id,
         email=email,
         name=name,
         password_hash=hash_password(password),
         role=role,
         is_active=True,
+        email_verified=email_verified,
         daily_page_limit=daily_page_limit,
         daily_page_used=0,
         last_quota_reset=datetime.now(timezone.utc).replace(tzinfo=None),

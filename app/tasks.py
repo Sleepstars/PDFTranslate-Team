@@ -44,16 +44,8 @@ class TaskManager:
         return "normal"
 
     async def create_task(self, owner: PublicUser, payload: dict, file_data: Optional[bytes] = None) -> TranslationTask:
-        task_id = token_urlsafe(6)
-
         input_s3_key = None
         async with AsyncSessionLocal() as db:
-            if file_data:
-                s3_config = await get_s3_config(db, strict=True)
-                s3 = get_s3(s3_config)
-                input_s3_key = f"uploads/{owner.id}/{task_id}/input.pdf"
-                s3.upload_file(file_data, input_s3_key)
-
             model_config_dict = payload.get('modelConfig') or {}
             if model_config_dict and not isinstance(model_config_dict, dict):
                 raise ValueError("modelConfig must be a dictionary")
@@ -62,8 +54,8 @@ class TaskManager:
             # Get task type, default to translation for backward compatibility
             task_type = payload.get('taskType', 'translation')
 
+            # Create task first to get database-generated ID
             task = TranslationTask(
-                id=task_id,
                 owner_id=owner.id,
                 owner_email=owner.email,
                 document_name=payload['documentName'],
@@ -75,7 +67,6 @@ class TaskManager:
                 notes=payload.get('notes'),
                 status='queued',
                 progress=0,
-                input_s3_key=input_s3_key,
                 model_config=model_config_json,
                 page_count=payload.get('pageCount', 0),
                 provider_config_id=payload.get('providerConfigId')
@@ -83,6 +74,16 @@ class TaskManager:
             db.add(task)
             await db.commit()
             await db.refresh(task)
+
+            # Now upload file using the database-generated task ID
+            if file_data:
+                s3_config = await get_s3_config(db, strict=True)
+                s3 = get_s3(s3_config)
+                input_s3_key = f"uploads/{owner.id}/{task.id}/input.pdf"
+                s3.upload_file(file_data, input_s3_key)
+                task.input_s3_key = input_s3_key
+                await db.commit()
+                await db.refresh(task)
 
         await task_ws_manager.send_task_update(owner.id, task.to_dict())
 

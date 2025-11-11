@@ -65,12 +65,12 @@ async def create_user(
     
     # Create new user
     user = User(
-        id=str(uuid.uuid4()),
         email=request.email,
         name=request.name,
         password_hash=hash_password(request.password),
         role=request.role,
         is_active=True,
+        email_verified=True,  # Admin-created users are pre-verified
         daily_page_limit=request.dailyPageLimit,
         daily_page_used=0,
         last_quota_reset=datetime.utcnow(),
