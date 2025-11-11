@@ -1,9 +1,9 @@
-FROM node:24-alpine AS base
+FROM oven/bun:1-alpine AS base
 
 FROM base AS deps
 WORKDIR /app
-COPY package.json package-lock.json ./
-RUN npm ci
+COPY package.json bun.lock ./
+RUN bun install --frozen-lockfile
 
 FROM base AS builder
 WORKDIR /app
