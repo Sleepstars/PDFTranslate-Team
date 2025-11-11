@@ -221,7 +221,30 @@ def _translate_text_with_service(
             fallback=settings.openai_api_base or "https://api.openai.com/v1"
         )
         model = custom_model or "gpt-3.5-turbo"
-        return _translate_with_openai(text, lang_from, lang_to, api_key, base_url, model)
+        return _translate_with_openai(text, lang_from, lang_to, api_key, base_url, model, model_config)
+    elif service in {"deepseek", "zhipu", "groq", "grok", "siliconflow"}:
+        env_key_map = {
+            "deepseek": "DEEPSEEK_API_KEY",
+            "zhipu": "ZHIPU_API_KEY",
+            "groq": "GROQ_API_KEY",
+            "grok": "GROK_API_KEY",
+            "siliconflow": "SILICONFLOW_API_KEY",
+        }
+        env_base_map = {
+            "siliconflow": "SILICONFLOW_BASE_URL",
+            # Others may be provided via modelConfig.endpoint/base_url; we avoid hardcoding vendor URLs here
+        }
+        api_key = _config_value(custom_api_key, env_var=env_key_map.get(service))
+        base_url = _config_value(
+            custom_endpoint,
+            env_var=env_base_map.get(service),
+            fallback=None,
+        )
+        model = custom_model or "gpt-3.5-turbo"
+        if not api_key or not base_url:
+            logger.warning(f"{service} requires api_key and base_url for OpenAI-compatible chat completions; falling back to Google")
+            return _translate_with_google(text, lang_from, lang_to)
+        return _translate_with_openai(text, lang_from, lang_to, api_key, base_url, model, model_config)
     else:
         # For other services, fall back to Google
         logger.warning(f"Service {service} not directly supported for markdown translation, using Google")
@@ -292,7 +315,8 @@ def _translate_with_openai(
     lang_to: str,
     api_key: Optional[str],
     base_url: str,
-    model: str
+    model: str,
+    model_config: Optional[Dict[str, Any]] = None,
 ) -> str:
     """Translate using OpenAI API."""
     if not api_key:
@@ -315,7 +339,43 @@ def _translate_with_openai(
         source_name = lang_names.get(lang_from, lang_from)
         target_name = lang_names.get(lang_to, lang_to)
 
-        prompt = f"Translate the following text from {source_name} to {target_name}. Preserve all markdown formatting:\n\n{text}"
+        # Build system prompt per spec
+        to_name = target_name
+        cfg = model_config or {}
+        title_prompt = _clean_str(
+            cfg.get("title_prompt") or cfg.get("titlePrompt") or cfg.get("title")
+        ) or ""
+        summary_prompt = _clean_str(
+            cfg.get("summary_prompt") or cfg.get("summaryPrompt") or cfg.get("summary")
+        ) or ""
+        terms_prompt = _clean_str(
+            cfg.get("terms_prompt") or cfg.get("termsPrompt") or cfg.get("terms")
+        ) or ""
+
+        extras = ""
+        if title_prompt:
+            extras += f"\n{title_prompt}"
+        if summary_prompt:
+            extras += f"\n{summary_prompt}"
+        if terms_prompt:
+            extras += f"\n{terms_prompt}"
+
+        system_prompt = (
+            f"You are a professional {to_name} native translator who needs to fluently translate text into {to_name}.\n\n"
+            "## Translation Rules\n"
+            "1. Output only the translated content, without explanations or additional content (such as \"Here's the translation:\" or \"Translation as follows:\")\n"
+            "2. The returned translation must maintain exactly the same number of paragraphs and format as the original text\n"
+            "3. If the text contains HTML or Markdown tags, consider where the tags should be placed in the translation while maintaining fluency\n"
+            "4. For content that should not be translated (such as proper nouns, code, etc.), keep the original text.\n"
+            "5. If input contains %%, use %% in your output, if input has no %%, don't use %% in your output"
+            f"{extras}\n\n"
+            "## OUTPUT FORMAT:\n"
+            "- **Single paragraph input** → Output translation directly (no separators, no extra text)\n\n"
+            "### Single paragraph Input:\n"
+            "Single paragraph content\n\n"
+            "### Single paragraph Output:\n"
+            "Direct translation without separators"
+        )
 
         with httpx.Client(timeout=60.0) as client:
             response = client.post(
@@ -327,8 +387,8 @@ def _translate_with_openai(
                 json={
                     "model": model,
                     "messages": [
-                        {"role": "system", "content": "You are a professional translator. Translate the text while preserving all markdown formatting."},
-                        {"role": "user", "content": prompt}
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": text}
                     ],
                     "temperature": 0.3
                 }
