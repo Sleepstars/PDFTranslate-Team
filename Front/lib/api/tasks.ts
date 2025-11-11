@@ -35,7 +35,10 @@ export const tasksAPI = {
       body: formData,
       credentials: 'include',
     });
-    if (!res.ok) throw new Error('Failed to create task');
+    if (!res.ok) {
+      const err = await res.json().catch(async () => ({ detail: await res.text().catch(() => 'Request failed') }));
+      throw new Error(err?.detail || 'Failed to create task');
+    }
     return res.json() as Promise<{ task: Task }>;
   },
 
@@ -57,7 +60,10 @@ export const tasksAPI = {
       body: formData,
       credentials: 'include',
     });
-    if (!res.ok) throw new Error('Failed to create batch tasks');
+    if (!res.ok) {
+      const err = await res.json().catch(async () => ({ detail: await res.text().catch(() => 'Request failed') }));
+      throw new Error(err?.detail || 'Failed to create batch tasks');
+    }
     return res.json() as Promise<{ tasks: Task[]; count: number }>;
   },
 

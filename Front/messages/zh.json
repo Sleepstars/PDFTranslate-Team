@@ -192,7 +192,9 @@
       "documentName": "文档名称",
       "remove": "移除",
       "createTasks": "创建任务",
-      "creating": "创建中..."
+      "creating": "创建中...",
+      "filesSelected": "个文件已选择",
+      "dragMoreFiles": "拖拽更多文件或点击添加"
     }
   },
   "providers": {
@@ -303,9 +305,7 @@
     "altchaSecretKeyPlaceholder": "输入用于生成验证的密钥",
     "altchaSecretKeyDescription": "用于生成和验证 ALTCHA challenge 的密钥，请妥善保管",
     "allowedEmailSuffixesDescription": "限制允许注册的邮箱域名，留空表示不限制",
-    "commonEmailProviders": "常用邮箱提供商",
-    "customEmailSuffixes": "自定义邮箱后缀",
-    "selectedCustomSuffixes": "已选择的自定义后缀",
+    "emailSuffixInputLabel": "邮箱后缀",
     "noEmailSuffixRestriction": "未设置邮箱后缀限制，允许所有邮箱注册",
     "add": "添加"
   },

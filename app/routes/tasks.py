@@ -204,13 +204,15 @@ async def get_task(task_id: str, user: PublicUser = Depends(get_current_user), d
     return {"task": task.to_dict(s3)}
 
 
-@router.post("/batch")
+@router.post("/batch", status_code=status.HTTP_201_CREATED)
 async def create_batch_tasks(
     files: List[UploadFile] = File(...),
     documentNames: str = Form(...),
-    sourceLang: str = Form(...),
-    targetLang: str = Form(...),
-    engine: str = Form(...),
+    # Support multiple task types like single create API
+    taskType: str = Form("translation"),  # translation | parsing | parse_and_translate
+    sourceLang: str = Form(None),  # Optional for parsing-only tasks
+    targetLang: str = Form(None),  # Optional for parsing-only tasks
+    engine: str = Form(None),      # Optional for parsing-only tasks
     priority: str = Form("normal"),
     notes: str = Form(None),
     modelConfig: str = Form(None),
@@ -218,10 +220,26 @@ async def create_batch_tasks(
     user_obj: User = Depends(get_current_user_from_db),
     db: AsyncSession = Depends(get_db)
 ):
-    """批量创建翻译任务"""
+    """批量创建任务（翻译/解析/解析后翻译）"""
+    from fastapi import HTTPException
     try:
-        # Enforce provider access for translation tasks
-        await assert_provider_access(user_obj, providerConfigId, "translation", db)
+        # Validate taskType
+        if taskType not in ["translation", "parsing", "parse_and_translate"]:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid taskType. Must be one of: translation, parsing, parse_and_translate",
+            )
+
+        # Validate required fields based on task type
+        if taskType in ("translation", "parse_and_translate"):
+            if not all([sourceLang, targetLang, engine]):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="sourceLang, targetLang, and engine are required for translation or parse_and_translate",
+                )
+
+        # Enforce provider access by task type
+        await assert_provider_access(user_obj, providerConfigId, taskType, db)
 
         document_names = json.loads(documentNames)
         if len(files) != len(document_names):
@@ -265,14 +283,15 @@ async def create_batch_tasks(
             for i, (file_data, page_count) in enumerate(file_page_counts):
                 payload = {
                     "documentName": document_names[i],
-                    "sourceLang": sourceLang,
-                    "targetLang": targetLang,
-                    "engine": engine,
+                    "taskType": taskType,
+                    "sourceLang": sourceLang or "",
+                    "targetLang": targetLang or "",
+                    "engine": engine or "",
                     "priority": priority,
                     "notes": notes,
                     "modelConfig": model_config_dict,
                     "providerConfigId": providerConfigId,
-                    "pageCount": page_count
+                    "pageCount": page_count,
                 }
                 task = await task_manager.create_task(user, payload, file_data)
                 tasks.append(task.to_dict(s3))
@@ -283,9 +302,15 @@ async def create_batch_tasks(
             # 如果任务创建失败，回滚配额
             from ..quota import refund_quota
             await refund_quota(user_obj, total_pages, db)
+            # 保持错误信息
+            if isinstance(e, HTTPException):
+                raise e
             raise HTTPException(status_code=500, detail=f"Batch creation failed: {str(e)}")
     except json.JSONDecodeError:
         raise HTTPException(status_code=400, detail="Invalid document names JSON")
+    except HTTPException:
+        # 保持已定义的HTTP错误码
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Batch creation failed: {str(e)}")
 

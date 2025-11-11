@@ -111,6 +111,46 @@ class ProviderConfigResponse(BaseModel):
     updatedAt: datetime
 
 
+class SafeProviderConfigResponse(BaseModel):
+    """Provider config response with sensitive fields removed"""
+    id: str
+    name: str
+    providerType: str
+    description: Optional[str]
+    isActive: bool
+    isDefault: bool
+    settings: dict  # Sensitive fields will be filtered out before serialization
+    createdAt: datetime
+    updatedAt: datetime
+
+    @staticmethod
+    def from_provider(provider, settings_dict: dict, is_default: bool = None):
+        """Create safe response by filtering sensitive fields from settings"""
+        # Define sensitive fields to remove
+        sensitive_fields = {
+            'api_key', 'api_token', 'secret_key', 'secret_id',
+            'password', 'token', 'apiKey', 'secretKey'
+        }
+
+        # Filter out sensitive fields
+        safe_settings = {
+            k: v for k, v in settings_dict.items()
+            if k not in sensitive_fields
+        }
+
+        return SafeProviderConfigResponse(
+            id=provider.id,
+            name=provider.name,
+            providerType=provider.provider_type,
+            description=provider.description,
+            isActive=provider.is_active,
+            isDefault=is_default if is_default is not None else provider.is_default,
+            settings=safe_settings,
+            createdAt=provider.created_at,
+            updatedAt=provider.updated_at
+        )
+
+
 class CreateProviderConfigRequest(BaseModel):
     name: str = Field(..., min_length=1)
     providerType: str = Field(..., min_length=1)

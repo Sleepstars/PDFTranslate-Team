@@ -57,9 +57,10 @@ export default function RegisterPage() {
   useEffect(() => {
     if (!altchaEnabled) return;
 
-    const handleAltchaStateChange = (event: CustomEvent) => {
-      if (event.detail.state === 'verified') {
-        setAltchaPayload(event.detail.payload);
+    const handleAltchaStateChange = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      if (customEvent.detail.state === 'verified') {
+        setAltchaPayload(customEvent.detail.payload);
       } else {
         setAltchaPayload(undefined);
       }

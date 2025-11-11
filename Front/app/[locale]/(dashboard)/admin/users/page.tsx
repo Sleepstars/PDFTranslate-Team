@@ -338,7 +338,8 @@ function EditUserDialog({ user, groups, onClose }: { user: User; groups: Group[]
       return;
     }
 
-    updateMutation.mutate(formData);
+    const { password, ...rest } = formData;
+    updateMutation.mutate(password ? formData : rest);
   };
 
   return (

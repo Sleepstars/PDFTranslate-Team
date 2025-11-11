@@ -7,7 +7,7 @@ import json
 from app.database import get_db
 from app.dependencies import get_current_user_from_db
 from app.models import User, TranslationProviderConfig, GroupProviderAccess
-from app.schemas import UserResponse, ProviderConfigResponse
+from app.schemas import UserResponse, SafeProviderConfigResponse
 from app.quota import get_quota_status
 from pydantic import BaseModel
 
@@ -49,14 +49,14 @@ async def get_user_quota(
     return QuotaStatusResponse(**quota)
 
 
-@router.get("/me/providers", response_model=List[ProviderConfigResponse])
+@router.get("/me/providers", response_model=List[SafeProviderConfigResponse])
 async def get_user_providers(
     user: User = Depends(get_current_user_from_db),
     db: AsyncSession = Depends(get_db)
 ):
     """Get providers available to current user"""
     # Prefer group-based provider access if group is assigned
-    response: list[ProviderConfigResponse] = []
+    response: list[SafeProviderConfigResponse] = []
 
     if getattr(user, "group_id", None):
         # Load group mapping with sort order
@@ -91,9 +91,6 @@ async def get_user_providers(
                 except json.JSONDecodeError:
                     settings_dict = {}
 
-                if provider.provider_type == "mineru" and isinstance(settings_dict, dict):
-                    settings_dict = {k: v for k, v in settings_dict.items() if k != "api_token"}
-
                 is_default = False
                 if provider.provider_type == "mineru" and not seen_mineru:
                     is_default = True
@@ -103,16 +100,8 @@ async def get_user_providers(
                     seen_translation = True
 
                 response.append(
-                    ProviderConfigResponse(
-                        id=provider.id,
-                        name=provider.name,
-                        providerType=provider.provider_type,
-                        description=provider.description,
-                        isActive=provider.is_active,
-                        isDefault=is_default,
-                        settings=settings_dict,
-                        createdAt=provider.created_at,
-                        updatedAt=provider.updated_at
+                    SafeProviderConfigResponse.from_provider(
+                        provider, settings_dict, is_default
                     )
                 )
 

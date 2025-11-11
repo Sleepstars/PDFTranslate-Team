@@ -7,18 +7,7 @@ import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { SkeletonForm } from '@/components/ui/skeleton';
-
-const COMMON_EMAIL_SUFFIXES = [
-  'gmail.com',
-  'outlook.com',
-  'hotmail.com',
-  'yahoo.com',
-  'qq.com',
-  '163.com',
-  '126.com',
-  'sina.com',
-  'foxmail.com',
-];
+import { EmailSuffixInput } from '@/components/ui/email-suffix-input';
 
 export default function AdminSettingsSystemPage() {
   const t = useTranslations('settings');
@@ -42,7 +31,6 @@ export default function AdminSettingsSystemPage() {
   const [altchaEnabled, setAltchaEnabled] = useState(derivedState.altchaEnabled);
   const [altchaSecretKey, setAltchaSecretKey] = useState(derivedState.altchaSecretKey);
   const [allowedEmailSuffixes, setAllowedEmailSuffixes] = useState(derivedState.allowedEmailSuffixes);
-  const [customSuffix, setCustomSuffix] = useState('');
 
   // Update state when derived state changes
   useEffect(() => {
@@ -73,25 +61,7 @@ export default function AdminSettingsSystemPage() {
     });
   };
 
-  const toggleEmailSuffix = (suffix: string) => {
-    setAllowedEmailSuffixes((prev) =>
-      prev.includes(suffix)
-        ? prev.filter((s) => s !== suffix)
-        : [...prev, suffix]
-    );
-  };
 
-  const addCustomSuffix = () => {
-    const trimmed = customSuffix.trim();
-    if (trimmed && !allowedEmailSuffixes.includes(trimmed)) {
-      setAllowedEmailSuffixes((prev) => [...prev, trimmed]);
-      setCustomSuffix('');
-    }
-  };
-
-  const removeCustomSuffix = (suffix: string) => {
-    setAllowedEmailSuffixes((prev) => prev.filter((s) => s !== suffix));
-  };
 
   if (isLoading) return <SkeletonForm fields={5} />;
 
@@ -156,72 +126,20 @@ export default function AdminSettingsSystemPage() {
 
         {/* Allowed Email Suffixes */}
         <div className="space-y-4 pt-4 border-t">
-          <h2 className="text-lg font-semibold">{t('allowedEmailSuffixes')}</h2>
-          <p className="text-sm text-muted-foreground">{t('allowedEmailSuffixesDescription')}</p>
-
-          {/* Common suffixes */}
           <div>
-            <label className="block text-sm font-medium mb-2">{t('commonEmailProviders')}</label>
-            <div className="flex flex-wrap gap-2">
-              {COMMON_EMAIL_SUFFIXES.map((suffix) => (
-                <button
-                  key={suffix}
-                  type="button"
-                  onClick={() => toggleEmailSuffix(suffix)}
-                  className={`px-3 py-1 text-sm rounded-md border transition-colors ${
-                    allowedEmailSuffixes.includes(suffix)
-                      ? 'bg-primary text-primary-foreground border-primary'
-                      : 'bg-background border-input hover:bg-accent'
-                  }`}
-                >
-                  {suffix}
-                </button>
-              ))}
-            </div>
+            <h2 className="text-lg font-semibold mb-1">{t('allowedEmailSuffixes')}</h2>
+            <p className="text-sm text-muted-foreground">{t('allowedEmailSuffixesDescription')}</p>
           </div>
 
-          {/* Custom suffixes */}
           <div>
-            <label className="block text-sm font-medium mb-2">{t('customEmailSuffixes')}</label>
-            <div className="flex gap-2 max-w-md">
-              <Input
-                type="text"
-                value={customSuffix}
-                onChange={(e) => setCustomSuffix(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addCustomSuffix())}
-                placeholder="example.com"
-              />
-              <Button type="button" onClick={addCustomSuffix} variant="outline">
-                {t('add')}
-              </Button>
-            </div>
+            <label className="block text-sm font-medium mb-2">{t('emailSuffixInputLabel')}</label>
+            <EmailSuffixInput
+              value={allowedEmailSuffixes}
+              onChange={setAllowedEmailSuffixes}
+              placeholder="example.com"
+              className="max-w-md"
+            />
           </div>
-
-          {/* Selected custom suffixes */}
-          {allowedEmailSuffixes.filter((s) => !COMMON_EMAIL_SUFFIXES.includes(s)).length > 0 && (
-            <div>
-              <label className="block text-sm font-medium mb-2">{t('selectedCustomSuffixes')}</label>
-              <div className="flex flex-wrap gap-2">
-                {allowedEmailSuffixes
-                  .filter((s) => !COMMON_EMAIL_SUFFIXES.includes(s))
-                  .map((suffix) => (
-                    <div
-                      key={suffix}
-                      className="flex items-center gap-1 px-3 py-1 text-sm rounded-md bg-secondary border border-border"
-                    >
-                      <span>{suffix}</span>
-                      <button
-                        type="button"
-                        onClick={() => removeCustomSuffix(suffix)}
-                        className="ml-1 text-muted-foreground hover:text-foreground"
-                      >
-                        ×
-                      </button>
-                    </div>
-                  ))}
-              </div>
-            </div>
-          )}
 
           {allowedEmailSuffixes.length === 0 && (
             <p className="text-sm text-muted-foreground italic">{t('noEmailSuffixRestriction')}</p>

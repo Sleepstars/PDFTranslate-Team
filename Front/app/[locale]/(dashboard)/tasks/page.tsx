@@ -177,7 +177,7 @@ export default function TasksPage() {
     });
   };
 
-  const handleBulkDownload = () => {
+  const handleBulkDownload = async () => {
     if (!hasSelection) return;
 
     const selectedTasks = tasks.filter(task => selectedTaskIds.has(task.id));
@@ -188,49 +188,49 @@ export default function TasksPage() {
       return;
     }
 
-    let downloadCount = 0;
+    const downloads: Array<{ url: string; filename: string }> = [];
     completedTasks.forEach(task => {
-      // 根据任务类型下载不同的文件
+      let url = '';
+      let filename = '';
+
       if (task.taskType === 'parsing') {
-        // 解析任务：下载 markdown
-        if (task.markdownOutputUrl) {
-          window.open(task.markdownOutputUrl, '_blank');
-          downloadCount++;
-        }
+        url = task.markdownOutputUrl || '';
+        filename = `${task.documentName}.md`;
       } else if (task.taskType === 'translation') {
-        // 翻译任务：优先下载双语版，其次单语版，最后普通版
-        if (task.dualOutputUrl) {
-          window.open(task.dualOutputUrl, '_blank');
-          downloadCount++;
-        } else if (task.monoOutputUrl) {
-          window.open(task.monoOutputUrl, '_blank');
-          downloadCount++;
-        } else if (task.outputUrl) {
-          window.open(task.outputUrl, '_blank');
-          downloadCount++;
-        }
+        url = task.dualOutputUrl || task.monoOutputUrl || task.outputUrl || '';
+        filename = `${task.documentName}.pdf`;
       } else if (task.taskType === 'parse_and_translate') {
-        // 解析+翻译任务：下载翻译后的 markdown
-        if (task.translatedMarkdownUrl) {
-          window.open(task.translatedMarkdownUrl, '_blank');
-          downloadCount++;
-        } else if (task.dualOutputUrl) {
-          window.open(task.dualOutputUrl, '_blank');
-          downloadCount++;
-        } else if (task.monoOutputUrl) {
-          window.open(task.monoOutputUrl, '_blank');
-          downloadCount++;
-        } else if (task.outputUrl) {
-          window.open(task.outputUrl, '_blank');
-          downloadCount++;
-        }
+        url = task.translatedMarkdownUrl || task.dualOutputUrl || task.monoOutputUrl || task.outputUrl || '';
+        filename = task.translatedMarkdownUrl ? `${task.documentName}.md` : `${task.documentName}.pdf`;
       }
+
+      if (url) downloads.push({ url, filename });
     });
 
-    if (downloadCount > 0) {
-      toast.success(t('downloadSuccess', { count: downloadCount }));
-    } else {
+    if (downloads.length === 0) {
       toast.error(t('noDownloadableFiles'));
+      return;
+    }
+
+    toast.success(t('downloadSuccess', { count: downloads.length }));
+
+    for (let i = 0; i < downloads.length; i++) {
+      await new Promise(resolve => setTimeout(resolve, i * 200));
+      const { url, filename } = downloads[i];
+      try {
+        const response = await fetch(url);
+        const blob = await response.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = blobUrl;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(blobUrl);
+      } catch (error) {
+        console.error(`Failed to download ${filename}:`, error);
+      }
     }
   };
 
@@ -571,6 +571,30 @@ export default function TasksPage() {
                             {t('download')}
                           </button>
                         )}
+                        {task.status === 'completed' && task.zipOutputUrl && (
+                          <button
+                            onClick={() => {
+                              window.open(task.zipOutputUrl!, '_blank');
+                              setActiveMenu(null);
+                              setMenuPos(null);
+                            }}
+                            className="w-full px-3 py-2 text-left text-sm hover:bg-muted transition-colors"
+                          >
+                            {t('downloadZip')}
+                          </button>
+                        )}
+                        {task.status === 'completed' && task.markdownOutputUrl && (
+                          <button
+                            onClick={() => {
+                              window.open(task.markdownOutputUrl!, '_blank');
+                              setActiveMenu(null);
+                              setMenuPos(null);
+                            }}
+                            className="w-full px-3 py-2 text-left text-sm hover:bg-muted transition-colors"
+                          >
+                            {t('downloadMarkdown')}
+                          </button>
+                        )}
                         {task.status === 'processing' && (
                           <button
                             onClick={() => {
@@ -733,6 +757,16 @@ function TaskDetailDialog({ task, providerName, onClose }: { task: Task; provide
             {task.status === 'completed' && !task.dualOutputUrl && !task.monoOutputUrl && task.outputUrl && (
               <Button variant="outline" size="sm" onClick={() => window.open(task.outputUrl!, '_blank')}>
                 {t('download')}
+              </Button>
+            )}
+            {task.status === 'completed' && task.zipOutputUrl && (
+              <Button variant="outline" size="sm" onClick={() => window.open(task.zipOutputUrl!, '_blank')}>
+                {t('downloadZip')}
+              </Button>
+            )}
+            {task.status === 'completed' && task.markdownOutputUrl && (
+              <Button variant="outline" size="sm" onClick={() => window.open(task.markdownOutputUrl!, '_blank')}>
+                {t('downloadMarkdown')}
               </Button>
             )}
           </div>
@@ -1080,23 +1114,30 @@ function BatchUploadDialog({ onClose, providers }: { onClose: () => void; provid
       queryClient.invalidateQueries({ queryKey: ['users', 'quota'] });
       onClose();
     },
+    onError: (error: Error) => {
+      // Show server-provided detail, including quota exceeded message
+      toast.error(error?.message || t('creating'));
+    },
   });
 
-  const handleFilesSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []).filter((file) => file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf'));
-    if (!files.length) {
-      return;
-    }
+  const onDrop = (acceptedFiles: File[]) => {
+    if (!acceptedFiles.length) return;
     setEntries((prev) => [
       ...prev,
-      ...files.map((file, index) => ({
+      ...acceptedFiles.map((file, index) => ({
         id: `${file.name}-${Date.now()}-${index}`,
         file,
         documentName: file.name.replace(/\.pdf$/i, ''),
       })),
     ]);
-    e.target.value = '';
   };
+
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop,
+    accept: { 'application/pdf': ['.pdf'] },
+    multiple: true,
+    noClick: false,
+  });
 
   const updateDocumentName = (id: string, value: string) => {
     setEntries((prev) => prev.map((entry) => (entry.id === id ? { ...entry, documentName: value } : entry)));
@@ -1152,15 +1193,33 @@ function BatchUploadDialog({ onClose, providers }: { onClose: () => void; provid
         <h2 className="text-xl font-bold mb-4">{t('title')}</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium mb-1">{t('selectFiles')}</label>
-            <input
-              type="file"
-              multiple
-              accept=".pdf"
-              onChange={handleFilesSelected}
-              className="w-full border border-input rounded px-3 py-2 bg-background"
-            />
-            <p className="text-xs text-muted-foreground mt-1">{t('selectFilesDescription')}</p>
+            <label className="block text-sm font-medium mb-2">{t('selectFiles')}</label>
+            <div
+              {...getRootProps()}
+              className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-all ${
+                isDragActive
+                  ? 'border-primary bg-primary/5'
+                  : entries.length > 0
+                  ? 'border-success bg-success/5'
+                  : 'border-border hover:border-primary/50 hover:bg-accent/50'
+              }`}
+            >
+              <input {...getInputProps()} />
+              <Upload className="w-12 h-12 mx-auto mb-3 text-muted-foreground" />
+              {entries.length > 0 ? (
+                <div>
+                  <p className="text-sm font-medium text-success mb-1">✓ {entries.length} {t('filesSelected')}</p>
+                  <p className="text-xs text-muted-foreground">{t('dragMoreFiles')}</p>
+                </div>
+              ) : isDragActive ? (
+                <p className="text-sm text-primary">{tCreate('dropHere')}</p>
+              ) : (
+                <div>
+                  <p className="text-sm font-medium mb-1">{tCreate('dragDrop')}</p>
+                  <p className="text-xs text-muted-foreground">{tCreate('orClickToSelect')}</p>
+                </div>
+              )}
+            </div>
           </div>
 
           {entries.length > 0 && (

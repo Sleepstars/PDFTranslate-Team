@@ -7,7 +7,7 @@ import uuid
 
 from app.database import get_db
 from app.dependencies import require_admin
-from app.models import User
+from app.models import User, Group
 from app.schemas import (
     CreateUserRequest,
     UpdateUserRequest,
@@ -163,8 +163,6 @@ async def update_user(
         if request.groupId == "":
             user.group_id = None
         else:
-            from sqlalchemy import select
-            from app.models import Group
             result = await db.execute(select(Group).where(Group.id == request.groupId))
             group = result.scalar_one_or_none()
             if not group:
