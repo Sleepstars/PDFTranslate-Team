@@ -10,6 +10,26 @@ import { useAuth } from '@/lib/hooks/use-auth';
 import Link from 'next/link';
 
 export default function RegisterPage() {
+  type AltchaInlineStyle = React.CSSProperties & {
+    '--altcha-max-width'?: string;
+    '--altcha-border-width'?: string;
+    '--altcha-border-radius'?: string;
+    '--altcha-color-base'?: string;
+    '--altcha-color-text'?: string;
+    '--altcha-color-border'?: string;
+    '--altcha-color-border-focus'?: string;
+  };
+  const altchaStyle: AltchaInlineStyle = {
+    '--altcha-max-width': '520px',
+    '--altcha-border-width': '2px',
+    '--altcha-border-radius': '12px',
+    '--altcha-color-base': 'hsl(var(--card))',
+    '--altcha-color-text': 'hsl(var(--foreground))',
+    '--altcha-color-border': 'hsl(var(--border))',
+    '--altcha-color-border-focus': 'hsl(var(--primary))',
+    transform: 'scale(1.15)',
+    transformOrigin: 'center',
+  };
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
   const [password, setPassword] = useState('');
@@ -177,11 +197,7 @@ export default function RegisterPage() {
 
           {altchaEnabled && challengeUrl && (
             <div className="flex justify-center">
-              <altcha-widget
-                challengeurl={challengeUrl}
-                auto="onsubmit"
-                hidefooter
-              />
+              <altcha-widget challengeurl={challengeUrl} auto="onsubmit" hidefooter style={altchaStyle} />
             </div>
           )}
 

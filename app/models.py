@@ -162,3 +162,14 @@ class PasswordResetToken(Base):
     expires_at: Mapped[datetime] = mapped_column(DateTime, index=True)
     used: Mapped[bool] = mapped_column(Boolean, server_default="false", index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class EmailVerificationToken(Base):
+    __tablename__ = "email_verification_tokens"
+
+    id: Mapped[str] = mapped_column(String(50), primary_key=True)
+    user_id: Mapped[str] = mapped_column(String(50), index=True)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime, index=True)
+    used: Mapped[bool] = mapped_column(Boolean, server_default="false", index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())

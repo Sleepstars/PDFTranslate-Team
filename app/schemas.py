@@ -30,6 +30,14 @@ class ResetPasswordRequest(BaseModel):
     altchaPayload: Optional[str] = None
 
 
+class VerifyEmailRequest(BaseModel):
+    token: str
+
+
+class ResendVerificationRequest(BaseModel):
+    email: EmailStr
+
+
 class SessionResponse(BaseModel):
     user: Optional[dict]
 

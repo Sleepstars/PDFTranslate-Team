@@ -5,9 +5,9 @@ from sqlalchemy import select
 from ..auth import create_session, delete_session, get_token_from_request, authenticate_user, hash_password
 from ..config import PublicUser, get_settings
 from ..dependencies import get_optional_user
-from ..schemas import LoginRequest, RegisterRequest, ForgotPasswordRequest, ResetPasswordRequest
+from ..schemas import LoginRequest, RegisterRequest, ForgotPasswordRequest, ResetPasswordRequest, VerifyEmailRequest, ResendVerificationRequest
 from ..database import get_db
-from ..models import User, SystemSetting, PasswordResetToken
+from ..models import User, SystemSetting, PasswordResetToken, EmailVerificationToken
 from ..utils.altcha import create_challenge, verify_solution
 from datetime import datetime, timezone, timedelta
 import sqlalchemy as sa
@@ -15,6 +15,7 @@ import hashlib
 from secrets import token_urlsafe
 
 RESET_TOKEN_TTL_MINUTES = 30
+VERIFICATION_TOKEN_TTL_MINUTES = 30
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -39,6 +40,13 @@ async def login(payload: LoginRequest, response: Response, db: AsyncSession = De
 
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
+
+    # Check if email is verified
+    if not user.email_verified:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Please verify your email address before logging in. Check your inbox for the verification link."
+        )
 
     public_user = PublicUser(id=user.id, name=user.name, email=user.email, role=user.role)
     token = await create_session(public_user)
@@ -160,13 +168,14 @@ async def register(
     # Hash password (Argon2)
     password_hash = hash_password(payload.password)
 
-    # Create new user
+    # Create new user (email_verified=False by default)
     new_user = User(
         email=payload.email,
         name=payload.name,
         password_hash=password_hash,
         role="user",
         is_active=True,
+        email_verified=False,
         daily_page_limit=50,
         daily_page_used=0,
         last_quota_reset=datetime.now(timezone.utc),
@@ -177,21 +186,189 @@ async def register(
     await db.commit()
     await db.refresh(new_user)
 
-    # Auto-login after registration
-    public_user = PublicUser(id=new_user.id, name=new_user.name, email=new_user.email, role=new_user.role)
-    token = await create_session(public_user)
+    # Generate email verification token
+    raw_token = token_urlsafe(32)
+    token_hash = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+    expires_at = datetime.now(timezone.utc) + timedelta(minutes=VERIFICATION_TOKEN_TTL_MINUTES)
 
-    response.set_cookie(
-        key=settings.session_cookie_name,
-        value=token,
-        httponly=True,
-        samesite='lax',
-        secure=settings.session_cookie_secure,
-        max_age=settings.session_ttl_seconds,
-        path='/',
+    # Revoke existing unused tokens for this user (optional cleanup)
+    await db.execute(
+        sa.text(
+            "UPDATE email_verification_tokens SET used = true WHERE user_id = :uid AND used = false"
+        ),
+        {"uid": new_user.id},
     )
 
-    return {"user": public_user, "message": "Registration successful"}
+    evt = EmailVerificationToken(
+        id=token_urlsafe(12),
+        user_id=new_user.id,
+        token_hash=token_hash,
+        expires_at=expires_at,
+        used=False,
+    )
+    db.add(evt)
+    await db.commit()
+
+    # Build verification link
+    try:
+        origin = request.headers.get("Origin") or request.headers.get("Referer") or "http://localhost:3000"
+        # crude parse base
+        base = origin.split("/")
+        base_url = f"{base[0]}//{base[2]}" if len(base) > 2 else origin
+    except Exception:
+        base_url = "http://localhost:3000"
+
+    # Try to infer locale from referer path
+    path = (request.headers.get("Referer") or "/").split(base_url)[-1]
+    locale = path.split("/")[1] if len(path.split("/")) > 1 and path.split("/")[1] else "en"
+    verification_url = f"{base_url}/{locale}/verify-email?token={raw_token}"
+
+    # Send verification email
+    from ..emailer import send_verification_email
+    try:
+        await send_verification_email(db, new_user.email, verification_url, new_user.name)
+    except Exception:
+        # If email fails, still allow registration but log the error
+        # User can request resend later
+        pass
+
+    return {
+        "message": "Registration successful. Please check your email to verify your account.",
+        "email": new_user.email
+    }
+
+
+@router.post("/verify-email")
+async def verify_email(
+    payload: VerifyEmailRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Verify user's email address using the token sent via email.
+    """
+    # Hash the provided token
+    token_hash = hashlib.sha256(payload.token.encode("utf-8")).hexdigest()
+
+    # Find the token in database
+    result = await db.execute(
+        select(EmailVerificationToken).where(
+            EmailVerificationToken.token_hash == token_hash
+        )
+    )
+    token_record = result.scalar_one_or_none()
+
+    if not token_record:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired verification token"
+        )
+
+    # Check if token is already used
+    if token_record.used:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This verification link has already been used"
+        )
+
+    # Check if token is expired
+    if token_record.expires_at < datetime.now(timezone.utc):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Verification link has expired. Please request a new one."
+        )
+
+    # Find the user
+    result = await db.execute(
+        select(User).where(User.id == token_record.user_id)
+    )
+    user = result.scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+
+    # Check if already verified
+    if user.email_verified:
+        return {"message": "Email already verified"}
+
+    # Mark email as verified
+    user.email_verified = True
+    token_record.used = True
+
+    await db.commit()
+
+    return {"message": "Email verified successfully. You can now log in."}
+
+
+@router.post("/resend-verification")
+async def resend_verification(
+    payload: ResendVerificationRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Resend email verification link to the user.
+    """
+    # Always return generic success to avoid account enumeration
+    generic_ok = {"message": "If the email exists and is not verified, a verification link has been sent."}
+
+    # Find user by email
+    result = await db.execute(select(User).where(User.email == payload.email))
+    user = result.scalar_one_or_none()
+
+    if not user or not user.is_active:
+        return generic_ok
+
+    # If already verified, return success but don't send email
+    if user.email_verified:
+        return generic_ok
+
+    # Generate new verification token
+    raw_token = token_urlsafe(32)
+    token_hash = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+    expires_at = datetime.now(timezone.utc) + timedelta(minutes=VERIFICATION_TOKEN_TTL_MINUTES)
+
+    # Revoke existing unused tokens for this user
+    await db.execute(
+        sa.text(
+            "UPDATE email_verification_tokens SET used = true WHERE user_id = :uid AND used = false"
+        ),
+        {"uid": user.id},
+    )
+
+    evt = EmailVerificationToken(
+        id=token_urlsafe(12),
+        user_id=user.id,
+        token_hash=token_hash,
+        expires_at=expires_at,
+        used=False,
+    )
+    db.add(evt)
+    await db.commit()
+
+    # Build verification link
+    try:
+        origin = request.headers.get("Origin") or request.headers.get("Referer") or "http://localhost:3000"
+        base = origin.split("/")
+        base_url = f"{base[0]}//{base[2]}" if len(base) > 2 else origin
+    except Exception:
+        base_url = "http://localhost:3000"
+
+    path = (request.headers.get("Referer") or "/").split(base_url)[-1]
+    locale = path.split("/")[1] if len(path.split("/")) > 1 and path.split("/")[1] else "en"
+    verification_url = f"{base_url}/{locale}/verify-email?token={raw_token}"
+
+    # Send verification email
+    from ..emailer import send_verification_email
+    try:
+        await send_verification_email(db, user.email, verification_url, user.name)
+    except Exception:
+        # Do not leak details; still return generic OK
+        return generic_ok
+
+    return generic_ok
 
 
 @router.post("/forgot-password")

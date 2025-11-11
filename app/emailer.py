@@ -62,3 +62,59 @@ async def send_email(db: AsyncSession, to_email: str, subject: str, text: str, h
 
     await asyncio.to_thread(_send)
 
+
+async def send_verification_email(db: AsyncSession, to_email: str, verification_url: str, user_name: str) -> None:
+    """
+    Send an email verification link to the user.
+    """
+    subject = "Verify your email address"
+
+    text = f"""Hello {user_name},
+
+Thank you for registering! Please verify your email address by clicking the link below:
+
+{verification_url}
+
+This link will expire in 30 minutes.
+
+If you did not create an account, please ignore this email.
+
+Best regards,
+PDFTranslate Team"""
+
+    html = f"""
+    <html>
+    <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+        <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+            <h2 style="color: #2c3e50;">Verify Your Email Address</h2>
+            <p>Hello {user_name},</p>
+            <p>Thank you for registering! Please verify your email address by clicking the button below:</p>
+            <div style="text-align: center; margin: 30px 0;">
+                <a href="{verification_url}"
+                   style="background-color: #3498db; color: white; padding: 12px 30px;
+                          text-decoration: none; border-radius: 5px; display: inline-block;">
+                    Verify Email Address
+                </a>
+            </div>
+            <p style="color: #7f8c8d; font-size: 14px;">
+                Or copy and paste this link into your browser:<br>
+                <a href="{verification_url}" style="color: #3498db;">{verification_url}</a>
+            </p>
+            <p style="color: #7f8c8d; font-size: 14px;">
+                This link will expire in 30 minutes.
+            </p>
+            <p style="color: #7f8c8d; font-size: 14px;">
+                If you did not create an account, please ignore this email.
+            </p>
+            <hr style="border: none; border-top: 1px solid #ecf0f1; margin: 30px 0;">
+            <p style="color: #95a5a6; font-size: 12px;">
+                Best regards,<br>
+                PDFTranslate Team
+            </p>
+        </div>
+    </body>
+    </html>
+    """
+
+    await send_email(db, to_email, subject, text, html)
+
