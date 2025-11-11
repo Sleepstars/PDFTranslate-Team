@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminSettingsAPI, S3ConfigRequest } from '@/lib/api/admin-settings';
 import { Button } from '@/components/ui/button';
@@ -18,38 +18,36 @@ export default function AdminSettingsS3Page() {
     queryFn: adminSettingsAPI.getS3Config,
   });
 
-  // Initialize form with s3Config data or defaults
-  const [formData, setFormData] = useState<S3ConfigRequest>(() => {
-    if (s3Config) {
-      return {
-        endpoint: s3Config.endpoint,
-        access_key: s3Config.access_key,
-        secret_key: '',
-        bucket: s3Config.bucket,
-        region: s3Config.region,
-        ttl_days: s3Config.ttl_days,
-      };
-    }
-    return {
-      endpoint: '',
-      access_key: '',
-      secret_key: '',
-      bucket: '',
-      region: 'us-east-1',
-      ttl_days: 7,
-    };
+  // Initialize form with defaults or s3Config data
+  const [formData, setFormData] = useState<S3ConfigRequest>({
+    endpoint: '',
+    access_key: '',
+    secret_key: '',
+    bucket: '',
+    region: 'us-east-1',
+    ttl_days: 7,
   });
 
-  // Update form data when s3Config is loaded
+  // Track the previous s3Config ID to detect when it changes
+  const prevS3ConfigIdRef = useRef<string | null>(null);
+
+  // Update form when s3Config changes (using effect with proper dependency)
   useEffect(() => {
-    if (s3Config) {
-      setFormData({
-        endpoint: s3Config.endpoint,
-        access_key: s3Config.access_key,
-        secret_key: '', // Don't populate secret key for security
-        bucket: s3Config.bucket,
-        region: s3Config.region,
-        ttl_days: s3Config.ttl_days,
+    // Create a unique ID for the config to track changes
+    const configId = s3Config ? JSON.stringify(s3Config) : null;
+
+    if (s3Config && configId !== prevS3ConfigIdRef.current) {
+      prevS3ConfigIdRef.current = configId;
+      // Schedule state update for next render
+      queueMicrotask(() => {
+        setFormData({
+          endpoint: s3Config.endpoint,
+          access_key: s3Config.access_key,
+          secret_key: '', // Don't populate secret key for security
+          bucket: s3Config.bucket,
+          region: s3Config.region,
+          ttl_days: s3Config.ttl_days,
+        });
       });
     }
   }, [s3Config]);

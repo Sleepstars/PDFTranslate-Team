@@ -179,7 +179,7 @@ export default function AdminTasksPage() {
       await queryClient.cancelQueries({ queryKey: ['admin-tasks'] });
       const previousData = queryClient.getQueryData(['admin-tasks', filters, page]);
 
-      queryClient.setQueryData(['admin-tasks', filters, page], (old: any) => {
+      queryClient.setQueryData(['admin-tasks', filters, page], (old: { tasks: Task[]; total: number; limit: number; offset: number } | undefined) => {
         if (!old) return old;
         return {
           ...old,
@@ -211,7 +211,7 @@ export default function AdminTasksPage() {
       await queryClient.cancelQueries({ queryKey: ['admin-tasks'] });
       const previousData = queryClient.getQueryData(['admin-tasks', filters, page]);
 
-      queryClient.setQueryData(['admin-tasks', filters, page], (old: any) => {
+      queryClient.setQueryData(['admin-tasks', filters, page], (old: { tasks: Task[]; total: number; limit: number; offset: number } | undefined) => {
         if (!old) return old;
         return {
           ...old,
@@ -244,7 +244,7 @@ export default function AdminTasksPage() {
     await queryClient.cancelQueries({ queryKey: ['admin-tasks'] });
     const previousData = queryClient.getQueryData(['admin-tasks', filters, page]);
 
-    queryClient.setQueryData(['admin-tasks', filters, page], (old: any) => {
+    queryClient.setQueryData(['admin-tasks', filters, page], (old: { tasks: Task[]; total: number; limit: number; offset: number } | undefined) => {
       if (!old) return old;
       return {
         ...old,
@@ -277,7 +277,7 @@ export default function AdminTasksPage() {
     await queryClient.cancelQueries({ queryKey: ['admin-tasks'] });
     const previousData = queryClient.getQueryData(['admin-tasks', filters, page]);
 
-    queryClient.setQueryData(['admin-tasks', filters, page], (old: any) => {
+    queryClient.setQueryData(['admin-tasks', filters, page], (old: { tasks: Task[]; total: number; limit: number; offset: number } | undefined) => {
       if (!old) return old;
       return {
         ...old,

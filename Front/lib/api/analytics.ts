@@ -1,3 +1,5 @@
+import { Task } from '@/lib/types/task';
+
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 export interface AnalyticsOverview {
@@ -30,7 +32,7 @@ export interface TopUsersResponse {
 }
 
 export interface AdminTasksResponse {
-  tasks: any[];
+  tasks: Task[];
   total: number;
   limit: number;
   offset: number;
@@ -96,7 +98,7 @@ export async function getAdminTasks(params: {
   return res.json();
 }
 
-export async function cancelAdminTask(taskId: string): Promise<{ task: any }> {
+export async function cancelAdminTask(taskId: string): Promise<{ task: Task }> {
   const res = await fetch(`${API_BASE}/api/tasks/${taskId}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
@@ -107,7 +109,7 @@ export async function cancelAdminTask(taskId: string): Promise<{ task: any }> {
   return res.json();
 }
 
-export async function retryAdminTask(taskId: string): Promise<{ task: any }> {
+export async function retryAdminTask(taskId: string): Promise<{ task: Task }> {
   const res = await fetch(`${API_BASE}/api/tasks/${taskId}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },

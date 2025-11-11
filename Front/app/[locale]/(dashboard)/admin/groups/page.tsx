@@ -34,7 +34,6 @@ export default function AdminGroupsPage() {
 
   // Derive the effective selected group ID
   const effectiveSelectedGroupId = selectedGroupId || groups[0]?.id || '';
-  const selectedGroup = groups.find(g => g.id === effectiveSelectedGroupId);
 
   return (
     <div className="space-y-6">
@@ -624,10 +623,6 @@ function MergeGroupsDialog({ groups, onClose }: { groups: Group[]; onClose: () =
   const targetGroup = groups.find((g) => g.id === targetGroupId);
   const selectedSourceGroups = groups.filter((g) => sourceGroupIds.includes(g.id));
   const totalUsers = selectedSourceGroups.reduce((sum, g) => sum + g.userCount, 0);
-  const totalProviders = new Set([
-    ...(targetGroup ? [targetGroup.id] : []),
-    ...selectedSourceGroups.map((g) => g.id),
-  ]).size;
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">

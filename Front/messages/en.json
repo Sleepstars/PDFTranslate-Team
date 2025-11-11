@@ -113,6 +113,7 @@
   "tasks": {
     "title": "My Tasks",
     "subtitle": "Manage your PDF translation and parsing tasks",
+    "search": "Search tasks...",
     "description": "Manage your PDF translation tasks",
     "realtime": {
       "connected": "connected",
@@ -460,13 +461,15 @@
       "userName": "User Name",
       "userEmail": "Email",
       "totalTasks": "Total Tasks",
-      "totalPages": "Total Pages"
+      "totalPages": "Total Pages",
+      "searchUsers": "Search users..."
     },
     "tasks": {
       "title": "All Tasks",
       "description": "View and manage all users' tasks",
       "filters": "Filters",
       "filterByUserId": "Filter by User ID...",
+      "filterByEmail": "Filter by Email",
       "allStatuses": "All Statuses",
       "allPriorities": "All Priorities",
       "dateFrom": "From Date",
