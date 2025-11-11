@@ -183,7 +183,9 @@
       "creating": "Creating...",
       "dragDrop": "Drag & drop PDF file here",
       "orClickToSelect": "or click to select file",
-      "dropHere": "Drop file to upload"
+      "dropHere": "Drop file to upload",
+      "createSuccess": "Task created successfully",
+      "createError": "Failed to create task"
     },
     "batchDialog": {
       "title": "Batch Upload PDFs",
@@ -192,7 +194,9 @@
       "documentName": "Document name",
       "remove": "Remove",
       "createTasks": "Create Tasks",
-      "creating": "Creating..."
+      "creating": "Creating...",
+      "filesSelected": "files selected",
+      "dragMoreFiles": "Drag & drop more files or click to add"
     }
   },
   "providers": {
@@ -253,6 +257,20 @@
       "setAsDefault": "Set as Default",
       "cancel": "Cancel",
       "create": "Create"
+    },
+    "editDialog": {
+      "title": "Edit Provider",
+      "name": "Name",
+      "description": "Description",
+      "settings": "Settings",
+      "maxConcurrency": "Max Concurrency",
+      "maxConcurrencyDescription": "Maximum concurrent translation tasks (1-100)",
+      "requestsPerMinute": "Requests Per Minute (RPM)",
+      "rpmDescription": "API rate limit in requests per minute (optional, 1-10000)",
+      "model": "Model",
+      "active": "Active",
+      "update": "Update",
+      "cancel": "Cancel"
     }
   },
   "settings": {
@@ -303,9 +321,7 @@
     "altchaSecretKeyPlaceholder": "Enter secret key for verification",
     "altchaSecretKeyDescription": "Secret key used to generate and verify ALTCHA challenges, keep it secure",
     "allowedEmailSuffixesDescription": "Restrict allowed email domains for registration, leave empty for no restriction",
-    "commonEmailProviders": "Common Email Providers",
-    "customEmailSuffixes": "Custom Email Suffixes",
-    "selectedCustomSuffixes": "Selected Custom Suffixes",
+    "emailSuffixInputLabel": "Email Suffixes",
     "noEmailSuffixRestriction": "No email suffix restriction set, all emails are allowed to register",
     "add": "Add"
   },

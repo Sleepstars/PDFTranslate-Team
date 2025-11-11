@@ -101,7 +101,6 @@ export default function AdminProvidersPage() {
                 <th className="px-4 py-2.5 text-left font-medium">{t('type')}</th>
                 <th className="px-4 py-2.5 text-left font-medium">{t('description')}</th>
                 <th className="px-4 py-2.5 text-left font-medium">{t('status')}</th>
-                <th className="px-4 py-2.5 text-left font-medium">{t('default')}</th>
                 <th className="px-4 py-2.5 text-right font-medium">{t('actions')}</th>
               </tr>
             </thead>
@@ -117,9 +116,6 @@ export default function AdminProvidersPage() {
                   <Badge variant={provider.isActive ? 'success' : 'error'} className="text-xs">
                     {provider.isActive ? t('active') : t('inactive')}
                   </Badge>
-                </td>
-                <td className="px-4 py-2.5">
-                  {provider.isDefault && <Badge variant="warning" className="text-xs">{t('default')}</Badge>}
                 </td>
                 <td className="px-4 py-2.5 text-right">
                   <div className="relative inline-block">
@@ -160,14 +156,12 @@ function ProviderDialog({ onClose }: { onClose: () => void }) {
     providerType: string;
     description: string;
     isActive: boolean;
-    isDefault: boolean;
     settings: Record<string, string | number>;
   }>({
     name: '',
     providerType: 'openai',
     description: '',
     isActive: true,
-    isDefault: false,
     settings: {},
   });
   const t = useTranslations('providers.createDialog');
@@ -446,15 +440,6 @@ function ProviderDialog({ onClose }: { onClose: () => void }) {
               />
               <span className="text-sm font-medium">{t('active')}</span>
             </label>
-            <label className="flex items-center">
-              <input
-                type="checkbox"
-                checked={formData.isDefault}
-                onChange={(e) => setFormData({ ...formData, isDefault: e.target.checked })}
-                className="mr-2"
-              />
-              <span className="text-sm font-medium">{t('setAsDefault')}</span>
-            </label>
           </div>
 
           <div className="flex justify-end space-x-2">
@@ -473,15 +458,16 @@ function EditProviderDialog({ provider, onClose }: { provider: ProviderConfig; o
     name: string;
     description?: string;
     isActive: boolean;
-    isDefault: boolean;
     settings: Record<string, string | number>;
   }>({
     name: provider.name,
     description: provider.description,
     isActive: provider.isActive,
-    isDefault: provider.isDefault,
     settings: provider.settings as Record<string, string | number>,
   });
+
+  const t = useTranslations('providers.editDialog');
+  const tProviders = useTranslations('providers');
 
   const updateMutation = useMutation({
     mutationFn: (data: UpdateProviderRequest) => adminProvidersAPI.update(provider.id, data),
@@ -504,8 +490,10 @@ function EditProviderDialog({ provider, onClose }: { provider: ProviderConfig; o
       if (context?.previousProviders) {
         queryClient.setQueryData(['admin', 'providers'], context.previousProviders);
       }
+      toast.error(tProviders('updateError'));
     },
     onSuccess: () => {
+      toast.success(tProviders('updateSuccess'));
       onClose();
     },
     onSettled: () => {
@@ -528,10 +516,10 @@ function EditProviderDialog({ provider, onClose }: { provider: ProviderConfig; o
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center overflow-y-auto">
       <div className="bg-card rounded-lg border border-border p-6 w-full max-w-2xl my-8">
-        <h2 className="text-xl font-bold mb-4">Edit Provider</h2>
+        <h2 className="text-xl font-bold mb-4">{t('title')}</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium mb-1">Name</label>
+            <label className="block text-sm font-medium mb-1">{t('name')}</label>
             <input
               type="text"
               className="w-full border border-input rounded px-3 py-2 bg-background"
@@ -540,7 +528,7 @@ function EditProviderDialog({ provider, onClose }: { provider: ProviderConfig; o
             />
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1">Description</label>
+            <label className="block text-sm font-medium mb-1">{t('description')}</label>
             <textarea
               className="w-full border border-input rounded px-3 py-2 bg-background"
               value={formData.description}
@@ -550,10 +538,10 @@ function EditProviderDialog({ provider, onClose }: { provider: ProviderConfig; o
           </div>
 
           <div className="border-t border-border pt-4">
-            <h3 className="font-medium mb-2">Settings</h3>
+            <h3 className="font-medium mb-2">{t('settings')}</h3>
             
             <div className="mb-3">
-              <label className="block text-sm font-medium mb-1">Max Concurrency</label>
+              <label className="block text-sm font-medium mb-1">{t('maxConcurrency')}</label>
               <input
                 type="number"
                 className="w-full border border-input rounded px-3 py-2 bg-background"
@@ -562,11 +550,11 @@ function EditProviderDialog({ provider, onClose }: { provider: ProviderConfig; o
                 min="1"
                 max="100"
               />
-              <p className="text-xs text-muted-foreground mt-1">Maximum concurrent translation tasks (1-100)</p>
+              <p className="text-xs text-muted-foreground mt-1">{t('maxConcurrencyDescription')}</p>
             </div>
 
             <div className="mb-3">
-              <label className="block text-sm font-medium mb-1">Requests Per Minute (RPM)</label>
+              <label className="block text-sm font-medium mb-1">{t('requestsPerMinute')}</label>
               <input
                 type="number"
                 className="w-full border border-input rounded px-3 py-2 bg-background"
@@ -576,12 +564,12 @@ function EditProviderDialog({ provider, onClose }: { provider: ProviderConfig; o
                 max="10000"
                 placeholder="Optional rate limit"
               />
-              <p className="text-xs text-muted-foreground mt-1">API rate limit in requests per minute (optional, 1-10000)</p>
+              <p className="text-xs text-muted-foreground mt-1">{t('rpmDescription')}</p>
             </div>
 
             {requiresModel && (
               <div className="mb-3">
-                <label className="block text-sm font-medium mb-1">Model</label>
+                <label className="block text-sm font-medium mb-1">{t('model')}</label>
                 <input
                   type="text"
                   className="w-full border border-input rounded px-3 py-2 bg-background"
@@ -614,22 +602,13 @@ function EditProviderDialog({ provider, onClose }: { provider: ProviderConfig; o
                 onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
                 className="mr-2"
               />
-              <span className="text-sm font-medium">Active</span>
-            </label>
-            <label className="flex items-center">
-              <input
-                type="checkbox"
-                checked={formData.isDefault}
-                onChange={(e) => setFormData({ ...formData, isDefault: e.target.checked })}
-                className="mr-2"
-              />
-              <span className="text-sm font-medium">Set as Default</span>
+              <span className="text-sm font-medium">{t('active')}</span>
             </label>
           </div>
 
           <div className="flex justify-end space-x-2">
-            <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
-            <Button type="submit">Update</Button>
+            <Button type="button" variant="outline" onClick={onClose}>{t('cancel')}</Button>
+            <Button type="submit">{t('update')}</Button>
           </div>
         </form>
       </div>

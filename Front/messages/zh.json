@@ -4,7 +4,7 @@
     "tasks": "任务",
     "admin": "管理",
     "users": "用户管理",
-    "groups": "分组",
+    "groups": "权限管理",
     "providers": "提供者配置",
     "settings": "系统设置"
   },
@@ -183,7 +183,9 @@
       "creating": "创建中...",
       "dragDrop": "拖拽 PDF 文件到此处",
       "orClickToSelect": "或点击选择文件",
-      "dropHere": "松开以上传文件"
+      "dropHere": "松开以上传文件",
+      "createSuccess": "任务创建成功",
+      "createError": "任务创建失败"
     },
     "batchDialog": {
       "title": "批量上传PDF",
@@ -255,6 +257,20 @@
       "setAsDefault": "设为默认",
       "cancel": "取消",
       "create": "创建"
+    },
+    "editDialog": {
+      "title": "编辑提供者",
+      "name": "名称",
+      "description": "描述",
+      "settings": "设置",
+      "maxConcurrency": "最大并发数",
+      "maxConcurrencyDescription": "最大并发翻译任务数 (1-100)",
+      "requestsPerMinute": "每分钟请求数 (RPM)",
+      "rpmDescription": "API速率限制，每分钟请求数（可选，1-10000）",
+      "model": "模型",
+      "active": "正常",
+      "update": "更新",
+      "cancel": "取消"
     }
   },
   "settings": {

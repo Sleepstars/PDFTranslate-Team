@@ -50,7 +50,6 @@ export interface ProviderConfig {
   providerType: string;
   description?: string;
   isActive: boolean;
-  isDefault: boolean;
   settings: ProviderSettings;
   createdAt: string;
   updatedAt: string;
@@ -61,7 +60,6 @@ export interface CreateProviderRequest {
   providerType: string;
   description?: string;
   isActive: boolean;
-  isDefault: boolean;
   settings: ProviderSettings;
 }
 
@@ -69,6 +67,5 @@ export interface UpdateProviderRequest {
   name?: string;
   description?: string;
   isActive?: boolean;
-  isDefault?: boolean;
   settings?: Record<string, string | number>;
 }

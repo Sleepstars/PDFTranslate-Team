@@ -12,6 +12,7 @@ import zipfile
 import io
 import re
 from typing import Optional, Callable, Dict, Any, Awaitable, Union
+from .provider_limiter import acquire as acquire_provider_slot
 import httpx
 from datetime import datetime
 from .mineru_markdown_converter import convert_middle_json_to_markdown
@@ -355,7 +356,9 @@ async def parse_pdf_to_markdown(
     progress_callback: Optional[ProgressCallback] = None,
     poll_interval: int = 5,
     max_wait_time: int = 600,
-    s3_client=None
+    s3_client=None,
+    provider_key: Optional[str] = None,
+    provider_max_concurrency: Optional[int] = None,
 ) -> tuple[bool, Optional[str], Optional[str], Optional[bytes]]:
     """
     Parse a PDF file to Markdown using MinerU API.
@@ -393,7 +396,12 @@ async def parse_pdf_to_markdown(
             },
         )
 
-        task_id = await client.submit_parse_task(pdf_url, model_version)
+        # Global provider limiter on submission
+        if provider_key and provider_max_concurrency:
+            async with acquire_provider_slot(provider_key, int(provider_max_concurrency)):
+                task_id = await client.submit_parse_task(pdf_url, model_version)
+        else:
+            task_id = await client.submit_parse_task(pdf_url, model_version)
 
         await _emit_progress(
             progress_callback,
@@ -417,11 +425,20 @@ async def parse_pdf_to_markdown(
         zip_url = result.get("full_zip_url")
         if zip_url:
             logger.info(f"Downloading markdown from ZIP: {zip_url}")
-            markdown_content, zip_bytes = await _download_and_extract_markdown(
-                zip_url,
-                s3_client=s3_client,
-                task_id=task_id
-            )
+            # Apply provider limiter for ZIP download as well
+            if provider_key and provider_max_concurrency:
+                async with acquire_provider_slot(provider_key, int(provider_max_concurrency)):
+                    markdown_content, zip_bytes = await _download_and_extract_markdown(
+                        zip_url,
+                        s3_client=s3_client,
+                        task_id=task_id,
+                    )
+            else:
+                markdown_content, zip_bytes = await _download_and_extract_markdown(
+                    zip_url,
+                    s3_client=s3_client,
+                    task_id=task_id,
+                )
             if markdown_content:
                 await _emit_progress(
                     progress_callback,

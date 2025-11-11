@@ -105,7 +105,6 @@ class ProviderConfigResponse(BaseModel):
     providerType: str
     description: Optional[str]
     isActive: bool
-    isDefault: bool
     settings: dict
     createdAt: datetime
     updatedAt: datetime
@@ -118,13 +117,13 @@ class SafeProviderConfigResponse(BaseModel):
     providerType: str
     description: Optional[str]
     isActive: bool
-    isDefault: bool
+    isDefault: bool  # Dynamically computed based on priority
     settings: dict  # Sensitive fields will be filtered out before serialization
     createdAt: datetime
     updatedAt: datetime
 
     @staticmethod
-    def from_provider(provider, settings_dict: dict, is_default: bool = None):
+    def from_provider(provider, settings_dict: dict, is_default: bool):
         """Create safe response by filtering sensitive fields from settings"""
         # Define sensitive fields to remove
         sensitive_fields = {
@@ -144,7 +143,7 @@ class SafeProviderConfigResponse(BaseModel):
             providerType=provider.provider_type,
             description=provider.description,
             isActive=provider.is_active,
-            isDefault=is_default if is_default is not None else provider.is_default,
+            isDefault=is_default,
             settings=safe_settings,
             createdAt=provider.created_at,
             updatedAt=provider.updated_at
@@ -156,7 +155,6 @@ class CreateProviderConfigRequest(BaseModel):
     providerType: str = Field(..., min_length=1)
     description: Optional[str] = None
     isActive: bool = True
-    isDefault: bool = False
     settings: dict = Field(default_factory=dict)
 
 
@@ -164,7 +162,6 @@ class UpdateProviderConfigRequest(BaseModel):
     name: Optional[str] = Field(default=None, min_length=1)
     description: Optional[str] = None
     isActive: Optional[bool] = None
-    isDefault: Optional[bool] = None
     settings: Optional[dict] = None
 
 

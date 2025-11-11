@@ -47,7 +47,6 @@ async def list_providers(
             providerType=provider.provider_type,
             description=provider.description,
             isActive=provider.is_active,
-            isDefault=provider.is_default,
             settings=json.loads(provider.settings),
             createdAt=provider.created_at,
             updatedAt=provider.updated_at
@@ -93,17 +92,7 @@ async def create_provider(
     """Create a new provider config (admin only)"""
     # Validate settings
     validated_settings = validate_provider_settings(request.providerType, request.settings)
-    
-    # If setting as default, unset other defaults
-    if request.isDefault:
-        result = await db.execute(
-            select(TranslationProviderConfig).where(
-                TranslationProviderConfig.is_default == True
-            )
-        )
-        for provider in result.scalars().all():
-            provider.is_default = False
-    
+
     # Create new provider
     provider = TranslationProviderConfig(
         id=str(uuid.uuid4()),
@@ -111,7 +100,7 @@ async def create_provider(
         provider_type=request.providerType,
         description=request.description,
         is_active=request.isActive,
-        is_default=request.isDefault,
+        is_default=False,
         settings=json.dumps(validated_settings),
         created_at=datetime.utcnow(),
         updated_at=datetime.utcnow()
@@ -127,7 +116,6 @@ async def create_provider(
         providerType=provider.provider_type,
         description=provider.description,
         isActive=provider.is_active,
-        isDefault=provider.is_default,
         settings=json.loads(provider.settings),
         createdAt=provider.created_at,
         updatedAt=provider.updated_at
@@ -186,17 +174,7 @@ async def update_provider(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Provider config not found"
         )
-    
-    # If setting as default, unset other defaults
-    if request.isDefault and not provider.is_default:
-        result = await db.execute(
-            select(TranslationProviderConfig).where(
-                TranslationProviderConfig.is_default == True
-            )
-        )
-        for other_provider in result.scalars().all():
-            other_provider.is_default = False
-    
+
     # Update fields
     if request.name is not None:
         provider.name = request.name
@@ -204,8 +182,6 @@ async def update_provider(
         provider.description = request.description
     if request.isActive is not None:
         provider.is_active = request.isActive
-    if request.isDefault is not None:
-        provider.is_default = request.isDefault
     if request.settings is not None:
         validated_settings = validate_provider_settings(provider.provider_type, request.settings)
         provider.settings = json.dumps(validated_settings)
@@ -221,7 +197,6 @@ async def update_provider(
         providerType=provider.provider_type,
         description=provider.description,
         isActive=provider.is_active,
-        isDefault=provider.is_default,
         settings=json.loads(provider.settings),
         createdAt=provider.created_at,
         updatedAt=provider.updated_at

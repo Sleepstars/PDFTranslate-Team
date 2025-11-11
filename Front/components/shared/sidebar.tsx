@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useRole } from '@/lib/hooks/use-role';
 import { cn } from '@/lib/utils';
-import { LayoutDashboard, FileText, Users, Settings, Boxes, FileType, X } from 'lucide-react';
+import { LayoutDashboard, FileText, Users, Settings, Boxes, FileType, X, Shield } from 'lucide-react';
 import { useTranslations, useLocale } from 'next-intl';
 
 interface SidebarProps {
@@ -25,7 +25,7 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
 
   const adminLinks = [
     { href: `/${locale}/admin/users`, label: t('users'), icon: Users },
-    { href: `/${locale}/admin/groups`, label: t('groups'), icon: Users },
+    { href: `/${locale}/admin/groups`, label: t('groups'), icon: Shield },
     { href: `/${locale}/admin/providers`, label: t('providers'), icon: Boxes },
     { href: `/${locale}/admin/settings`, label: t('settings'), icon: Settings },
   ];

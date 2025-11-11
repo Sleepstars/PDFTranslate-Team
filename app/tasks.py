@@ -442,7 +442,7 @@ class TaskManager:
     async def _resolve_mineru_credentials(
         self,
         preferred_provider: Optional[TranslationProviderConfig],
-    ) -> tuple[str, str]:
+    ) -> tuple[str, str, Optional[str]]:
         """
         Resolve MinerU API token and model version.
 
@@ -482,7 +482,7 @@ class TaskManager:
         for provider in candidates:
             api_token, model_version = self._extract_mineru_settings(provider)
             if api_token:
-                return api_token, model_version
+                return api_token, model_version, provider.id if provider else None
 
         raise RuntimeError(
             "MinerU API token not configured. Please configure a MinerU provider in admin settings."
@@ -510,6 +510,31 @@ class TaskManager:
         job = self.jobs.pop(task_id, None)
         if job:
             job.cancel()
+
+    @staticmethod
+    def _get_provider_concurrency(provider_config: Optional[TranslationProviderConfig], default_limit: int = 4) -> int:
+        """Read provider-level global concurrency limit from provider settings.
+
+        Recognized keys: max_concurrent_requests, maxConcurrentRequests, max_concurrency, concurrency
+        """
+        try:
+            if provider_config and provider_config.settings:
+                settings = json.loads(provider_config.settings) or {}
+                for key in (
+                    "max_concurrent_requests",
+                    "maxConcurrentRequests",
+                    "max_concurrency",
+                    "concurrency",
+                ):
+                    if key in settings:
+                        try:
+                            val = int(settings[key])
+                            return max(1, val)
+                        except (TypeError, ValueError):
+                            continue
+        except Exception:
+            pass
+        return max(1, int(default_limit))
 
     async def _lifecycle(self, task_id: str) -> None:
         import tempfile
@@ -670,17 +695,22 @@ class TaskManager:
                 progress_message=message,
             )
 
-        success, error, result_files = await translate_pdf(
-            input_path=input_path,
-            output_dir=output_dir,
-            service=service,
-            lang_from=task.source_lang,
-            lang_to=task.target_lang,
-            model=model,
-            threads=threads,
-            model_config=model_config,
-            progress_callback=handle_progress,
-        )
+        # Apply provider-level global concurrency: hold a slot during the engine-bound phase
+        from .utils.provider_limiter import acquire as acquire_provider_slot
+        provider_key = provider_config.id if provider_config else f"engine:{service}"
+        provider_limit = self._get_provider_concurrency(provider_config, default_limit=threads or 4)
+        async with acquire_provider_slot(provider_key, provider_limit):
+            success, error, result_files = await translate_pdf(
+                input_path=input_path,
+                output_dir=output_dir,
+                service=service,
+                lang_from=task.source_lang,
+                lang_to=task.target_lang,
+                model=model,
+                threads=threads,
+                model_config=model_config,
+                progress_callback=handle_progress,
+            )
 
         if not success:
             logger.error("Task %s translation failed: %s", task_id, error)
@@ -777,7 +807,7 @@ class TaskManager:
 
         await self._update_task(task_id, progress=10, progress_message="准备解析PDF...")
 
-        mineru_api_token, mineru_model_version = await self._resolve_mineru_credentials(
+        mineru_api_token, mineru_model_version, mineru_provider_id = await self._resolve_mineru_credentials(
             provider_config
         )
 
@@ -803,7 +833,9 @@ class TaskManager:
             api_token=mineru_api_token,
             model_version=mineru_model_version,
             progress_callback=handle_progress,
-            s3_client=s3
+            s3_client=s3,
+            provider_key=f"mineru:{mineru_provider_id}" if mineru_provider_id else "mineru",
+            provider_max_concurrency=self._get_provider_concurrency(provider_config, default_limit=4),
         )
 
         if not success:
@@ -853,7 +885,7 @@ class TaskManager:
 
         await self._update_task(task_id, progress=5, progress_message="准备解析PDF...")
 
-        mineru_api_token, mineru_model_version = await self._resolve_mineru_credentials(
+        mineru_api_token, mineru_model_version, mineru_provider_id = await self._resolve_mineru_credentials(
             provider_config if provider_config and provider_config.provider_type == "mineru" else None
         )
 
@@ -882,7 +914,9 @@ class TaskManager:
             api_token=mineru_api_token,
             model_version=mineru_model_version,
             progress_callback=handle_parse_progress,
-            s3_client=s3
+            s3_client=s3,
+            provider_key=f"mineru:{mineru_provider_id}" if mineru_provider_id else "mineru",
+            provider_max_concurrency=self._get_provider_concurrency(provider_config, default_limit=4),
         )
 
         if not success:
@@ -952,7 +986,9 @@ class TaskManager:
             lang_from=task.source_lang,
             lang_to=task.target_lang,
             model_config=model_config,
-            progress_callback=handle_translate_progress
+            progress_callback=handle_translate_progress,
+            provider_key=(provider_config.id if provider_config else f"engine:{service}"),
+            provider_max_concurrency=self._get_provider_concurrency(provider_config, default_limit=4),
         )
 
         if not success:

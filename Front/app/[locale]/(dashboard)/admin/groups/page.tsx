@@ -8,6 +8,10 @@ import { ProviderConfig } from '@/lib/types/provider';
 import { Button } from '@/components/ui/button';
 import { SkeletonTable } from '@/components/ui/skeleton';
 import { useTranslations } from 'next-intl';
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
+import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { GripVertical } from 'lucide-react';
 
 export default function AdminGroupsPage() {
   const t = useTranslations('groups');
@@ -77,6 +81,25 @@ export default function AdminGroupsPage() {
   );
 }
 
+function SortableItem({ id, children }: { id: string; children: React.ReactNode }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg">
+      <div {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing">
+        <GripVertical className="h-5 w-5 text-muted-foreground" />
+      </div>
+      {children}
+    </div>
+  );
+}
+
 function GroupAccessPanel({ groupId, providers }: { groupId: string; providers: ProviderConfig[] }) {
   const t = useTranslations('groups');
   const queryClient = useQueryClient();
@@ -89,6 +112,13 @@ function GroupAccessPanel({ groupId, providers }: { groupId: string; providers: 
 
   const providerMap = useMemo(() => new Map(providers.map((p) => [p.id, p])), [providers]);
   const grantedIds = useMemo(() => new Set(accessList.map((a) => a.providerConfigId)), [accessList]);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
 
   const grantMutation = useMutation({
     mutationFn: (providerId: string) => adminGroupsAPI.grantAccess(groupId, providerId),
@@ -104,18 +134,44 @@ function GroupAccessPanel({ groupId, providers }: { groupId: string; providers: 
     },
   });
 
-  const move = useMutation({
-    mutationFn: (payload: { from: number; to: number }) => {
-      const next = [...accessList];
-      const [item] = next.splice(payload.from, 1);
-      next.splice(payload.to, 0, item);
-      const providerIds = next.map((a) => a.providerConfigId);
-      return adminGroupsAPI.reorder(groupId, providerIds);
+  const reorderMutation = useMutation({
+    mutationFn: (providerIds: string[]) => adminGroupsAPI.reorder(groupId, providerIds),
+    onMutate: async (providerIds) => {
+      await queryClient.cancelQueries({ queryKey: ['admin', 'groups', groupId, 'access'] });
+      const previous = queryClient.getQueryData<GroupProviderAccess[]>(['admin', 'groups', groupId, 'access']);
+
+      queryClient.setQueryData<GroupProviderAccess[]>(['admin', 'groups', groupId, 'access'], (old) => {
+        if (!old) return old;
+        const sorted = [...old].sort((a, b) =>
+          providerIds.indexOf(a.providerConfigId) - providerIds.indexOf(b.providerConfigId)
+        );
+        return sorted;
+      });
+
+      return { previous };
     },
-    onSuccess: () => {
+    onError: (_err, _vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(['admin', 'groups', groupId, 'access'], context.previous);
+      }
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'groups', groupId, 'access'] });
     },
   });
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (over && active.id !== over.id) {
+      const oldIndex = accessList.findIndex((a) => a.id === active.id);
+      const newIndex = accessList.findIndex((a) => a.id === over.id);
+
+      const newAccessList = arrayMove(accessList, oldIndex, newIndex);
+      const providerIds = newAccessList.map((a) => a.providerConfigId);
+      reorderMutation.mutate(providerIds);
+    }
+  };
 
   const handleProviderToggle = (providerId: string, isCurrentlyGranted: boolean) => {
     setPendingChanges((prev) => new Set(prev).add(providerId));
@@ -175,11 +231,6 @@ function GroupAccessPanel({ groupId, providers }: { groupId: string; providers: 
                     <div className="text-sm font-medium">{provider.name}</div>
                     <div className="text-xs text-muted-foreground">{provider.providerType}</div>
                   </div>
-                  {provider.isDefault && (
-                    <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded">
-                      {t('default')}
-                    </span>
-                  )}
                 </label>
               );
             })
@@ -190,41 +241,27 @@ function GroupAccessPanel({ groupId, providers }: { groupId: string; providers: 
       {accessList.length > 0 && (
         <div className="p-4">
           <h3 className="text-sm font-medium mb-3">{t('priorityOrder')}</h3>
-          <div className="space-y-2">
-            {accessList.map((a, index) => {
-              const p = providerMap.get(a.providerConfigId);
-              return (
-                <div key={a.id} className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg">
-                  <div className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-medium">
-                    {index + 1}
-                  </div>
-                  <div className="flex-1">
-                    <div className="text-sm font-medium">{p?.name || a.providerConfigId}</div>
-                    <div className="text-xs text-muted-foreground">{p?.providerType}</div>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      disabled={index === 0 || move.isPending}
-                      onClick={() => move.mutate({ from: index, to: index - 1 })}
-                      className="h-8 w-8 p-0"
-                    >
-                      ↑
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      disabled={index === accessList.length - 1 || move.isPending}
-                      onClick={() => move.mutate({ from: index, to: index + 1 })}
-                      className="h-8 w-8 p-0"
-                    >
-                      ↓
-                    </Button>
-                  </div>
+          <div className={reorderMutation.isPending ? 'pointer-events-none opacity-60' : ''}>
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+              <SortableContext items={accessList.map((a) => a.id)} strategy={verticalListSortingStrategy}>
+                <div className="space-y-2">
+                  {accessList.map((a, index) => {
+                    const p = providerMap.get(a.providerConfigId);
+                    return (
+                      <SortableItem key={a.id} id={a.id}>
+                        <div className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-medium">
+                          {index + 1}
+                        </div>
+                        <div className="flex-1">
+                          <div className="text-sm font-medium">{p?.name || a.providerConfigId}</div>
+                          <div className="text-xs text-muted-foreground">{p?.providerType}</div>
+                        </div>
+                      </SortableItem>
+                    );
+                  })}
                 </div>
-              );
-            })}
+              </SortableContext>
+            </DndContext>
           </div>
         </div>
       )}

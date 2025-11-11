@@ -668,7 +668,7 @@ function TaskDetailDialog({ task, providerName, onClose }: { task: Task; provide
               <p className="text-sm mt-1">{task.documentName}</p>
             </div>
             <div>
-              <label className="text-sm font-medium text-muted-foreground">{t('status')}</label>
+              <label className="text-sm font-medium text-muted-foreground">{t('statusLabel')}</label>
               <div className="mt-1">
                 <Badge variant={
                   task.status === 'completed' ? 'success' :
@@ -783,9 +783,9 @@ function CreateTaskDialog({ onClose, providers }: { onClose: () => void; provide
   const [translateAfterParsing, setTranslateAfterParsing] = useState(false);
   const t = useTranslations('tasks.createDialog');
 
-  // Compute default translation provider
+  // Use first translation provider (highest priority)
   const translationProviders = useMemo(() => providers.filter((p) => p.providerType !== 'mineru'), [providers]);
-  const defaultTranslation = useMemo(() => translationProviders.find((p) => p.isDefault) || translationProviders[0], [translationProviders]);
+  const defaultTranslation = useMemo(() => translationProviders[0], [translationProviders]);
 
   const [formData, setFormData] = useState({
     documentName: '',
@@ -1004,7 +1004,6 @@ function CreateTaskDialog({ onClose, providers }: { onClose: () => void; provide
                   .map((provider) => (
                     <option key={provider.id} value={provider.id}>
                       {provider.name} ({provider.providerType})
-                      {provider.isDefault && ` ${t('default')}`}
                     </option>
                   ))}
               </select>
@@ -1042,7 +1041,6 @@ function CreateTaskDialog({ onClose, providers }: { onClose: () => void; provide
                   .map((provider) => (
                     <option key={provider.id} value={provider.id}>
                       {provider.name} ({provider.providerType})
-                      {provider.isDefault && ` ${t('default')}`}
                     </option>
                   ))}
               </select>
@@ -1092,9 +1090,9 @@ function BatchUploadDialog({ onClose, providers }: { onClose: () => void; provid
   const t = useTranslations('tasks.batchDialog');
   const tCreate = useTranslations('tasks.createDialog');
 
-  // Compute default translation provider
+  // Use first translation provider (highest priority)
   const translationProviders = useMemo(() => providers.filter((p) => p.providerType !== 'mineru'), [providers]);
-  const defaultTranslation = useMemo(() => translationProviders.find((p) => p.isDefault) || translationProviders[0], [translationProviders]);
+  const defaultTranslation = useMemo(() => translationProviders[0], [translationProviders]);
 
   const [formData, setFormData] = useState({
     taskType: 'translation' as 'translation' | 'parsing',
@@ -1342,7 +1340,6 @@ function BatchUploadDialog({ onClose, providers }: { onClose: () => void; provid
                   .map((provider) => (
                     <option key={provider.id} value={provider.id}>
                       {provider.name} ({provider.providerType})
-                      {provider.isDefault && ` ${tCreate('default')}`}
                     </option>
                   ))}
               </select>
@@ -1380,7 +1377,6 @@ function BatchUploadDialog({ onClose, providers }: { onClose: () => void; provid
                   .map((provider) => (
                     <option key={provider.id} value={provider.id}>
                       {provider.name} ({provider.providerType})
-                      {provider.isDefault && ` ${tCreate('default')}`}
                     </option>
                   ))}
               </select>
