@@ -88,7 +88,22 @@ export default function LoginPage() {
 
           {altchaEnabled && challengeUrl && (
             <div className="flex justify-center">
-              <altcha-widget challengeurl={challengeUrl} auto="onsubmit" hidefooter />
+              <altcha-widget
+                challengeurl={challengeUrl}
+                auto="onsubmit"
+                hidefooter
+                style={{
+                  ['--altcha-max-width' as any]: '520px',
+                  ['--altcha-border-width' as any]: '2px',
+                  ['--altcha-border-radius' as any]: '12px',
+                  ['--altcha-color-base' as any]: 'hsl(var(--card))',
+                  ['--altcha-color-text' as any]: 'hsl(var(--foreground))',
+                  ['--altcha-color-border' as any]: 'hsl(var(--border))',
+                  ['--altcha-color-border-focus' as any]: 'hsl(var(--primary))',
+                  transform: 'scale(1.15)',
+                  transformOrigin: 'center',
+                } as any}
+              />
             </div>
           )}
 

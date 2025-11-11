@@ -13,7 +13,7 @@ def create_challenge(
     secret_key: str,
     max_number: int = 100000,
     salt_length: int = 12,
-    expires_in: int = 300  # 5 minutes
+    expires_in: int = 300,  # 5 minutes
 ) -> dict:
     """
     Create an ALTCHA challenge.
@@ -39,12 +39,13 @@ def create_challenge(
     # Create the challenge hash
     challenge = hashlib.sha256(f"{salt}{number}".encode()).hexdigest()
 
-    # Create signature
-    signature_data = f"{challenge}{salt}{number}{expires}"
+    # Create signature based on challenge + salt only.
+    # ALTCHA v2 widget does not include "expires" in the returned payload and
+    # only returns: algorithm, challenge, number, salt, signature, took.
+    # Using challenge+salt keeps verification stateless and compatible.
+    signature_data = f"{challenge}{salt}"
     signature = hmac.new(
-        secret_key.encode(),
-        signature_data.encode(),
-        hashlib.sha256
+        secret_key.encode(), signature_data.encode(), hashlib.sha256
     ).hexdigest()
 
     return {
@@ -60,7 +61,7 @@ def create_challenge(
 def verify_solution(
     payload: str,
     secret_key: str,
-    check_expires: bool = True
+    check_expires: bool = False,
 ) -> bool:
     """
     Verify an ALTCHA solution payload.
@@ -85,6 +86,7 @@ def verify_solution(
         number = data.get("number")
         salt = data.get("salt")
         signature = data.get("signature")
+        # ALTCHA v2 payload does not include "expires". Keep None by default.
         expires = data.get("expires")
 
         # Validate required fields
@@ -95,9 +97,9 @@ def verify_solution(
         if algorithm != "SHA-256":
             return False
 
-        # Check expiration
+        # Optional expiration check (disabled by default as v2 payload does not carry it)
         if check_expires and expires:
-            if int(time.time()) > expires:
+            if int(time.time()) > int(expires):
                 return False
 
         # Verify the challenge hash
@@ -105,12 +107,10 @@ def verify_solution(
         if computed_challenge != challenge:
             return False
 
-        # Verify the signature
-        signature_data = f"{challenge}{salt}{number}{expires}"
+        # Verify the server signature against challenge + salt only
+        signature_data = f"{challenge}{salt}"
         expected_signature = hmac.new(
-            secret_key.encode(),
-            signature_data.encode(),
-            hashlib.sha256
+            secret_key.encode(), signature_data.encode(), hashlib.sha256
         ).hexdigest()
 
         return hmac.compare_digest(signature, expected_signature)
@@ -122,10 +122,8 @@ def verify_solution(
 def verify_server_signature(
     challenge: str,
     salt: str,
-    number: int,
-    expires: int,
     signature: str,
-    secret_key: str
+    secret_key: str,
 ) -> bool:
     """
     Verify the server signature of a challenge.
@@ -141,11 +139,9 @@ def verify_server_signature(
     Returns:
         True if the signature is valid, False otherwise
     """
-    signature_data = f"{challenge}{salt}{number}{expires}"
+    signature_data = f"{challenge}{salt}"
     expected_signature = hmac.new(
-        secret_key.encode(),
-        signature_data.encode(),
-        hashlib.sha256
+        secret_key.encode(), signature_data.encode(), hashlib.sha256
     ).hexdigest()
 
     return hmac.compare_digest(signature, expected_signature)
