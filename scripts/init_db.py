@@ -47,7 +47,6 @@ async def seed_default_data():
         else:
             # Create default admin user if not exists
             admin_user = User(
-                id=str(uuid.uuid4()),
                 email="admin@example.com",
                 name="Admin",
                 password_hash=hash_password("admin123"),
@@ -57,19 +56,20 @@ async def seed_default_data():
             )
             db.add(admin_user)
             await db.commit()
+            await db.refresh(admin_user)
             print(f"✅ Created default admin user: admin@example.com (password: admin123)")
         
         # 2. Create default Google Translate provider (free, no API key needed)
         result = await db.execute(
             select(TranslationProviderConfig).where(
-                TranslationProviderConfig.id == "google-default"
+                TranslationProviderConfig.provider_type == "google",
+                TranslationProviderConfig.name == "Google Translate (Free)"
             )
         )
         google_provider = result.scalar_one_or_none()
-        
+
         if not google_provider:
             google_provider = TranslationProviderConfig(
-                id="google-default",
                 name="Google Translate (Free)",
                 provider_type="google",
                 is_active=True,
@@ -78,18 +78,20 @@ async def seed_default_data():
             )
             db.add(google_provider)
             await db.commit()
+            await db.refresh(google_provider)
             print(f"✅ Created default Google Translate provider")
         else:
             print(f"✅ Default Google Translate provider already exists")
 
         # 3. Ensure default group exists (created by migration 001, but tolerate manual DBs)
-        result = await db.execute(select(Group).where(Group.id == "default"))
+        result = await db.execute(select(Group).where(Group.name == "Default Group"))
         default_group = result.scalar_one_or_none()
         if not default_group:
-            default_group = Group(id="default", name="Default Group")
+            default_group = Group(name="Default Group")
             db.add(default_group)
             await db.commit()
-            print("✅ Created default group 'default'")
+            await db.refresh(default_group)
+            print("✅ Created default group 'Default Group'")
         else:
             print("✅ Default group exists")
 
@@ -99,7 +101,7 @@ async def seed_default_data():
         updated_users = 0
         for user in all_users:
             if getattr(user, "group_id", None) is None:
-                user.group_id = "default"
+                user.group_id = default_group.id
                 updated_users += 1
         if updated_users:
             await db.commit()
@@ -108,16 +110,15 @@ async def seed_default_data():
         # 5. Grant default group access to the default provider
         access_exists = await db.execute(
             select(GroupProviderAccess).where(
-                GroupProviderAccess.group_id == "default",
-                GroupProviderAccess.provider_config_id == "google-default",
+                GroupProviderAccess.group_id == default_group.id,
+                GroupProviderAccess.provider_config_id == google_provider.id,
             )
         )
         if access_exists.scalar_one_or_none() is None:
             db.add(
                 GroupProviderAccess(
-                    id=str(uuid.uuid4()),
-                    group_id="default",
-                    provider_config_id="google-default",
+                    group_id=default_group.id,
+                    provider_config_id=google_provider.id,
                     sort_order=0,
                 )
             )

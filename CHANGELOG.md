@@ -1,5 +1,14 @@
 # Changelog
 
+## 2025-11-11 (DB Auto‑migrate & UUIDv7)
+
+### Fixed
+- Startup error when creating tables on fresh databases: `function uuid_generate_v7() does not exist`. Backend now runs Alembic migrations at startup before any schema access.
+- Alembic `005` ensures `pgcrypto` is installed (`CREATE EXTENSION IF NOT EXISTS pgcrypto`) so the `uuid_generate_v7()` function can use `gen_random_bytes` reliably.
+
+### Changed
+- Backend startup applies `alembic upgrade head` automatically. Manual migration commands remain available for troubleshooting and CI.
+
 ## 2025-11-11 (ALTCHA v2 Verification)
 
 ### Fixed

@@ -126,7 +126,7 @@ async def create_provider(
 
 @router.get("/{provider_id}", response_model=ProviderConfigResponse)
 async def get_provider(
-    provider_id: str,
+    provider_id: int,
     admin: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db)
 ):
@@ -157,7 +157,7 @@ async def get_provider(
 
 @router.patch("/{provider_id}", response_model=ProviderConfigResponse)
 async def update_provider(
-    provider_id: str,
+    provider_id: int,
     request: UpdateProviderConfigRequest,
     admin: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db)
@@ -207,7 +207,7 @@ async def update_provider(
 
 @router.delete("/{provider_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_provider(
-    provider_id: str,
+    provider_id: int,
     admin: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db)
 ):

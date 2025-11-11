@@ -12,21 +12,27 @@ class RedisClient:
         self.default_ttl = 3600  # 1小时默认TTL
 
     async def connect(self):
-        self.redis = await redis.from_url(settings.redis_url, decode_responses=False)
+        self.redis = await redis.from_url(
+            settings.redis_url,
+            decode_responses=False,
+            socket_connect_timeout=5,  # 5秒连接超时
+            socket_timeout=5,  # 5秒操作超时
+            retry_on_timeout=True
+        )
 
     async def disconnect(self):
         if self.redis:
             await self.redis.close()
 
     # 任务队列相关
-    async def enqueue_task(self, task_id: str, priority: str = "normal"):
+    async def enqueue_task(self, task_id: int, priority: str = "normal"):
         queue_name = f"tasks:{priority}"
         await self.redis.lpush(queue_name, task_id)
 
-    async def dequeue_task(self, priority: str = "normal") -> Optional[str]:
+    async def dequeue_task(self, priority: str = "normal") -> Optional[int]:
         queue_name = f"tasks:{priority}"
         task_id = await self.redis.rpop(queue_name)
-        return task_id.decode() if task_id else None
+        return int(task_id.decode()) if task_id else None
 
     async def get_queue_length(self, priority: str = "normal") -> int:
         queue_name = f"tasks:{priority}"
@@ -40,7 +46,7 @@ class RedisClient:
             lengths[priority] = await self.redis.llen(queue_name)
         return lengths
 
-    async def remove_task_from_all_queues(self, task_id: str):
+    async def remove_task_from_all_queues(self, task_id: int):
         """从所有优先级队列中移除指定任务"""
         if not self.redis:
             return
@@ -49,27 +55,27 @@ class RedisClient:
             await self.redis.lrem(queue_name, 0, task_id)
 
     # 任务状态缓存
-    async def set_task_status(self, task_id: str, status: str, ttl: int = None):
+    async def set_task_status(self, task_id: int, status: str, ttl: int = None):
         ttl = ttl or self.default_ttl
         await self.redis.setex(f"task_status:{task_id}", ttl, status)
 
-    async def delete_task_status(self, task_id: str):
+    async def delete_task_status(self, task_id: int):
         key = f"task_status:{task_id}"
         if self.redis:
             await self.redis.delete(key)
 
-    async def get_task_status(self, task_id: str) -> Optional[str]:
+    async def get_task_status(self, task_id: int) -> Optional[str]:
         status = await self.redis.get(f"task_status:{task_id}")
         return status.decode() if status else None
 
     # 任务列表缓存
-    async def cache_user_tasks(self, user_id: str, tasks_data: List[Dict], ttl: int = None):
+    async def cache_user_tasks(self, user_id: int, tasks_data: List[Dict], ttl: int = None):
         """缓存用户任务列表"""
         ttl = ttl or 300  # 5分钟缓存
         cache_key = f"user_tasks:{user_id}"
         await self.redis.setex(cache_key, ttl, pickle.dumps(tasks_data))
 
-    async def get_cached_user_tasks(self, user_id: str) -> Optional[List[Dict]]:
+    async def get_cached_user_tasks(self, user_id: int) -> Optional[List[Dict]]:
         """获取缓存的用户任务列表"""
         cache_key = f"user_tasks:{user_id}"
         cached = await self.redis.get(cache_key)
@@ -77,19 +83,19 @@ class RedisClient:
             return pickle.loads(cached)
         return None
 
-    async def invalidate_user_tasks_cache(self, user_id: str):
+    async def invalidate_user_tasks_cache(self, user_id: int):
         """失效用户任务缓存"""
         cache_key = f"user_tasks:{user_id}"
         await self.redis.delete(cache_key)
 
     # 任务详情缓存
-    async def cache_task_details(self, task_id: str, task_data: Dict, ttl: int = None):
+    async def cache_task_details(self, task_id: int, task_data: Dict, ttl: int = None):
         """缓存任务详情"""
         ttl = ttl or 600  # 10分钟缓存
         cache_key = f"task_details:{task_id}"
         await self.redis.setex(cache_key, ttl, pickle.dumps(task_data))
 
-    async def get_cached_task_details(self, task_id: str) -> Optional[Dict]:
+    async def get_cached_task_details(self, task_id: int) -> Optional[Dict]:
         """获取缓存的任务详情"""
         cache_key = f"task_details:{task_id}"
         cached = await self.redis.get(cache_key)
@@ -97,19 +103,19 @@ class RedisClient:
             return pickle.loads(cached)
         return None
 
-    async def invalidate_task_details_cache(self, task_id: str):
+    async def invalidate_task_details_cache(self, task_id: int):
         """失效任务详情缓存"""
         cache_key = f"task_details:{task_id}"
         await self.redis.delete(cache_key)
 
     # 统计信息缓存
-    async def cache_task_stats(self, user_id: str, stats: Dict, ttl: int = None):
+    async def cache_task_stats(self, user_id: int, stats: Dict, ttl: int = None):
         """缓存任务统计信息"""
         ttl = ttl or 1800  # 30分钟缓存
         cache_key = f"task_stats:{user_id}"
         await self.redis.setex(cache_key, ttl, pickle.dumps(stats))
 
-    async def get_cached_task_stats(self, user_id: str) -> Optional[Dict]:
+    async def get_cached_task_stats(self, user_id: int) -> Optional[Dict]:
         """获取缓存的任务统计信息"""
         cache_key = f"task_stats:{user_id}"
         cached = await self.redis.get(cache_key)
@@ -117,7 +123,7 @@ class RedisClient:
             return pickle.loads(cached)
         return None
 
-    async def invalidate_all_user_cache(self, user_id: str):
+    async def invalidate_all_user_cache(self, user_id: int):
         """失效用户所有相关缓存"""
         patterns = [
             f"user_tasks:{user_id}",

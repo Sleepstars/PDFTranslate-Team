@@ -12,6 +12,8 @@ from .models import User, Group
 from .tasks import task_manager
 import logging
 import asyncio
+from alembic import command
+from alembic.config import Config
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -29,13 +31,24 @@ async def lifespan(app: FastAPI):
         logger.error(f"❌ Redis connection failed: {e}")
         raise
 
+    # Run Alembic migrations before any DB usage to ensure schema exists
     try:
-        logger.info("🗄️  Initializing database...")
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
-        logger.info("✅ Database initialized")
+        logger.info("🗄️  Running database migrations (Alembic upgrade head)...")
+        # 使用 subprocess 在独立进程中运行 Alembic，避免事件循环冲突
+        import subprocess
+        result = await asyncio.to_thread(
+            subprocess.run,
+            ["alembic", "upgrade", "head"],
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        logger.info("✅ Database migrations applied")
+    except subprocess.CalledProcessError as e:
+        logger.error(f"❌ Database migration failed: {e.stderr}")
+        raise
     except Exception as e:
-        logger.error(f"❌ Database initialization failed: {e}")
+        logger.error(f"❌ Database migration failed: {e}")
         raise
 
     # Create default group and admin user if not exists

@@ -56,7 +56,7 @@ def count_pdf_pages(file_content: bytes) -> int:
         return 1
 
 
-async def get_quota_status(user_id: str, db: AsyncSession) -> dict:
+async def get_quota_status(user_id: int, db: AsyncSession) -> dict:
     """Get user's current quota status"""
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()

@@ -49,7 +49,7 @@ class Settings(BaseSettings):
 
 
 class PublicUser(BaseModel):
-    id: str
+    id: int
     name: str
     email: EmailStr
     role: str = "user"
@@ -58,8 +58,3 @@ class PublicUser(BaseModel):
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
-
-
-def get_admin_user() -> PublicUser:
-    settings = get_settings()
-    return PublicUser(id=settings.admin_id, name=settings.admin_name, email=settings.admin_email)

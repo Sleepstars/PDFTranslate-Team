@@ -34,8 +34,8 @@ def upgrade() -> None:
     # Create email_verification_tokens table if it doesn't exist
     conn.execute(sa.text("""
         CREATE TABLE IF NOT EXISTS email_verification_tokens (
-            id VARCHAR(50) NOT NULL PRIMARY KEY,
-            user_id VARCHAR(50) NOT NULL,
+            id BIGSERIAL PRIMARY KEY,
+            user_id BIGINT NOT NULL,
             token_hash VARCHAR(64) NOT NULL,
             expires_at TIMESTAMP WITHOUT TIME ZONE NOT NULL,
             used BOOLEAN DEFAULT false NOT NULL,

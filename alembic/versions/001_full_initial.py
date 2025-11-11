@@ -20,7 +20,7 @@ def upgrade() -> None:
     # groups
     op.create_table(
         "groups",
-        sa.Column("id", sa.String(length=50), primary_key=True),
+        sa.Column("id", sa.BigInteger(), primary_key=True, autoincrement=True),
         sa.Column("name", sa.String(length=255), nullable=False),
         sa.Column("created_at", sa.DateTime(), server_default=sa.func.now(), nullable=False),
     )
@@ -28,7 +28,7 @@ def upgrade() -> None:
     # translation_provider_configs
     op.create_table(
         "translation_provider_configs",
-        sa.Column("id", sa.String(length=50), primary_key=True),
+        sa.Column("id", sa.BigInteger(), primary_key=True, autoincrement=True),
         sa.Column("name", sa.String(length=255), nullable=False),
         sa.Column("provider_type", sa.String(length=50), nullable=False),
         sa.Column("description", sa.Text(), nullable=True),
@@ -48,14 +48,14 @@ def upgrade() -> None:
     # users (FK to groups)
     op.create_table(
         "users",
-        sa.Column("id", sa.String(length=50), primary_key=True),
+        sa.Column("id", sa.BigInteger(), primary_key=True, autoincrement=True),
         sa.Column("email", sa.String(length=255), nullable=False),
         sa.Column("name", sa.String(length=255), nullable=False),
         sa.Column("password_hash", sa.String(length=255), nullable=False),
         sa.Column("created_at", sa.DateTime(), server_default=sa.func.now(), nullable=False),
         sa.Column("role", sa.String(length=20), nullable=False, server_default="user"),
         sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.text("true")),
-        sa.Column("group_id", sa.String(length=50), nullable=True),
+        sa.Column("group_id", sa.BigInteger(), nullable=True),
         sa.Column("daily_page_limit", sa.Integer(), nullable=False, server_default="50"),
         sa.Column("daily_page_used", sa.Integer(), nullable=False, server_default="0"),
         sa.Column("last_quota_reset", sa.DateTime(), nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
@@ -67,9 +67,9 @@ def upgrade() -> None:
     # group_provider_access
     op.create_table(
         "group_provider_access",
-        sa.Column("id", sa.String(length=50), primary_key=True),
-        sa.Column("group_id", sa.String(length=50), nullable=False),
-        sa.Column("provider_config_id", sa.String(length=50), nullable=False),
+        sa.Column("id", sa.BigInteger(), primary_key=True, autoincrement=True),
+        sa.Column("group_id", sa.BigInteger(), nullable=False),
+        sa.Column("provider_config_id", sa.BigInteger(), nullable=False),
         sa.Column("sort_order", sa.Integer(), nullable=False, server_default="0"),
         sa.Column("created_at", sa.DateTime(), nullable=False, server_default=sa.func.now()),
         sa.ForeignKeyConstraint(["group_id"], ["groups.id"], ondelete="CASCADE"),
@@ -81,9 +81,9 @@ def upgrade() -> None:
     # user_provider_access
     op.create_table(
         "user_provider_access",
-        sa.Column("id", sa.String(length=50), primary_key=True),
-        sa.Column("user_id", sa.String(length=50), nullable=False),
-        sa.Column("provider_config_id", sa.String(length=50), nullable=False),
+        sa.Column("id", sa.BigInteger(), primary_key=True, autoincrement=True),
+        sa.Column("user_id", sa.BigInteger(), nullable=False),
+        sa.Column("provider_config_id", sa.BigInteger(), nullable=False),
         sa.Column("is_default", sa.Boolean(), nullable=False, server_default=sa.text("false")),
         sa.Column("created_at", sa.DateTime(), nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
@@ -103,8 +103,8 @@ def upgrade() -> None:
     # translation_tasks (full schema)
     op.create_table(
         "translation_tasks",
-        sa.Column("id", sa.String(length=50), primary_key=True),
-        sa.Column("owner_id", sa.String(length=50), nullable=False),
+        sa.Column("id", sa.BigInteger(), primary_key=True, autoincrement=True),
+        sa.Column("owner_id", sa.BigInteger(), nullable=False),
         sa.Column("owner_email", sa.String(length=255), nullable=False),
         sa.Column("document_name", sa.String(length=500), nullable=False),
         sa.Column("source_lang", sa.String(length=10), nullable=False),
@@ -124,7 +124,7 @@ def upgrade() -> None:
         sa.Column("model_config", sa.Text(), nullable=True),
         sa.Column("progress_message", sa.Text(), nullable=True),
         sa.Column("page_count", sa.Integer(), nullable=False, server_default="0"),
-        sa.Column("provider_config_id", sa.String(length=50), nullable=True),
+        sa.Column("provider_config_id", sa.BigInteger(), nullable=True),
         sa.Column("mono_output_s3_key", sa.String(length=500), nullable=True),
         sa.Column("mono_output_url", sa.String(length=1000), nullable=True),
         sa.Column("dual_output_s3_key", sa.String(length=500), nullable=True),
@@ -149,9 +149,6 @@ def upgrade() -> None:
     op.create_index("ix_translation_tasks_owner_email", "translation_tasks", ["owner_email"], unique=False)
     op.create_index("ix_translation_tasks_engine_status", "translation_tasks", ["engine", "status"], unique=False)
     op.create_index(op.f("ix_translation_tasks_task_type"), "translation_tasks", ["task_type"], unique=False)
-
-    # seed default group
-    op.execute("INSERT INTO groups (id, name, created_at) VALUES ('default', 'Default Group', CURRENT_TIMESTAMP)")
 
 
 def downgrade() -> None:

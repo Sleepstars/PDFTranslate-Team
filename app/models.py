@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Optional
-from sqlalchemy import String, Integer, DateTime, Text, Boolean, ForeignKey, func, text
+from sqlalchemy import String, Integer, BigInteger, DateTime, Text, Boolean, ForeignKey, func, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database import Base
 
@@ -8,7 +8,7 @@ from app.database import Base
 class User(Base):
     __tablename__ = "users"
 
-    id: Mapped[str] = mapped_column(String(50), primary_key=True, server_default=text("uuid_generate_v7()::text"))
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
     name: Mapped[str] = mapped_column(String(255))
     password_hash: Mapped[str] = mapped_column(String(255))
@@ -20,7 +20,7 @@ class User(Base):
     email_verified: Mapped[bool] = mapped_column(Boolean, server_default="false")
 
     # Group-based access control (optional single group)
-    group_id: Mapped[Optional[str]] = mapped_column(String(50), ForeignKey("groups.id", ondelete="SET NULL"), nullable=True)
+    group_id: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("groups.id", ondelete="SET NULL"), nullable=True)
 
     # Quota management
     daily_page_limit: Mapped[int] = mapped_column(Integer, server_default="50")
@@ -31,7 +31,7 @@ class User(Base):
 class TranslationProviderConfig(Base):
     __tablename__ = "translation_provider_configs"
 
-    id: Mapped[str] = mapped_column(String(50), primary_key=True, server_default=text("uuid_generate_v7()::text"))
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(255))
     provider_type: Mapped[str] = mapped_column(String(50), index=True)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
@@ -45,7 +45,7 @@ class TranslationProviderConfig(Base):
 class Group(Base):
     __tablename__ = "groups"
 
-    id: Mapped[str] = mapped_column(String(50), primary_key=True, server_default=text("uuid_generate_v7()::text"))
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(255))
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
@@ -53,9 +53,9 @@ class Group(Base):
 class GroupProviderAccess(Base):
     __tablename__ = "group_provider_access"
 
-    id: Mapped[str] = mapped_column(String(50), primary_key=True, server_default=text("uuid_generate_v7()::text"))
-    group_id: Mapped[str] = mapped_column(String(50), ForeignKey("groups.id", ondelete="CASCADE"), index=True)
-    provider_config_id: Mapped[str] = mapped_column(String(50), ForeignKey("translation_provider_configs.id", ondelete="CASCADE"), index=True)
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    group_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("groups.id", ondelete="CASCADE"), index=True)
+    provider_config_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("translation_provider_configs.id", ondelete="CASCADE"), index=True)
     sort_order: Mapped[int] = mapped_column(Integer, server_default="0")
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
@@ -63,8 +63,8 @@ class GroupProviderAccess(Base):
 class TranslationTask(Base):
     __tablename__ = "translation_tasks"
 
-    id: Mapped[str] = mapped_column(String(50), primary_key=True, server_default=text("uuid_generate_v7()::text"))
-    owner_id: Mapped[str] = mapped_column(String(50), index=True)
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    owner_id: Mapped[int] = mapped_column(BigInteger, index=True)
     owner_email: Mapped[str] = mapped_column(String(255))
     document_name: Mapped[str] = mapped_column(String(500))
     source_lang: Mapped[str] = mapped_column(String(10))
@@ -86,8 +86,8 @@ class TranslationTask(Base):
 
     # Quota tracking and provider association
     page_count: Mapped[int] = mapped_column(Integer, server_default="0")
-    provider_config_id: Mapped[Optional[str]] = mapped_column(
-        String(50),
+    provider_config_id: Mapped[Optional[int]] = mapped_column(
+        BigInteger,
         ForeignKey("translation_provider_configs.id", ondelete="SET NULL"),
         nullable=True
     )
@@ -156,8 +156,8 @@ class SystemSetting(Base):
 class PasswordResetToken(Base):
     __tablename__ = "password_reset_tokens"
 
-    id: Mapped[str] = mapped_column(String(50), primary_key=True, server_default=text("uuid_generate_v7()::text"))
-    user_id: Mapped[str] = mapped_column(String(50), index=True)
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(BigInteger, index=True)
     token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime, index=True)
     used: Mapped[bool] = mapped_column(Boolean, server_default="false", index=True)
@@ -167,8 +167,8 @@ class PasswordResetToken(Base):
 class EmailVerificationToken(Base):
     __tablename__ = "email_verification_tokens"
 
-    id: Mapped[str] = mapped_column(String(50), primary_key=True, server_default=text("uuid_generate_v7()::text"))
-    user_id: Mapped[str] = mapped_column(String(50), index=True)
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(BigInteger, index=True)
     token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime, index=True)
     used: Mapped[bool] = mapped_column(Boolean, server_default="false", index=True)

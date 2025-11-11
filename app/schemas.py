@@ -43,12 +43,12 @@ class SessionResponse(BaseModel):
 
 
 class UserResponse(BaseModel):
-    id: str
+    id: int
     name: str
     email: EmailStr
     role: str
     isActive: bool
-    groupId: Optional[str] = None
+    groupId: Optional[int] = None
     dailyPageLimit: int
     dailyPageUsed: int
     lastQuotaReset: datetime
@@ -70,7 +70,7 @@ class UpdateUserRequest(BaseModel):
     role: Optional[Literal['admin', 'user']] = None
     isActive: Optional[bool] = None
     dailyPageLimit: Optional[int] = Field(default=None, ge=0)
-    groupId: Optional[str] = None
+    groupId: Optional[int] = None
 
 
 class UpdateQuotaRequest(BaseModel):
@@ -119,7 +119,7 @@ class MinerUProviderSettings(BaseProviderSettings):
 
 
 class ProviderConfigResponse(BaseModel):
-    id: str
+    id: int
     name: str
     providerType: str
     description: Optional[str]
@@ -131,7 +131,7 @@ class ProviderConfigResponse(BaseModel):
 
 class SafeProviderConfigResponse(BaseModel):
     """Provider config response with sensitive fields removed"""
-    id: str
+    id: int
     name: str
     providerType: str
     description: Optional[str]
@@ -192,7 +192,7 @@ class CreateTaskRequest(BaseModel):
     engine: Optional[str] = None  # Optional for parsing-only tasks
     priority: Literal['normal', 'high'] = 'normal'
     notes: Optional[str] = Field(default=None, max_length=500)
-    providerConfigId: Optional[str] = None
+    providerConfigId: Optional[int] = None
 
 
 class TaskActionRequest(BaseModel):
@@ -200,8 +200,8 @@ class TaskActionRequest(BaseModel):
 
 
 class TaskResponse(BaseModel):
-    id: str
-    ownerId: str
+    id: int
+    ownerId: int
     ownerEmail: EmailStr
     documentName: str
     sourceLang: str
@@ -222,7 +222,7 @@ class TaskResponse(BaseModel):
     progressMessage: Optional[str]
     error: Optional[str]
     pageCount: int
-    providerConfigId: Optional[str]
+    providerConfigId: Optional[int]
     taskType: str
     markdownOutputUrl: Optional[str]
     translatedMarkdownUrl: Optional[str]
@@ -239,7 +239,7 @@ class TaskEnvelope(BaseModel):
 
 # Groups
 class GroupResponse(BaseModel):
-    id: str
+    id: int
     name: str
     createdAt: datetime
     userCount: int = 0
@@ -255,24 +255,24 @@ class UpdateGroupRequest(BaseModel):
 
 
 class MergeGroupsRequest(BaseModel):
-    sourceGroupIds: list[str] = Field(..., min_items=1)
+    sourceGroupIds: list[int] = Field(..., min_items=1)
 
 
 class GroupProviderAccessResponse(BaseModel):
-    id: str
-    groupId: str
-    providerConfigId: str
+    id: int
+    groupId: int
+    providerConfigId: int
     sortOrder: int
     createdAt: datetime
 
 
 class GrantGroupProviderAccessRequest(BaseModel):
-    providerConfigId: str
+    providerConfigId: int
     sortOrder: int | None = None
 
 
 class ReorderGroupProvidersRequest(BaseModel):
-    providerIds: list[str]
+    providerIds: list[int]
 
 
 # Admin Settings
@@ -328,7 +328,7 @@ class DailyStatsResponse(BaseModel):
 
 
 class TopUserItem(BaseModel):
-    userId: str
+    userId: int
     userName: str
     userEmail: EmailStr
     totalPages: int

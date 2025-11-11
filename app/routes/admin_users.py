@@ -100,7 +100,7 @@ async def create_user(
 
 @router.get("/{user_id}", response_model=UserResponse)
 async def get_user(
-    user_id: str,
+    user_id: int,
     admin: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db)
 ):
@@ -130,7 +130,7 @@ async def get_user(
 
 @router.patch("/{user_id}", response_model=UserResponse)
 async def update_user(
-    user_id: str,
+    user_id: int,
     request: UpdateUserRequest,
     admin: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db)
@@ -195,7 +195,7 @@ async def update_user(
 
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_user(
-    user_id: str,
+    user_id: int,
     admin: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db)
 ):
@@ -223,7 +223,7 @@ async def delete_user(
 
 @router.patch("/{user_id}/quota", response_model=UserResponse)
 async def update_user_quota(
-    user_id: str,
+    user_id: int,
     request: UpdateQuotaRequest,
     admin: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db)

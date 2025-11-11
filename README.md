@@ -112,9 +112,9 @@ pixi run install-frontend  # 使用 bun install
 # 2. 配置环境变量（可选，使用默认值）
 cp .env.example .env
 
-# 3. 运行数据库迁移
-# 说明：自 2025-11-10 起，Alembic 迁移已合并为“单文件基线”，适用于全新部署。
-# 如为旧库升级，请先备份数据并清空数据库，再执行以下命令：
+# 3. 数据库迁移（已自动执行）
+# 说明：后端启动时会自动运行 Alembic 迁移，通常无需手动执行。
+# 如需手动迁移或排查，可运行：
 pixi run alembic upgrade head
 
 # 4. 初始化默认数据（创建管理员用户和默认服务）
@@ -156,7 +156,7 @@ pixi run alembic upgrade head # 运行数据库迁移
 uv venv && source .venv/bin/activate
 uv pip install -r requirements.txt
 
-# 运行数据库迁移（已合并为单文件基线，适用于全新部署）
+# 运行数据库迁移（可选，后端会自动执行）
 alembic upgrade head
 
 # 初始化默认数据
@@ -182,7 +182,7 @@ cp .env.example .env
 # 2. 启动所有服务
 docker compose up --build -d
 
-# 3. 运行数据库迁移
+# 3. 运行数据库迁移（可选，后端会自动执行）
 docker compose exec backend pixi run alembic upgrade head
 
 # 4. 初始化默认数据

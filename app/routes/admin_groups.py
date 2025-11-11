@@ -78,7 +78,7 @@ async def create_group(
 
 @router.patch("/{group_id}", response_model=GroupResponse)
 async def update_group(
-    group_id: str,
+    group_id: int,
     request: UpdateGroupRequest,
     admin = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
@@ -123,7 +123,7 @@ async def update_group(
 
 @router.delete("/{group_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_group(
-    group_id: str,
+    group_id: int,
     admin = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
@@ -160,7 +160,7 @@ async def delete_group(
 
 @router.post("/{target_group_id}/merge", response_model=GroupResponse)
 async def merge_groups(
-    target_group_id: str,
+    target_group_id: int,
     request: MergeGroupsRequest,
     admin = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
@@ -272,7 +272,7 @@ async def merge_groups(
 
 @router.get("/{group_id}/access", response_model=List[GroupProviderAccessResponse])
 async def list_group_access(
-    group_id: str,
+    group_id: int,
     admin = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
@@ -301,7 +301,7 @@ async def list_group_access(
 
 @router.post("/{group_id}/access", response_model=GroupProviderAccessResponse, status_code=status.HTTP_201_CREATED)
 async def grant_group_access(
-    group_id: str,
+    group_id: int,
     request: GrantGroupProviderAccessRequest,
     admin = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
@@ -348,8 +348,8 @@ async def grant_group_access(
 
 @router.delete("/{group_id}/access/{provider_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def revoke_group_access(
-    group_id: str,
-    provider_id: str,
+    group_id: int,
+    provider_id: int,
     admin = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
@@ -365,7 +365,7 @@ async def revoke_group_access(
 
 @router.post("/{group_id}/access/reorder")
 async def reorder_group_access(
-    group_id: str,
+    group_id: int,
     request: ReorderGroupProvidersRequest,
     admin = Depends(require_admin),
     db: AsyncSession = Depends(get_db),

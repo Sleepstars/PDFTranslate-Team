@@ -5,15 +5,15 @@ from fastapi import WebSocket
 
 class TaskWebSocketManager:
     def __init__(self) -> None:
-        self._connections: Dict[str, Set[WebSocket]] = {}
+        self._connections: Dict[int, Set[WebSocket]] = {}
         self._lock = asyncio.Lock()
 
-    async def connect(self, user_id: str, websocket: WebSocket) -> None:
+    async def connect(self, user_id: int, websocket: WebSocket) -> None:
         await websocket.accept()
         async with self._lock:
             self._connections.setdefault(user_id, set()).add(websocket)
 
-    async def disconnect(self, user_id: str, websocket: WebSocket) -> None:
+    async def disconnect(self, user_id: int, websocket: WebSocket) -> None:
         async with self._lock:
             connections = self._connections.get(user_id)
             if not connections:
@@ -22,7 +22,7 @@ class TaskWebSocketManager:
             if not connections:
                 self._connections.pop(user_id, None)
 
-    async def send_task_update(self, user_id: str, payload: dict) -> None:
+    async def send_task_update(self, user_id: int, payload: dict) -> None:
         async with self._lock:
             connections = list(self._connections.get(user_id, set()))
 

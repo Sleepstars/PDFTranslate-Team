@@ -153,7 +153,9 @@ docker compose up -d
 docker compose ps
 ```
 
-### 2. Run Database Migrations
+### 2. Run Database Migrations (optional)
+
+The backend now applies Alembic migrations automatically at startup. You can still run them manually for troubleshooting:
 
 ```bash
 docker compose exec backend pixi run alembic upgrade head
@@ -271,7 +273,9 @@ npm run build
 cd ..
 ```
 
-### 3. Run Database Migrations
+### 3. Run Database Migrations (optional)
+
+Migrations are applied automatically on backend startup. To run manually:
 
 ```bash
 pixi run alembic upgrade head

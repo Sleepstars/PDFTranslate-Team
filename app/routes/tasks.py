@@ -194,7 +194,7 @@ async def create_task(
 
 
 @router.get("/{task_id}")
-async def get_task(task_id: str, user: PublicUser = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+async def get_task(task_id: int, user: PublicUser = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     task = await task_manager.get_task(task_id)
     if not task or task.owner_id != user.id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
@@ -531,7 +531,7 @@ async def get_concurrent_status(user: PublicUser = Depends(get_current_user)):
 
 
 @router.patch("/{task_id}")
-async def mutate_task(task_id: str, payload: TaskActionRequest, user: PublicUser = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+async def mutate_task(task_id: int, payload: TaskActionRequest, user: PublicUser = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     task = await task_manager.get_task(task_id)
     if not task or task.owner_id != user.id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
@@ -553,7 +553,7 @@ async def mutate_task(task_id: str, payload: TaskActionRequest, user: PublicUser
 
 
 @router.delete("/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_task(task_id: str, user: PublicUser = Depends(get_current_user)):
+async def delete_task(task_id: int, user: PublicUser = Depends(get_current_user)):
     result = await task_manager.delete_task(task_id, user.id)
     if result == "not_found":
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")

@@ -457,6 +457,7 @@ mypy app/
 ```
 
 ### 数据库操作
+> 自 2025-11-11 起：后端在启动时会自动执行 Alembic 迁移（upgrade head）。以下命令保留用于手动迁移或排查问题。
 ```bash
 # 生成迁移文件
 alembic revision --autogenerate -m "添加用户表"

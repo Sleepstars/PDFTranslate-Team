@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 class TaskManager:
     def __init__(self) -> None:
-        self.jobs: Dict[str, asyncio.Task] = {}
+        self.jobs: Dict[int, asyncio.Task] = {}
         # 并发控制信号量
         self.max_concurrent_tasks = 3
         self.task_semaphore = asyncio.Semaphore(self.max_concurrent_tasks)
@@ -88,10 +88,10 @@ class TaskManager:
         await task_ws_manager.send_task_update(owner.id, task.to_dict())
 
         redis = await get_redis()
-        await redis.enqueue_task(task_id, task.priority)
+        await redis.enqueue_task(task.id, task.priority)
 
         # 立即尝试开始处理
-        self._schedule(task_id)
+        self._schedule(task.id)
 
         return task
 
@@ -206,7 +206,7 @@ class TaskManager:
             "available_slots": self.max_concurrent_tasks - len(self.jobs)
         }
 
-    async def list_tasks(self, owner_id: str, status: str = None, engine: str = None, 
+    async def list_tasks(self, owner_id: int, status: str = None, engine: str = None,
                         priority: str = None, date_from: datetime = None, date_to: datetime = None,
                         limit: int = 50, offset: int = 0) -> List[TranslationTask]:
         redis = await get_redis()
@@ -250,7 +250,7 @@ class TaskManager:
             
             return tasks
 
-    async def get_task(self, task_id: str) -> Optional[TranslationTask]:
+    async def get_task(self, task_id: int) -> Optional[TranslationTask]:
         redis = await get_redis()
         
         # 尝试从缓存获取
@@ -275,7 +275,7 @@ class TaskManager:
             
             return task
 
-    async def retry_task(self, task_id: str) -> Optional[TranslationTask]:
+    async def retry_task(self, task_id: int) -> Optional[TranslationTask]:
         async with AsyncSessionLocal() as db:
             result = await db.execute(select(TranslationTask).where(TranslationTask.id == task_id))
             task = result.scalar_one_or_none()
@@ -308,7 +308,7 @@ class TaskManager:
         self._schedule(task_id)
         return task
 
-    async def cancel_task(self, task_id: str) -> Optional[TranslationTask]:
+    async def cancel_task(self, task_id: int) -> Optional[TranslationTask]:
         self._cancel_job(task_id)
         async with AsyncSessionLocal() as db:
             result = await db.execute(select(TranslationTask).where(TranslationTask.id == task_id))
@@ -322,7 +322,7 @@ class TaskManager:
                 await task_ws_manager.send_task_update(task.owner_id, task.to_dict())
             return task
 
-    async def delete_task(self, task_id: str, owner_id: str) -> str:
+    async def delete_task(self, task_id: int, owner_id: int) -> str:
         self._cancel_job(task_id)
 
         redis = await get_redis()
@@ -398,7 +398,7 @@ class TaskManager:
         await redis.delete_task_status(task_id)
         return "deleted"
 
-    async def _update_task(self, task_id: str, **updates) -> Optional[TranslationTask]:
+    async def _update_task(self, task_id: int, **updates) -> Optional[TranslationTask]:
         redis = await get_redis()
         
         # 更新数据库
@@ -428,7 +428,7 @@ class TaskManager:
         
         return task
 
-    def _schedule(self, task_id: str) -> None:
+    def _schedule(self, task_id: int) -> None:
         self._cancel_job(task_id)
         
         # 检查并发限制
@@ -439,7 +439,7 @@ class TaskManager:
         self.jobs[task_id] = job
         job.add_done_callback(lambda _: self.jobs.pop(task_id, None))
 
-    async def _lifecycle_with_semaphore(self, task_id: str) -> None:
+    async def _lifecycle_with_semaphore(self, task_id: int) -> None:
         """带并发控制的生命周期管理"""
         async with self.task_semaphore:
             await self._lifecycle(task_id)
@@ -511,7 +511,7 @@ class TaskManager:
         model_version = settings_dict.get("model_version") or "vlm"
         return api_token, model_version
 
-    def _cancel_job(self, task_id: str) -> None:
+    def _cancel_job(self, task_id: int) -> None:
         job = self.jobs.pop(task_id, None)
         if job:
             job.cancel()
@@ -541,7 +541,7 @@ class TaskManager:
             pass
         return max(1, int(default_limit))
 
-    async def _lifecycle(self, task_id: str) -> None:
+    async def _lifecycle(self, task_id: int) -> None:
         import tempfile
         import os
         from .utils.babeldoc import translate_pdf
@@ -598,7 +598,7 @@ class TaskManager:
                 progress=0,
             )
 
-    async def _lifecycle_translation(self, task_id: str, task, s3, provider_config) -> None:
+    async def _lifecycle_translation(self, task_id: int, task, s3, provider_config) -> None:
         """Original PDF translation workflow using pdf2zh-next"""
         import tempfile
         import os
@@ -802,7 +802,7 @@ class TaskManager:
         import shutil
         shutil.rmtree(temp_dir, ignore_errors=True)
 
-    async def _lifecycle_parsing(self, task_id: str, task, s3, provider_config) -> None:
+    async def _lifecycle_parsing(self, task_id: int, task, s3, provider_config) -> None:
         """MinerU PDF parsing workflow (no translation)"""
         # Get PDF public URL from S3
         if not task.input_s3_key:
@@ -880,7 +880,7 @@ class TaskManager:
             progress_message="解析完成",
         )
 
-    async def _lifecycle_parse_and_translate(self, task_id: str, task, s3, provider_config) -> None:
+    async def _lifecycle_parse_and_translate(self, task_id: int, task, s3, provider_config) -> None:
         """MinerU PDF parsing + markdown translation workflow"""
         # Step 1: Parse PDF with MinerU (similar to parsing workflow)
         if not task.input_s3_key:
