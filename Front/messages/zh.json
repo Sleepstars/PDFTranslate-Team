@@ -56,6 +56,9 @@
     "title": "访问控制",
     "description": "为分组配置可用的服务提供者，减少逐个用户授权的工作量。",
     "create": "创建分组",
+    "merge": "合并分组",
+    "rename": "重命名",
+    "delete": "删除",
     "groups": "分组",
     "selectGroup": "请选择一个分组",
     "groupAccess": "可用的提供者",
@@ -70,12 +73,41 @@
     "default": "默认",
     "priorityOrder": "优先级顺序",
     "granted": "已授权",
+    "stats": "{users} 个用户，{providers} 个提供者",
     "createDialog": {
       "title": "创建分组",
       "name": "分组名称",
       "namePlaceholder": "例如：产品团队A",
       "cancel": "取消",
       "create": "创建"
+    },
+    "renameDialog": {
+      "title": "重命名分组",
+      "name": "分组名称",
+      "namePlaceholder": "输入新的分组名称",
+      "cancel": "取消",
+      "rename": "重命名"
+    },
+    "deleteDialog": {
+      "title": "删除分组",
+      "message": "确定要删除分组 \"{name}\" 吗？",
+      "hasUsers": "该分组有 {count} 个用户。",
+      "reassignFirst": "请先将所有用户重新分配到其他分组，然后再删除。",
+      "cancel": "取消",
+      "delete": "删除"
+    },
+    "mergeDialog": {
+      "title": "合并分组",
+      "targetGroup": "目标分组（保留）",
+      "selectTarget": "选择目标分组...",
+      "sourceGroups": "源分组（合并并删除）",
+      "preview": "预览",
+      "willMerge": "将 {count} 个分组合并到 \"{target}\"",
+      "affectedUsers": "{count} 个用户将被重新分配",
+      "mergeNote": "源分组将在合并后被删除。提供者访问权限将被合并。",
+      "stats": "{users} 个用户，{providers} 个提供者",
+      "cancel": "取消",
+      "merge": "合并"
     }
   },
   "tasks": {

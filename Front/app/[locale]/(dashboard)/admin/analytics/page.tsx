@@ -2,14 +2,17 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
-import { useState } from 'react';
+import { useState, useDeferredValue } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { getAnalyticsOverview, getDailyStats, getTopUsers } from '@/lib/api/analytics';
 import { SkeletonStatCard, SkeletonChart, SkeletonTable } from '@/components/ui/skeleton';
+import { Search } from 'lucide-react';
 
 export default function AnalyticsPage() {
   const t = useTranslations();
   const [days, setDays] = useState(30);
+  const [searchQuery, setSearchQuery] = useState('');
+  const deferredSearchQuery = useDeferredValue(searchQuery);
 
   const { data: overview, isLoading: isLoadingOverview } = useQuery({
     queryKey: ['analytics-overview'],
@@ -26,11 +29,30 @@ export default function AnalyticsPage() {
     queryFn: () => getTopUsers(10),
   });
 
+  // 过滤用户数据
+  const filteredUsers = topUsers?.users.filter((user) =>
+    user.userName.toLowerCase().includes(deferredSearchQuery.toLowerCase()) ||
+    user.userEmail.toLowerCase().includes(deferredSearchQuery.toLowerCase())
+  ) || [];
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div>
         <h1 className="text-2xl font-semibold mb-1">{t('admin.analytics.title')}</h1>
         <p className="text-sm text-muted-foreground">{t('admin.analytics.description')}</p>
+      </div>
+
+      <div className="flex items-center justify-between">
+        <div className="relative flex-1 max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <input
+            type="text"
+            placeholder={t('searchUsers')}
+            className="w-full h-9 pl-9 pr-3 bg-background border border-input rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </div>
       </div>
 
       {/* Overview Cards */}
@@ -44,19 +66,19 @@ export default function AnalyticsPage() {
           </>
         ) : (
           <>
-            <div className="p-6 border rounded-lg bg-card">
+            <div className="p-6 bg-card border border-border rounded-lg">
               <div className="text-sm text-muted-foreground">{t('admin.analytics.todayTranslations')}</div>
               <div className="text-3xl font-bold mt-2">{overview?.todayTranslations ?? 0}</div>
             </div>
-            <div className="p-6 border rounded-lg bg-card">
+            <div className="p-6 bg-card border border-border rounded-lg">
               <div className="text-sm text-muted-foreground">{t('admin.analytics.todayPages')}</div>
               <div className="text-3xl font-bold mt-2">{overview?.todayPages ?? 0}</div>
             </div>
-            <div className="p-6 border rounded-lg bg-card">
+            <div className="p-6 bg-card border border-border rounded-lg">
               <div className="text-sm text-muted-foreground">{t('admin.analytics.totalUsers')}</div>
               <div className="text-3xl font-bold mt-2">{overview?.totalUsers ?? 0}</div>
             </div>
-            <div className="p-6 border rounded-lg bg-card">
+            <div className="p-6 bg-card border border-border rounded-lg">
               <div className="text-sm text-muted-foreground">{t('admin.analytics.activeUsers')}</div>
               <div className="text-3xl font-bold mt-2">{overview?.activeUsers ?? 0}</div>
             </div>
@@ -68,13 +90,13 @@ export default function AnalyticsPage() {
       {isLoadingStats ? (
         <SkeletonChart />
       ) : (
-        <div className="p-6 border rounded-lg bg-card">
+        <div className="p-6 bg-card border border-border rounded-lg">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-lg font-medium">{t('admin.analytics.dailyTrend')}</h2>
             <select
               value={days}
               onChange={(e) => setDays(Number(e.target.value))}
-              className="px-3 py-1 border rounded-md"
+              className="px-3 py-1 border border-input bg-background rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring"
             >
               <option value={7}>7 {t('admin.analytics.days')}</option>
               <option value={30}>30 {t('admin.analytics.days')}</option>
@@ -112,25 +134,27 @@ export default function AnalyticsPage() {
       {isLoadingUsers ? (
         <SkeletonTable rows={10} columns={4} />
       ) : (
-        <div className="p-6 border rounded-lg bg-card">
-          <h2 className="text-lg font-medium mb-4">{t('admin.analytics.topUsers')}</h2>
+        <div className="bg-card border border-border rounded-lg">
+          <div className="p-6 border-b border-border">
+            <h2 className="text-lg font-medium">{t('admin.analytics.topUsers')}</h2>
+          </div>
           <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b">
-                  <th className="text-left py-2">{t('admin.analytics.userName')}</th>
-                  <th className="text-left py-2">{t('admin.analytics.userEmail')}</th>
-                  <th className="text-right py-2">{t('admin.analytics.totalTasks')}</th>
-                  <th className="text-right py-2">{t('admin.analytics.totalPages')}</th>
+            <table className="w-full min-w-[600px]">
+              <thead className="bg-muted/50 border-b border-border">
+                <tr className="text-xs text-muted-foreground">
+                  <th className="px-4 py-2.5 text-left font-medium">{t('admin.analytics.userName')}</th>
+                  <th className="px-4 py-2.5 text-left font-medium">{t('admin.analytics.userEmail')}</th>
+                  <th className="px-4 py-2.5 text-right font-medium">{t('admin.analytics.totalTasks')}</th>
+                  <th className="px-4 py-2.5 text-right font-medium">{t('admin.analytics.totalPages')}</th>
                 </tr>
               </thead>
-              <tbody>
-                {topUsers?.users.map((user) => (
-                  <tr key={user.userId} className="border-b">
-                    <td className="py-2">{user.userName}</td>
-                    <td className="py-2 text-muted-foreground">{user.userEmail}</td>
-                    <td className="py-2 text-right">{user.totalTasks}</td>
-                    <td className="py-2 text-right font-semibold">{user.totalPages}</td>
+              <tbody className="divide-y divide-border">
+                {filteredUsers.map((user) => (
+                  <tr key={user.userId} className="hover:bg-muted/30 transition-colors">
+                    <td className="px-4 py-2.5 text-sm font-medium">{user.userName}</td>
+                    <td className="px-4 py-2.5 text-sm text-muted-foreground">{user.userEmail}</td>
+                    <td className="px-4 py-2.5 text-sm text-right">{user.totalTasks}</td>
+                    <td className="px-4 py-2.5 text-sm text-right font-semibold">{user.totalPages}</td>
                   </tr>
                 ))}
               </tbody>

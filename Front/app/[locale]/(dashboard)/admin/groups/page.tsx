@@ -11,11 +11,14 @@ import { useTranslations } from 'next-intl';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { GripVertical } from 'lucide-react';
+import { GripVertical, Edit2, Trash2, GitMerge } from 'lucide-react';
 
 export default function AdminGroupsPage() {
   const t = useTranslations('groups');
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [showRenameDialog, setShowRenameDialog] = useState<Group | null>(null);
+  const [showDeleteDialog, setShowDeleteDialog] = useState<Group | null>(null);
+  const [showMergeDialog, setShowMergeDialog] = useState(false);
 
   const { data: groups = [], isLoading: loadingGroups } = useQuery<Group[]>({
     queryKey: ['admin', 'groups'],
@@ -31,6 +34,7 @@ export default function AdminGroupsPage() {
 
   // Derive the effective selected group ID
   const effectiveSelectedGroupId = selectedGroupId || groups[0]?.id || '';
+  const selectedGroup = groups.find(g => g.id === effectiveSelectedGroupId);
 
   return (
     <div className="space-y-6">
@@ -39,9 +43,21 @@ export default function AdminGroupsPage() {
           <h1 className="text-2xl font-semibold mb-1">{t('title')}</h1>
           <p className="text-sm text-muted-foreground">{t('description')}</p>
         </div>
-        <Button size="sm" className="h-9" onClick={() => setShowCreateDialog(true)}>
-          + {t('create')}
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-9"
+            onClick={() => setShowMergeDialog(true)}
+            disabled={groups.length < 2}
+          >
+            <GitMerge className="h-4 w-4 mr-1" />
+            {t('merge')}
+          </Button>
+          <Button size="sm" className="h-9" onClick={() => setShowCreateDialog(true)}>
+            + {t('create')}
+          </Button>
+        </div>
       </div>
 
       {loadingGroups ? (
@@ -52,21 +68,48 @@ export default function AdminGroupsPage() {
             <h2 className="text-sm font-medium mb-3">{t('groups')}</h2>
             <div className="space-y-1">
               {groups.map((g) => (
-                <button
+                <div
                   key={g.id}
                   className={`
-                    w-full text-left px-3 py-2 rounded
-                    hover:bg-muted transition-all
+                    group relative rounded
                     ${effectiveSelectedGroupId === g.id
-                      ? 'bg-muted border-l-4 border-primary pl-2'
+                      ? 'bg-muted border-l-4 border-primary'
                       : 'border-l-4 border-transparent'
                     }
                   `}
-                  onClick={() => setSelectedGroupId(g.id)}
                 >
-                  <div className="text-sm font-medium">{g.name}</div>
-                  <div className="text-xs text-muted-foreground">{new Date(g.createdAt).toLocaleString()}</div>
-                </button>
+                  <button
+                    className="w-full text-left px-3 py-2 hover:bg-muted transition-all"
+                    onClick={() => setSelectedGroupId(g.id)}
+                  >
+                    <div className="text-sm font-medium">{g.name}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {t('stats', { users: g.userCount, providers: g.providerCount })}
+                    </div>
+                  </button>
+                  <div className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowRenameDialog(g);
+                      }}
+                      className="p-1 hover:bg-muted-foreground/10 rounded"
+                      title={t('rename')}
+                    >
+                      <Edit2 className="h-3 w-3" />
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowDeleteDialog(g);
+                      }}
+                      className="p-1 hover:bg-destructive/10 text-destructive rounded"
+                      title={t('delete')}
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  </div>
+                </div>
               ))}
             </div>
           </div>
@@ -83,6 +126,15 @@ export default function AdminGroupsPage() {
 
       {showCreateDialog && (
         <CreateGroupDialog onClose={() => setShowCreateDialog(false)} />
+      )}
+      {showRenameDialog && (
+        <RenameGroupDialog group={showRenameDialog} onClose={() => setShowRenameDialog(null)} />
+      )}
+      {showDeleteDialog && (
+        <DeleteGroupDialog group={showDeleteDialog} onClose={() => setShowDeleteDialog(null)} />
+      )}
+      {showMergeDialog && (
+        <MergeGroupsDialog groups={groups} onClose={() => setShowMergeDialog(false)} />
       )}
     </div>
   );
@@ -169,6 +221,7 @@ function GroupAccessPanel({ groupId, providers }: { groupId: string; providers: 
           id: `temp-${providerId}`, // 临时 ID，服务器返回后会被真实 ID 替换
           groupId,
           providerConfigId: providerId,
+          sortOrder: old.length, // 添加缺少的 sortOrder 属性
           createdAt: new Date().toISOString(),
         }];
       });
@@ -398,7 +451,7 @@ function CreateGroupDialog({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
       <div className="bg-card border border-border rounded-lg p-6 w-full max-w-md">
         <h2 className="text-xl font-bold mb-4">{t('title')}</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -415,6 +468,247 @@ function CreateGroupDialog({ onClose }: { onClose: () => void }) {
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={onClose}>{t('cancel')}</Button>
             <Button type="submit" disabled={createMutation.isPending || !name.trim()}>{t('create')}</Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function RenameGroupDialog({ group, onClose }: { group: Group; onClose: () => void }) {
+  const t = useTranslations('groups.renameDialog');
+  const queryClient = useQueryClient();
+  const [name, setName] = useState(group.name);
+  const [error, setError] = useState('');
+
+  const renameMutation = useMutation({
+    mutationFn: () => adminGroupsAPI.update(group.id, name.trim()),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'groups'] });
+      onClose();
+    },
+    onError: (err: Error) => {
+      setError(err.message);
+    },
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim()) return;
+    setError('');
+    renameMutation.mutate();
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-card border border-border rounded-lg p-6 w-full max-w-md">
+        <h2 className="text-xl font-bold mb-4">{t('title')}</h2>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium mb-1">{t('name')}</label>
+            <input
+              className="w-full border-input bg-background border rounded px-3 py-2"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder={t('namePlaceholder')}
+              required
+            />
+          </div>
+          {error && (
+            <div className="text-sm text-destructive">{error}</div>
+          )}
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={onClose}>{t('cancel')}</Button>
+            <Button type="submit" disabled={renameMutation.isPending || !name.trim()}>{t('rename')}</Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function DeleteGroupDialog({ group, onClose }: { group: Group; onClose: () => void }) {
+  const t = useTranslations('groups.deleteDialog');
+  const queryClient = useQueryClient();
+  const [error, setError] = useState('');
+
+  const deleteMutation = useMutation({
+    mutationFn: () => adminGroupsAPI.delete(group.id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'groups'] });
+      onClose();
+    },
+    onError: (err: Error) => {
+      setError(err.message);
+    },
+  });
+
+  const handleDelete = () => {
+    setError('');
+    deleteMutation.mutate();
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-card border border-border rounded-lg p-6 w-full max-w-md">
+        <h2 className="text-xl font-bold mb-4">{t('title')}</h2>
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            {t('message', { name: group.name })}
+          </p>
+          {group.userCount > 0 && (
+            <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-3">
+              <p className="text-sm text-destructive font-medium">
+                {t('hasUsers', { count: group.userCount })}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {t('reassignFirst')}
+              </p>
+            </div>
+          )}
+          {error && (
+            <div className="text-sm text-destructive">{error}</div>
+          )}
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={onClose}>{t('cancel')}</Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={handleDelete}
+              disabled={deleteMutation.isPending || group.userCount > 0}
+            >
+              {t('delete')}
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MergeGroupsDialog({ groups, onClose }: { groups: Group[]; onClose: () => void }) {
+  const t = useTranslations('groups.mergeDialog');
+  const queryClient = useQueryClient();
+  const [targetGroupId, setTargetGroupId] = useState('');
+  const [sourceGroupIds, setSourceGroupIds] = useState<string[]>([]);
+  const [error, setError] = useState('');
+
+  const mergeMutation = useMutation({
+    mutationFn: () => adminGroupsAPI.merge(targetGroupId, sourceGroupIds),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'groups'] });
+      onClose();
+    },
+    onError: (err: Error) => {
+      setError(err.message);
+    },
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!targetGroupId || sourceGroupIds.length === 0) return;
+    setError('');
+    mergeMutation.mutate();
+  };
+
+  const toggleSourceGroup = (groupId: string) => {
+    setSourceGroupIds((prev) =>
+      prev.includes(groupId)
+        ? prev.filter((id) => id !== groupId)
+        : [...prev, groupId]
+    );
+  };
+
+  const availableGroups = groups.filter((g) => g.id !== targetGroupId);
+  const targetGroup = groups.find((g) => g.id === targetGroupId);
+  const selectedSourceGroups = groups.filter((g) => sourceGroupIds.includes(g.id));
+  const totalUsers = selectedSourceGroups.reduce((sum, g) => sum + g.userCount, 0);
+  const totalProviders = new Set([
+    ...(targetGroup ? [targetGroup.id] : []),
+    ...selectedSourceGroups.map((g) => g.id),
+  ]).size;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-card border border-border rounded-lg p-6 w-full max-w-2xl">
+        <h2 className="text-xl font-bold mb-4">{t('title')}</h2>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium mb-2">{t('targetGroup')}</label>
+            <select
+              className="w-full border-input bg-background border rounded px-3 py-2"
+              value={targetGroupId}
+              onChange={(e) => {
+                setTargetGroupId(e.target.value);
+                setSourceGroupIds([]);
+              }}
+              required
+            >
+              <option value="">{t('selectTarget')}</option>
+              {groups.map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.name} ({t('stats', { users: g.userCount, providers: g.providerCount })})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {targetGroupId && (
+            <div>
+              <label className="block text-sm font-medium mb-2">{t('sourceGroups')}</label>
+              <div className="space-y-2 max-h-60 overflow-y-auto border border-border rounded-lg p-3">
+                {availableGroups.map((g) => (
+                  <label
+                    key={g.id}
+                    className="flex items-center gap-3 p-2 rounded hover:bg-muted cursor-pointer"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={sourceGroupIds.includes(g.id)}
+                      onChange={() => toggleSourceGroup(g.id)}
+                      className="h-4 w-4 rounded border-input text-primary"
+                    />
+                    <div className="flex-1">
+                      <div className="text-sm font-medium">{g.name}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {t('stats', { users: g.userCount, providers: g.providerCount })}
+                      </div>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {targetGroupId && sourceGroupIds.length > 0 && (
+            <div className="bg-muted/50 border border-border rounded-lg p-4">
+              <h3 className="text-sm font-medium mb-2">{t('preview')}</h3>
+              <div className="text-sm space-y-1">
+                <p>
+                  {t('willMerge', { count: sourceGroupIds.length, target: targetGroup?.name })}
+                </p>
+                <p className="text-muted-foreground">
+                  {t('affectedUsers', { count: totalUsers })}
+                </p>
+                <p className="text-xs text-muted-foreground mt-2">
+                  {t('mergeNote')}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {error && (
+            <div className="text-sm text-destructive">{error}</div>
+          )}
+
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={onClose}>{t('cancel')}</Button>
+            <Button
+              type="submit"
+              disabled={mergeMutation.isPending || !targetGroupId || sourceGroupIds.length === 0}
+            >
+              {t('merge')}
+            </Button>
           </div>
         </form>
       </div>

@@ -452,7 +452,7 @@ export default function TasksPage() {
           </div>
 
           {/* Desktop Table View */}
-          <div className="hidden md:block card-elevated overflow-x-auto">
+          <div className="hidden md:block bg-card border border-border rounded-lg overflow-x-auto">
             <table className="w-full min-w-[800px]">
             <thead className="bg-muted/50 border-b border-border">
               <tr className="text-xs text-muted-foreground">
@@ -477,7 +477,7 @@ export default function TasksPage() {
             </thead>
             <tbody className="divide-y divide-border">
               {tasks.map((task: Task) => (
-              <tr key={task.id} className="hover:bg-muted/50 transition-all duration-200 hover:shadow-sm">
+              <tr key={task.id} className="hover:bg-muted/50 transition-colors">
                 <td className="px-4 py-2.5">
                   <input
                     type="checkbox"
@@ -922,7 +922,7 @@ function CreateTaskDialog({ onClose, providers }: { onClose: () => void; provide
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center overflow-y-auto z-50">
-      <div className="bg-card rounded-lg p-6 w-full max-w-2xl my-8 border border-border">
+      <div className="bg-card border border-border rounded-lg p-6 w-full max-w-2xl my-8 shadow-xl">
         <h2 className="text-xl font-bold mb-4">{t('title')}</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -1246,7 +1246,7 @@ function BatchUploadDialog({ onClose, providers }: { onClose: () => void; provid
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center overflow-y-auto z-50">
-      <div className="bg-card rounded-lg p-6 w-full max-w-3xl my-8 border border-border">
+      <div className="bg-card border border-border rounded-lg p-6 w-full max-w-3xl my-8 shadow-xl">
         <h2 className="text-xl font-bold mb-4">{t('title')}</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>

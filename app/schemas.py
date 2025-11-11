@@ -234,10 +234,20 @@ class GroupResponse(BaseModel):
     id: str
     name: str
     createdAt: datetime
+    userCount: int = 0
+    providerCount: int = 0
 
 
 class CreateGroupRequest(BaseModel):
     name: str = Field(..., min_length=1)
+
+
+class UpdateGroupRequest(BaseModel):
+    name: str = Field(..., min_length=1)
+
+
+class MergeGroupsRequest(BaseModel):
+    sourceGroupIds: list[str] = Field(..., min_items=1)
 
 
 class GroupProviderAccessResponse(BaseModel):
