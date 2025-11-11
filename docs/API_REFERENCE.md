@@ -14,8 +14,10 @@
 4. [Admin - User Management](#admin---user-management)
 5. [Admin - Provider Management](#admin---provider-management)
 6. [Admin - Group Management](#admin---group-management)
-8. [Admin - Settings](#admin---settings)
-7. [Error Responses](#error-responses)
+7. [Admin - Analytics](#admin---analytics)
+8. [Admin - All Tasks](#admin---all-tasks)
+9. [Admin - Settings](#admin---settings)
+10. [Error Responses](#error-responses)
 
 ---
 
@@ -47,6 +49,18 @@ Login with email and password.
 
 **Errors:**
 - `401 Unauthorized`: Invalid credentials
+
+Note on ALTCHA (when enabled):
+- Include `altchaPayload` from the ALTCHA v2 widget in the request body:
+  ```json
+  {
+    "email": "admin@example.com",
+    "password": "admin123",
+    "altchaPayload": "<base64 JSON>"
+  }
+  ```
+- The payload decodes to JSON fields: `algorithm`, `challenge`, `number`, `salt`, `signature`, `took` (v2 does not include `expires`).
+- Server verification: `sha256(salt + number) == challenge` and `HMAC(secret, challenge + salt) == signature`.
 
 ---
 
@@ -231,16 +245,21 @@ Upload multiple PDFs at once. Every file becomes its own task but shares the sam
 files[]: <PDF file 1>
 files[]: <PDF file 2>
 documentNames: ["Doc 1", "Doc 2"]
-sourceLang: "en"
-targetLang: "zh"
-engine: "openai"
-providerConfigId: "<provider UUID>"
+taskType: "translation" | "parsing" | "parse_and_translate" (default: "translation")
+sourceLang: "en"          # required when taskType is translation/parse_and_translate
+targetLang: "zh"           # required when taskType is translation/parse_and_translate
+engine: "openai"           # required when taskType is translation/parse_and_translate; for parsing usually "mineru"
+providerConfigId: "<provider UUID>"  # required; must match taskType category
 priority: "normal"
 notes: "Optional notes"
-modelConfig: "{\"api_key\": \"...\"}" (optional JSON string)
+modelConfig: "{\"model\": \"gpt-4o-mini\"}" (optional JSON string)
 ```
 
-_2025-11-09 更新：批量上传会正确携带 `providerConfigId`，确保所选翻译服务（含第三方 OpenAI 代理）与单任务行为保持一致。_
+Notes:
+- When `taskType` is `parsing`, `providerConfigId` must be a MinerU provider and `sourceLang/targetLang/engine` are not required.
+- When `taskType` is `parse_and_translate`, `providerConfigId` must be a non-MinerU provider used for the translation phase; MinerU credentials are resolved automatically from active providers.
+
+_2025-11-11 更新：批量上传新增 `taskType` 参数，并修复了将客户端 4xx 错误错误包装为 500 的问题。_
 
 **Response (201 Created):**
 ```json
@@ -253,7 +272,7 @@ _2025-11-09 更新：批量上传会正确携带 `providerConfigId`，确保所�
 }
 ```
 
-If any validation fails (e.g., mismatch between `files[]` and `documentNames` length), the entire request is rejected so you can fix inputs in one go.
+If any validation fails (e.g., mismatch between `files[]` and `documentNames` length), the entire request is rejected (returns 4xx) so you can fix inputs in one go.
 
 ---
 
@@ -295,6 +314,12 @@ _2025-11-09 更新：后端重启后会自动将上次停在 `processing` 状态
 ```
 
 > **2025-11-11** – Responses now expose `zipOutputUrl` for MinerU parsing tasks so clients can download the original ZIP (with `images/`) directly. `markdownOutputUrl` already points inline image links to tenant-owned S3 URLs, so previews stay intact even if the ZIP is never downloaded.
+
+> 2025-11-11 – Markdown translation now uses paragraph-based chunking to avoid API length limits. Text blocks are split by blank lines while fenced code blocks are preserved as-is. All paragraphs are translated concurrently (and paragraphs longer than the limit are hard-sliced and those slices are translated concurrently as well, then reassembled in order). Tune via:
+> - `modelConfig.max_chars_per_request` (alias `maxCharsPerRequest`, default `4000`)
+> - `modelConfig.max_concurrent_requests` (alias `maxConcurrentRequests`, default `4`) – local concurrency per task; a global provider-level limiter caps combined concurrency across all tasks.
+> - For OpenAI‑compatible LLM providers (OpenAI, DeepSeek, Zhipu, Groq, Grok, SiliconFlow), the translator uses a unified prompt and the Chat Completions API. Supply `api_key` and `base_url` in `modelConfig` for these services.
+> Progress reflects chunk-level status during the translation phase.
 
 > Note (2025-11-10): If S3 is not configured yet (fresh startup), this endpoint still returns successfully, but URL fields such as `inputUrl`, `outputUrl`, `monoOutputUrl`, `dualOutputUrl`, `glossaryOutputUrl`, `zipOutputUrl`, and `markdownOutputUrl` will be `null`.
 
@@ -880,78 +905,308 @@ All error responses follow this format:
 **Last Updated:** 2025-11-10
 ## Admin - Group Management
 
+**All endpoints require `admin` role.**
+
 ### GET /api/admin/groups
 
-List groups.
+List all groups with statistics.
 
-Response:
+**Response (200 OK):**
 ```json
 [
-  { "id": "default", "name": "Default Group", "createdAt": "2025-11-10T10:00:00Z" }
+  {
+    "id": "default",
+    "name": "Default Group",
+    "createdAt": "2025-11-10T10:00:00Z",
+    "userCount": 5,
+    "providerCount": 3
+  },
+  {
+    "id": "team-a-uuid",
+    "name": "Team A",
+    "createdAt": "2025-11-11T08:00:00Z",
+    "userCount": 2,
+    "providerCount": 1
+  }
 ]
 ```
 
+---
+
 ### POST /api/admin/groups
 
-Create a group.
+Create a new group.
 
-Request:
+**Request:**
 ```json
-{ "name": "Team A" }
+{
+  "name": "Team A"
+}
 ```
-Response:
+
+**Response (201 Created):**
 ```json
-{ "id": "<uuid>", "name": "Team A", "createdAt": "..." }
+{
+  "id": "<uuid>",
+  "name": "Team A",
+  "createdAt": "2025-11-11T08:00:00Z",
+  "userCount": 0,
+  "providerCount": 0
+}
 ```
+
+**Errors:**
+- `400 Bad Request`: Invalid data or name already exists
+
+---
+
+### PATCH /api/admin/groups/{groupId}
+
+Update (rename) a group.
+
+**Request:**
+```json
+{
+  "name": "Team A - Updated"
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "id": "<uuid>",
+  "name": "Team A - Updated",
+  "createdAt": "2025-11-11T08:00:00Z",
+  "userCount": 2,
+  "providerCount": 1
+}
+```
+
+**Errors:**
+- `404 Not Found`: Group not found
+- `400 Bad Request`: Cannot rename the default group
+
+---
+
+### DELETE /api/admin/groups/{groupId}
+
+Delete a group. The group must have no users assigned before deletion.
+
+**Response (204 No Content)**
+
+**Errors:**
+- `404 Not Found`: Group not found
+- `400 Bad Request`: Cannot delete the default group, or group has users assigned
+
+**Notes:**
+- Users must be reassigned to another group before deleting
+- Provider access mappings are automatically deleted (CASCADE)
+
+---
+
+### POST /api/admin/groups/{targetGroupId}/merge
+
+Merge multiple groups into a target group. Source groups are deleted after merge.
+
+**Request:**
+```json
+{
+  "sourceGroupIds": ["group-uuid-1", "group-uuid-2"]
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "id": "target-group-uuid",
+  "name": "Target Group",
+  "createdAt": "2025-11-10T10:00:00Z",
+  "userCount": 10,
+  "providerCount": 5
+}
+```
+
+**Behavior:**
+- All users from source groups are reassigned to the target group
+- Provider access is merged (union of all providers)
+- If a provider exists in multiple groups, the highest priority (lowest sortOrder) is kept
+- Source groups are deleted after successful merge
+
+**Errors:**
+- `404 Not Found`: Target group or source group not found
+- `400 Bad Request`: Cannot merge a group into itself, or cannot merge the default group
+
+---
 
 ### GET /api/admin/groups/{groupId}/access
 
 List provider access mappings for a group (sorted by `sortOrder`, then `createdAt`).
 
-Response (200 OK):
+**Response (200 OK):**
 ```json
 [
-  { "id": "map_1", "groupId": "default", "providerConfigId": "mineru-shared", "sortOrder": 0, "createdAt": "..." },
-  { "id": "map_2", "groupId": "default", "providerConfigId": "openai-proxy", "sortOrder": 1, "createdAt": "..." }
+  {
+    "id": "map_1",
+    "groupId": "default",
+    "providerConfigId": "mineru-shared",
+    "sortOrder": 0,
+    "createdAt": "2025-11-10T10:00:00Z"
+  },
+  {
+    "id": "map_2",
+    "groupId": "default",
+    "providerConfigId": "openai-proxy",
+    "sortOrder": 1,
+    "createdAt": "2025-11-10T10:05:00Z"
+  }
 ]
 ```
+
+**Errors:**
+- `404 Not Found`: Group not found
+
+---
 
 ### POST /api/admin/groups/{groupId}/access
 
 Grant a provider to the group.
 
-Request:
+**Request:**
 ```json
-{ "providerConfigId": "<provider UUID>", "sortOrder": 0 }
+{
+  "providerConfigId": "<provider UUID>",
+  "sortOrder": 0
+}
 ```
 
-Response (201 Created):
+**Response (201 Created):**
 ```json
-{ "id": "map_1", "groupId": "default", "providerConfigId": "<provider UUID>", "sortOrder": 0, "createdAt": "..." }
+{
+  "id": "map_1",
+  "groupId": "default",
+  "providerConfigId": "<provider UUID>",
+  "sortOrder": 0,
+  "createdAt": "2025-11-11T10:00:00Z"
+}
 ```
 
-Errors:
-- 404 if group or provider not found
-- 400 if already granted
+**Errors:**
+- `404 Not Found`: Group or provider not found
+- `400 Bad Request`: Provider already granted to this group
+
+---
 
 ### DELETE /api/admin/groups/{groupId}/access/{providerId}
 
 Revoke a provider from the group.
 
-Response: `204 No Content`
+**Response (204 No Content)**
+
+---
 
 ### POST /api/admin/groups/{groupId}/access/reorder
 
 Reorder providers for a group. The array index becomes the new `sortOrder`.
 
-Request:
+**Request:**
 ```json
-{ "providerIds": ["mineru-shared", "openai-proxy"] }
+{
+  "providerIds": ["mineru-shared", "openai-proxy"]
+}
 ```
 
-Response:
+**Response (200 OK):**
 ```json
-{ "ok": true }
+{
+  "ok": true
+}
+```
+
+**Errors:**
+- `404 Not Found`: Group not found
+
+---
+
+## Admin - Analytics
+
+All endpoints require admin role.
+
+### GET /api/admin/analytics/overview
+
+Today's overview metrics.
+
+Response (200 OK):
+```json
+{
+  "todayTranslations": 12,
+  "todayPages": 234,
+  "totalUsers": 45,
+  "activeUsers": 9
+}
+```
+
+### GET /api/admin/analytics/daily-stats?days=30
+
+Daily translation count and page totals over the last N days (1–365, default 30).
+
+Response (200 OK):
+```json
+{
+  "stats": [
+    { "date": "2025-11-01", "translations": 5, "pages": 120 },
+    { "date": "2025-11-02", "translations": 7, "pages": 210 }
+  ]
+}
+```
+
+### GET /api/admin/analytics/top-users?limit=10&days=30
+
+Top users by page consumption, optionally limited to the last N days.
+
+Response (200 OK):
+```json
+{
+  "users": [
+    {
+      "userId": "...",
+      "userName": "Alice",
+      "userEmail": "alice@example.com",
+      "totalPages": 1024,
+      "totalTasks": 37
+    }
+  ]
+}
+```
+
+---
+
+## Admin - All Tasks
+
+List tasks across all users with filters. Requires admin role.
+
+### GET /api/admin/tasks
+
+Default: returns all tasks (across all users) ordered by newest first.
+
+Query parameters (all optional):
+- `ownerId`: filter by user ID (alias: owner_id)
+- `ownerEmail`: filter by user email
+- `status`: pending | processing | completed | failed | cancelled
+- `engine`: engine key/name
+- `priority`: normal | high
+- `dateFrom` / `dateTo`: ISO date string (e.g. 2025-11-11 or 2025-11-11T00:00:00)
+- `limit` (1–500, default 50)
+- `offset` (>= 0)
+
+Response (200 OK):
+```json
+{
+  "tasks": [ { "id": "...", "documentName": "...", "ownerId": "...", "ownerEmail": "...", "status": "processing", "priority": "normal", "pageCount": 12, "progress": 45, "createdAt": "..." } ],
+  "total": 1,
+  "limit": 50,
+  "offset": 0,
+  "filters": { "ownerId": null, "status": null, "engine": null, "priority": null, "dateFrom": null, "dateTo": null }
+}
 ```
 ## Admin - Settings
 
@@ -1009,3 +1264,37 @@ Updates email (SMTP) configuration. Provide only fields you want to change. When
   "allowedEmailSuffixes": ["@company.com", "@org.org"]
 }
 ```
+- POST /auth/forgot-password
+
+  Request body:
+  {
+    "email": "user@example.com",
+    "altchaPayload": "<payload>"  // required when ALTCHA is enabled
+  }
+
+  Response: always returns 200 with
+  {
+    "message": "If the email exists, a reset link has been sent."
+  }
+
+  Notes:
+  - No account enumeration: response does not reveal whether the email exists.
+  - Requires SMTP configured in Admin → Settings → Email.
+  - Reset tokens expire in 30 minutes.
+
+- POST /auth/reset-password
+
+  Request body:
+  {
+    "token": "<reset-token>",
+    "newPassword": "<new-password>",
+    "altchaPayload": "<payload>"  // required when ALTCHA is enabled
+  }
+
+  Responses:
+  - 200: { "message": "Password has been reset." }
+  - 400: invalid/expired token or password too short
+
+  Notes:
+  - Tokens are single-use; using a token invalidates it.
+  - When ALTCHA is enabled, both forgot/reset operations require a valid ALTCHA payload.

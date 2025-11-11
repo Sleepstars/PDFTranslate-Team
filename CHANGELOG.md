@@ -1,5 +1,21 @@
 # Changelog
 
+## 2025-11-11 (ALTCHA v2 Verification)
+
+### Fixed
+- Backend ALTCHA verification now matches the v2 widget payload. The widget returns a base64 JSON with fields: `algorithm`, `challenge`, `number`, `salt`, `signature`, and `took` (no `expires`).
+- Server signature is computed and verified using `HMAC(secret, challenge + salt)`, and the numeric solution is validated via `sha256(salt + number) === challenge`.
+- This resolves "ALTCHA verification failed" errors when valid payloads are submitted from the v2 widget.
+
+### Notes
+- Optional expiration can still be enforced at the server or via widget config, but the payload does not carry `expires` in v2.
+
+## 2025-11-11 (ALTCHA UI Size)
+
+### Changed
+- Increased ALTCHA widget prominence across auth pages (login/register/forgot/reset): larger max width, thicker border, rounded corners, and a 1.15x scale for better visibility.
+- Colors now follow the app theme via CSS variables.
+
 ## 2025-11-11 (Admin Analytics Paths)
 
 ### Fixed
@@ -8,6 +24,17 @@
 
 ### Docs
 - Added "Admin - Analytics" and "Admin - All Tasks" sections to `docs/API_REFERENCE.md`.
+
+## 2025-11-11 (Admin All Tasks Defaults & Filters)
+
+### Changed
+- `/api/admin/tasks` now returns all tasks by default (no owner filter) and supports proper pagination with a `total` count matching filters.
+
+### Added
+- Support filtering by `ownerEmail` (exact match). Existing camelCase params are accepted: `ownerId`, `ownerEmail`, `dateFrom`, `dateTo`.
+
+### Frontend
+- Admin → Tasks uses email as the filter field and consumes the updated `total` for pagination.
 
 ## 2025-11-11 (Forgot Password + ALTCHA)
 

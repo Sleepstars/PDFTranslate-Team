@@ -142,6 +142,9 @@ pixi run alembic upgrade head # 运行数据库迁移
 - 可在“后台 → 设置 → 系统”启用 ALTCHA（需配置 Secret Key）。
 - 可在“后台 → 设置 → 邮件”配置 SMTP（Host/Port/Username/Password/TLS/From）。
 - 启用后，登录/注册/忘记密码/重置密码均需完成 ALTCHA 验证。
+- 已兼容 ALTCHA v2 前端组件：前端提交的 `altchaPayload` 为 base64 JSON，包含 `algorithm`, `challenge`, `number`, `salt`, `signature`, `took`（不包含 `expires`）。后端验证方式为：
+  - 校验 `sha256(salt + number) == challenge`
+  - 校验服务端签名 `HMAC(secret, challenge + salt) == signature`
 - 前端入口页面：`/login`、`/register`、`/forgot-password`、`/reset-password`。
 
 ### 手动安装

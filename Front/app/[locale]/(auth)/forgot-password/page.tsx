@@ -9,6 +9,26 @@ import Link from 'next/link';
 
 export default function ForgotPasswordPage() {
   const t = useTranslations('forgotPassword');
+  type AltchaInlineStyle = React.CSSProperties & {
+    '--altcha-max-width'?: string;
+    '--altcha-border-width'?: string;
+    '--altcha-border-radius'?: string;
+    '--altcha-color-base'?: string;
+    '--altcha-color-text'?: string;
+    '--altcha-color-border'?: string;
+    '--altcha-color-border-focus'?: string;
+  };
+  const altchaStyle: AltchaInlineStyle = {
+    '--altcha-max-width': '520px',
+    '--altcha-border-width': '2px',
+    '--altcha-border-radius': '12px',
+    '--altcha-color-base': 'hsl(var(--card))',
+    '--altcha-color-text': 'hsl(var(--foreground))',
+    '--altcha-color-border': 'hsl(var(--border))',
+    '--altcha-color-border-focus': 'hsl(var(--primary))',
+    transform: 'scale(1.15)',
+    transformOrigin: 'center',
+  };
   const [email, setEmail] = useState('');
   const [sent, setSent] = useState(false);
   const [error, setError] = useState('');
@@ -94,22 +114,7 @@ export default function ForgotPasswordPage() {
 
             {altchaEnabled && challengeUrl && (
               <div className="flex justify-center">
-                <altcha-widget
-                  challengeurl={challengeUrl}
-                  auto="onsubmit"
-                  hidefooter
-                  style={{
-                    ['--altcha-max-width' as any]: '520px',
-                    ['--altcha-border-width' as any]: '2px',
-                    ['--altcha-border-radius' as any]: '12px',
-                    ['--altcha-color-base' as any]: 'hsl(var(--card))',
-                    ['--altcha-color-text' as any]: 'hsl(var(--foreground))',
-                    ['--altcha-color-border' as any]: 'hsl(var(--border))',
-                    ['--altcha-color-border-focus' as any]: 'hsl(var(--primary))',
-                    transform: 'scale(1.15)',
-                    transformOrigin: 'center',
-                  } as any}
-                />
+                <altcha-widget challengeurl={challengeUrl} auto="onsubmit" hidefooter style={altchaStyle} />
               </div>
             )}
 

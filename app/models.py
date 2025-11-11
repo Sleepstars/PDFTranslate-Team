@@ -17,6 +17,7 @@ class User(Base):
     # Role-based access control
     role: Mapped[str] = mapped_column(String(20), server_default="user")  # "admin" or "user"
     is_active: Mapped[bool] = mapped_column(Boolean, server_default="true")
+    email_verified: Mapped[bool] = mapped_column(Boolean, server_default="false")
 
     # Group-based access control (optional single group)
     group_id: Mapped[Optional[str]] = mapped_column(String(50), ForeignKey("groups.id", ondelete="SET NULL"), nullable=True)
