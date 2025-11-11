@@ -276,6 +276,7 @@ function GroupAccessPanel({ groupId, providers }: { groupId: string; providers: 
           id: `temp-${providerId}`,
           groupId,
           providerConfigId: providerId,
+          sortOrder: old.length, // 添加缺少的 sortOrder 属性
           createdAt: new Date().toISOString(),
         }];
       });
@@ -685,7 +686,7 @@ function MergeGroupsDialog({ groups, onClose }: { groups: Group[]; onClose: () =
               <h3 className="text-sm font-medium mb-2">{t('preview')}</h3>
               <div className="text-sm space-y-1">
                 <p>
-                  {t('willMerge', { count: sourceGroupIds.length, target: targetGroup?.name })}
+                  {t('willMerge', { count: sourceGroupIds.length, target: targetGroup?.name || '' })}
                 </p>
                 <p className="text-muted-foreground">
                   {t('affectedUsers', { count: totalUsers })}

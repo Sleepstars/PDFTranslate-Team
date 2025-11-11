@@ -14,7 +14,7 @@ import { ProviderConfig } from '@/lib/types/provider';
 import { useTaskUpdates } from '@/lib/hooks/use-task-updates';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
-import { FileText, Upload, Download, Trash2 } from 'lucide-react';
+import { FileText, Upload, Download, Trash2, Search } from 'lucide-react';
 import { Portal } from '@/components/ui/portal';
 import { useDropzone } from 'react-dropzone';
 
@@ -314,6 +314,7 @@ export default function TasksPage() {
       <div className="space-y-4">
         <div>
           <h1 className="text-2xl font-semibold mb-1">{t('title')}</h1>
+          <p className="text-sm text-muted-foreground">{t('subtitle')}</p>
         </div>
         <SkeletonTable rows={8} columns={9} />
       </div>
@@ -321,46 +322,65 @@ export default function TasksPage() {
   }
 
   return (
-    <div className="section-spacing">
-      <div className="page-header">
-        <h1 className="page-title">{t('title')}</h1>
-        <p className="page-subtitle">{t('subtitle')}</p>
+    <div className="space-y-4">
+      <div>
+        <h1 className="text-2xl font-semibold mb-1">{t('title')}</h1>
+        <p className="text-sm text-muted-foreground">{t('subtitle')}</p>
       </div>
 
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <Button onClick={() => setShowDialog(true)} size="sm" className="h-9">
-            + {t('create')}
-          </Button>
-          <Button variant="outline" onClick={() => setShowBatchDialog(true)} size="sm" className="h-9">
-            {t('batch')}
-          </Button>
-        </div>
-
-        {hasSelection && (
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">{selectedTaskIds.size} {t('selected')}</span>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleBulkDownload}
-              className="h-9 gap-1.5"
-            >
-              <Download className="h-4 w-4" />
-              {t('bulkDownload')}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <Button onClick={() => setShowDialog(true)} size="sm" className="h-9">
+              + {t('create')}
             </Button>
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={() => setShowDeleteConfirm(true)}
-              disabled={isDeleting}
-              className="h-9 gap-1.5"
-            >
-              <Trash2 className="h-4 w-4" />
-              {isDeleting ? t('deleting') : t('delete')}
+            <Button variant="outline" onClick={() => setShowBatchDialog(true)} size="sm" className="h-9">
+              {t('batch')}
             </Button>
           </div>
-        )}
+
+          {hasSelection && (
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">{selectedTaskIds.size} {t('selected')}</span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleBulkDownload}
+                className="h-9 gap-1.5"
+              >
+                <Download className="h-4 w-4" />
+                {t('bulkDownload')}
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => setShowDeleteConfirm(true)}
+                disabled={isDeleting}
+                className="h-9 gap-1.5"
+              >
+                <Trash2 className="h-4 w-4" />
+                {isDeleting ? t('deleting') : t('delete')}
+              </Button>
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center justify-between">
+          <div className="flex-1 max-w-md">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <input
+                type="text"
+                placeholder={t('search')}
+                className="w-full h-9 pl-9 pr-3 bg-background border border-input rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                onChange={(e) => {
+                  // TODO: 添加任务搜索功能
+                  console.log('Search:', e.target.value);
+                }}
+              />
+            </div>
+          </div>
+        </div>
       </div>
 
       {tasks.length === 0 ? (

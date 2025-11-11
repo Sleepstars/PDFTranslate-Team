@@ -8,7 +8,7 @@ import { getAdminTasks } from '@/lib/api/analytics';
 export default function AdminTasksPage() {
   const t = useTranslations();
   const [filters, setFilters] = useState({
-    ownerId: '',
+    ownerEmail: '',
     status: '',
     engine: '',
     priority: '',
@@ -22,7 +22,7 @@ export default function AdminTasksPage() {
     queryKey: ['admin-tasks', filters, page],
     queryFn: () => getAdminTasks({
       ...filters,
-      ownerId: filters.ownerId || undefined,
+      ownerEmail: filters.ownerEmail || undefined,
       status: filters.status || undefined,
       engine: filters.engine || undefined,
       priority: filters.priority || undefined,
@@ -63,7 +63,7 @@ export default function AdminTasksPage() {
           <button
             onClick={() => {
               setFilters({
-                ownerId: '',
+                ownerEmail: '',
                 status: '',
                 engine: '',
                 priority: '',
@@ -79,12 +79,12 @@ export default function AdminTasksPage() {
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           <div>
-            <label className="block text-xs text-muted-foreground mb-1.5">{t('admin.tasks.filterByUserId')}</label>
+            <label className="block text-xs text-muted-foreground mb-1.5">{t('admin.tasks.filterByEmail')}</label>
             <input
               type="text"
-              placeholder={t('admin.tasks.filterByUserId')}
-              value={filters.ownerId}
-              onChange={(e) => handleFilterChange('ownerId', e.target.value)}
+              placeholder={t('admin.tasks.filterByEmail')}
+              value={filters.ownerEmail}
+              onChange={(e) => handleFilterChange('ownerEmail', e.target.value)}
               className="w-full px-3 py-2 border rounded-md"
             />
           </div>

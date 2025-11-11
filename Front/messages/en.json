@@ -56,6 +56,9 @@
     "title": "Access Control",
     "description": "Configure allowed providers per group to reduce per-user assignments.",
     "create": "Create Group",
+    "merge": "Merge Groups",
+    "rename": "Rename",
+    "delete": "Delete",
     "groups": "Groups",
     "selectGroup": "Select a group",
     "groupAccess": "Available Providers",
@@ -70,12 +73,41 @@
     "default": "Default",
     "priorityOrder": "Priority Order",
     "granted": "Granted",
+    "stats": "{users} users, {providers} providers",
     "createDialog": {
       "title": "Create Group",
       "name": "Group Name",
       "namePlaceholder": "e.g., Product Team A",
       "cancel": "Cancel",
       "create": "Create"
+    },
+    "renameDialog": {
+      "title": "Rename Group",
+      "name": "Group Name",
+      "namePlaceholder": "Enter new group name",
+      "cancel": "Cancel",
+      "rename": "Rename"
+    },
+    "deleteDialog": {
+      "title": "Delete Group",
+      "message": "Are you sure you want to delete the group \"{name}\"?",
+      "hasUsers": "This group has {count} user(s) assigned.",
+      "reassignFirst": "Please reassign all users to another group before deleting.",
+      "cancel": "Cancel",
+      "delete": "Delete"
+    },
+    "mergeDialog": {
+      "title": "Merge Groups",
+      "targetGroup": "Target Group (Keep)",
+      "selectTarget": "Select target group...",
+      "sourceGroups": "Source Groups (Merge & Delete)",
+      "preview": "Preview",
+      "willMerge": "Will merge {count} group(s) into \"{target}\"",
+      "affectedUsers": "{count} user(s) will be reassigned",
+      "mergeNote": "Source groups will be deleted after merge. Provider access will be combined.",
+      "stats": "{users} users, {providers} providers",
+      "cancel": "Cancel",
+      "merge": "Merge"
     }
   },
   "tasks": {

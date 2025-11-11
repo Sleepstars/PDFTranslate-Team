@@ -145,44 +145,72 @@ async def get_top_users(
 async def get_admin_tasks(
     admin: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
-    owner_id: Optional[str] = Query(default=None),
+    owner_id: Optional[str] = Query(default=None, alias="ownerId"),
+    owner_email: Optional[str] = Query(default=None, alias="ownerEmail"),
     status: Optional[str] = Query(default=None),
     engine: Optional[str] = Query(default=None),
     priority: Optional[str] = Query(default=None),
-    date_from: Optional[str] = Query(default=None),
-    date_to: Optional[str] = Query(default=None),
+    date_from: Optional[str] = Query(default=None, alias="dateFrom"),
+    date_to: Optional[str] = Query(default=None, alias="dateTo"),
     limit: int = Query(default=50, ge=1, le=500),
     offset: int = Query(default=0, ge=0)
 ):
-    """Get all users' tasks (admin only)"""
+    """Admin: list tasks across all users.
+
+    Defaults to returning all tasks when no owner filters are provided.
+    Supports pagination via limit/offset and optional filtering by ownerId or ownerEmail.
+    """
+    from sqlalchemy import and_ as sa_and
+    from sqlalchemy import desc
+    from fastapi import HTTPException
+
+    # Parse dates (ISO 8601 string)
     date_from_dt = None
     date_to_dt = None
-
     if date_from:
         try:
             date_from_dt = datetime.fromisoformat(date_from)
         except ValueError:
-            from fastapi import HTTPException
-            raise HTTPException(status_code=400, detail="Invalid date_from format")
-
+            raise HTTPException(status_code=400, detail="Invalid dateFrom format")
     if date_to:
         try:
             date_to_dt = datetime.fromisoformat(date_to)
         except ValueError:
-            from fastapi import HTTPException
-            raise HTTPException(status_code=400, detail="Invalid date_to format")
+            raise HTTPException(status_code=400, detail="Invalid dateTo format")
 
-    tasks = await task_manager.list_tasks(
-        owner_id=owner_id,
-        status=status,
-        engine=engine,
-        priority=priority,
-        date_from=date_from_dt,
-        date_to=date_to_dt,
-        limit=limit,
-        offset=offset
-    )
+    # Build base query
+    conditions = []
+    if owner_id:
+        conditions.append(TranslationTask.owner_id == owner_id)
+    if owner_email:
+        conditions.append(TranslationTask.owner_email == owner_email)
+    if status:
+        conditions.append(TranslationTask.status == status)
+    if engine:
+        conditions.append(TranslationTask.engine == engine)
+    if priority:
+        conditions.append(TranslationTask.priority == priority)
+    if date_from_dt:
+        conditions.append(TranslationTask.created_at >= date_from_dt)
+    if date_to_dt:
+        conditions.append(TranslationTask.created_at <= date_to_dt)
 
+    base_query = select(TranslationTask)
+    count_query = select(func.count(TranslationTask.id))
+    if conditions:
+        base_query = base_query.where(sa_and(*conditions))
+        count_query = count_query.where(sa_and(*conditions))
+
+    # Apply ordering and pagination
+    base_query = base_query.order_by(desc(TranslationTask.created_at)).offset(offset).limit(limit)
+
+    # Execute queries
+    result = await db.execute(base_query)
+    rows = list(result.scalars().all())
+    total_result = await db.execute(count_query)
+    total_count = int(total_result.scalar() or 0)
+
+    # S3 optional on read
     try:
         s3_config = await get_s3_config(db)
         s3 = get_s3(s3_config)
@@ -190,16 +218,17 @@ async def get_admin_tasks(
         s3 = None
 
     return {
-        "tasks": [task.to_dict(s3) for task in tasks],
-        "total": len(tasks),
+        "tasks": [task.to_dict(s3) for task in rows],
+        "total": total_count,
         "limit": limit,
         "offset": offset,
         "filters": {
             "ownerId": owner_id,
+            "ownerEmail": owner_email,
             "status": status,
             "engine": engine,
             "priority": priority,
             "dateFrom": date_from,
-            "dateTo": date_to
-        }
+            "dateTo": date_to,
+        },
     }
