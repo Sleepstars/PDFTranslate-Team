@@ -38,7 +38,7 @@ export default function AdminTasksPage() {
   const [menuPos, setMenuPos] = useState<{ top: number; left: number; id: string } | null>(null);
 
   // State for dialogs
-  const [detailTask, setDetailTask] = useState<Task | null>(null);
+  const [detailTaskId, setDetailTaskId] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [taskToDelete, setTaskToDelete] = useState<string | null>(null);
 
@@ -68,6 +68,19 @@ export default function AdminTasksPage() {
 
   // Memoize tasks array
   const tasks = useMemo(() => (data?.tasks || []) as Task[], [data?.tasks]);
+
+  // 从实时更新的任务列表中查找当前要显示详情的任务
+  const detailTask = useMemo(() =>
+    tasks.find(t => t.id === detailTaskId) ?? null,
+    [tasks, detailTaskId]
+  );
+
+  // 当任务被删除时自动关闭详情弹窗
+  useEffect(() => {
+    if (detailTaskId && !detailTask) {
+      setDetailTaskId(null);
+    }
+  }, [detailTaskId, detailTask]);
 
   // Sync selected tasks with current page
   useEffect(() => {
@@ -494,7 +507,7 @@ export default function AdminTasksPage() {
 
                 <div className="flex gap-2 pt-2 border-t border-border">
                   <button
-                    onClick={() => setDetailTask(task)}
+                    onClick={() => setDetailTaskId(task.id)}
                     className="flex-1 px-3 py-1.5 text-xs bg-accent hover:bg-accent/80 rounded-md transition-colors"
                   >
                     {t('tasks.view')}
@@ -625,7 +638,7 @@ export default function AdminTasksPage() {
                         <div className="fixed z-[61] w-40 bg-popover border border-border rounded-md shadow-lg" style={{ top: menuPos.top, left: menuPos.left }}>
                           <button
                             onClick={() => {
-                              setDetailTask(task);
+                              setDetailTaskId(task.id);
                               setActiveMenu(null);
                               setMenuPos(null);
                             }}
@@ -810,7 +823,7 @@ export default function AdminTasksPage() {
       )}
 
       {/* Task Detail Dialog */}
-      {detailTask && <TaskDetailDialog task={detailTask} onClose={() => setDetailTask(null)} downloadFile={downloadFile} />}
+      {detailTask && <TaskDetailDialog task={detailTask} onClose={() => setDetailTaskId(null)} downloadFile={downloadFile} />}
 
       {/* Confirmation Dialogs */}
       {showDeleteConfirm && (
