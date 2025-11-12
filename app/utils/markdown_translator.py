@@ -223,28 +223,59 @@ def _translate_text_with_service(
         model = custom_model or "gpt-3.5-turbo"
         return _translate_with_openai(text, lang_from, lang_to, api_key, base_url, model, model_config)
     elif service in {"deepseek", "zhipu", "groq", "grok", "siliconflow"}:
-        env_key_map = {
-            "deepseek": "DEEPSEEK_API_KEY",
-            "zhipu": "ZHIPU_API_KEY",
-            "groq": "GROQ_API_KEY",
-            "grok": "GROK_API_KEY",
-            "siliconflow": "SILICONFLOW_API_KEY",
+        vendor_defaults = {
+            "deepseek": {
+                "env_key": "DEEPSEEK_API_KEY",
+                "base_env": "DEEPSEEK_API_BASE",
+                "default_base": "https://api.deepseek.com/v1",
+                "default_model": "deepseek-chat",
+            },
+            "zhipu": {
+                "env_key": "ZHIPU_API_KEY",
+                "base_env": "ZHIPU_API_BASE",
+                "default_base": "https://open.bigmodel.cn/api/paas/v4",
+                "default_model": "glm-4-flash",
+            },
+            "groq": {
+                "env_key": "GROQ_API_KEY",
+                "base_env": "GROQ_API_BASE",
+                "default_base": "https://api.groq.com/openai/v1",
+                "default_model": "mixtral-8x7b-32768",
+            },
+            "grok": {
+                "env_key": "GROK_API_KEY",
+                "base_env": "GROK_API_BASE",
+                "default_base": "https://api.x.ai/v1",
+                "default_model": "grok-1",
+            },
+            "siliconflow": {
+                "env_key": "SILICONFLOW_API_KEY",
+                "base_env": "SILICONFLOW_BASE_URL",
+                "default_base": "https://api.siliconflow.cn/v1",
+                "default_model": None,
+            },
         }
-        env_base_map = {
-            "siliconflow": "SILICONFLOW_BASE_URL",
-            # Others may be provided via modelConfig.endpoint/base_url; we avoid hardcoding vendor URLs here
-        }
-        api_key = _config_value(custom_api_key, env_var=env_key_map.get(service))
+        defaults = vendor_defaults[service]
+        api_key = _config_value(custom_api_key, env_var=defaults["env_key"])
         base_url = _config_value(
             custom_endpoint,
-            env_var=env_base_map.get(service),
-            fallback=None,
+            env_var=defaults.get("base_env"),
+            fallback=defaults.get("default_base"),
         )
-        model = custom_model or "gpt-3.5-turbo"
-        if not api_key or not base_url:
-            logger.warning(f"{service} requires api_key and base_url for OpenAI-compatible chat completions; falling back to Google")
-            return _translate_with_google(text, lang_from, lang_to)
-        return _translate_with_openai(text, lang_from, lang_to, api_key, base_url, model, model_config)
+        model = custom_model or defaults.get("default_model") or "gpt-3.5-turbo"
+
+        missing = []
+        if not api_key:
+            missing.append("api_key")
+        if not base_url:
+            missing.append("endpoint/base_url")
+        if missing:
+            raise MarkdownTranslationError(
+                f"{service} configuration missing: {', '.join(missing)}"
+            )
+        return _translate_with_openai(
+            text, lang_from, lang_to, api_key, base_url, model, model_config
+        )
     else:
         # For other services, fall back to Google
         logger.warning(f"Service {service} not directly supported for markdown translation, using Google")
