@@ -1,5 +1,16 @@
 # Changelog
 
+## 2025-11-12 (Backend OpenCV Runtime Fix)
+
+### Fixed
+- Backend container failed at runtime with `ImportError: libGL.so.1` when importing `cv2` via `pdf2zh-next`/BabelDOC. The runtime stage now installs required system libraries: `libgl1`, `libglib2.0-0`, `libsm6`, `libxext6`, `libxrender1`.
+
+### Changed
+- `docker-compose.yml` now includes a local build step for the backend (`Dockerfile.backend`) so the fix is picked up on `docker compose build`.
+
+### Docs
+- Added troubleshooting notes to `README.md` and `docs/DEPLOYMENT_GUIDE.md` explaining the `libGL.so.1` error and the fix.
+
 ## 2025-11-12 (Frontend API Env Unification)
 
 ### Changed

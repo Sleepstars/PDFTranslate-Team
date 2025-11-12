@@ -19,19 +19,19 @@ export const adminUsersAPI = {
       body: JSON.stringify(data),
     }),
 
-  get: (id: string) => fetchAPI(`/api/admin/users/${id}`),
+  get: (id: number) => fetchAPI(`/api/admin/users/${id}`),
 
-  update: (id: string, data: UpdateUserRequest) =>
+  update: (id: number, data: UpdateUserRequest) =>
     fetchAPI(`/api/admin/users/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     }),
 
-  delete: (id: string) =>
+  delete: (id: number) =>
     fetchAPI(`/api/admin/users/${id}`, { method: 'DELETE' }),
 
-  updateQuota: (id: string, dailyPageLimit: number) =>
+  updateQuota: (id: number, dailyPageLimit: number) =>
     fetchAPI(`/api/admin/users/${id}/quota`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },

@@ -23,6 +23,17 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 WORKDIR /app
 
+# Install runtime system libraries required by OpenCV (cv2)
+# Fixes: ImportError: libGL.so.1: cannot open shared object file
+RUN apt-get update \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+        libgl1 \
+        libglib2.0-0 \
+        libsm6 \
+        libxext6 \
+        libxrender1 \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY --from=build /app /app
 COPY --from=build /entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh

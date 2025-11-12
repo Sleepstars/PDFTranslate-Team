@@ -9,6 +9,7 @@ import { Portal } from '@/components/ui/portal';
 import { Badge } from '@/components/ui/badge';
 import { User } from '@/lib/types/user';
 import { useAdminUpdates } from '@/lib/hooks/use-admin-updates';
+import { useAuth } from '@/lib/hooks/use-auth';
 import { Search, MoreVertical } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
@@ -17,10 +18,12 @@ import { SkeletonTable } from '@/components/ui/skeleton';
 export default function AdminUsersPage() {
   const [showDialog, setShowDialog] = useState(false);
   const [editUser, setEditUser] = useState<User | null>(null);
+  const [deleteUser, setDeleteUser] = useState<User | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeMenu, setActiveMenu] = useState<string | null>(null);
+  const [activeMenu, setActiveMenu] = useState<number | null>(null);
   const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
   const isRealtimeConnected = useAdminUpdates('users');
+  const { user: currentUser } = useAuth();
   const t = useTranslations('users');
 
   const { data: users = [], isLoading } = useQuery({
@@ -50,10 +53,20 @@ export default function AdminUsersPage() {
     mutationFn: adminUsersAPI.delete,
     onSuccess: () => {
       toast.success(t('deleteSuccess'));
+      setDeleteUser(null);
       // WebSocket 会自动更新数据，无需手动 invalidate
     },
-    onError: () => {
-      toast.error(t('deleteError'));
+    onError: (error: Error) => {
+      // Display specific error message from backend
+      const errorMessage = error.message;
+      if (errorMessage.includes('Cannot deactivate your own account')) {
+        toast.error(t('cannotDeleteSelf'));
+      } else if (errorMessage.includes('Cannot deactivate the last active admin')) {
+        toast.error(t('cannotDeleteLastAdmin'));
+      } else {
+        toast.error(t('deleteError'));
+      }
+      setDeleteUser(null);
     },
   });
 
@@ -65,6 +78,24 @@ export default function AdminUsersPage() {
       user.email.toLowerCase().includes(deferredSearchQuery.toLowerCase()) ||
       user.name.toLowerCase().includes(deferredSearchQuery.toLowerCase())
     ), [users, deferredSearchQuery]);
+
+  // Calculate which users cannot be deleted
+  const activeAdminCount = useMemo(() =>
+    users.filter((u: User) => u.role === 'admin' && u.isActive).length,
+    [users]
+  );
+
+  const canDeleteUser = (user: User) => {
+    // Cannot delete self
+    if (currentUser && user.id === currentUser.id) {
+      return { canDelete: false, reason: t('cannotDeleteSelf') };
+    }
+    // Cannot delete last active admin
+    if (user.role === 'admin' && user.isActive && activeAdminCount <= 1) {
+      return { canDelete: false, reason: t('cannotDeleteLastAdmin') };
+    }
+    return { canDelete: true, reason: '' };
+  };
 
   return (
     <div className="space-y-4">
@@ -108,6 +139,7 @@ export default function AdminUsersPage() {
             <tbody className="divide-y divide-border">
               {filteredUsers.map((user: User) => {
               const usagePercent = user.dailyPageLimit > 0 ? (user.dailyPageUsed / user.dailyPageLimit) * 100 : 0;
+              const deleteCheck = canDeleteUser(user);
               return (
                 <tr key={user.id} className="hover:bg-muted/30 transition-colors">
                   <td className="px-4 py-2.5">
@@ -176,11 +208,22 @@ export default function AdminUsersPage() {
                           </button>
                           <button
                             onClick={() => {
-                              deleteMutation.mutate(user.id);
+                              if (!deleteCheck.canDelete) {
+                                toast.error(deleteCheck.reason);
+                                setActiveMenu(null);
+                                setMenuPos(null);
+                                return;
+                              }
+                              setDeleteUser(user);
                               setActiveMenu(null);
                               setMenuPos(null);
                             }}
-                            className="w-full px-3 py-2 text-left text-sm text-destructive hover:bg-muted transition-colors"
+                            className={`w-full px-3 py-2 text-left text-sm transition-colors ${
+                              deleteCheck.canDelete
+                                ? 'text-destructive hover:bg-muted'
+                                : 'text-muted-foreground cursor-not-allowed opacity-50'
+                            }`}
+                            title={!deleteCheck.canDelete ? deleteCheck.reason : ''}
                           >
                             {t('delete')}
                           </button>
@@ -199,6 +242,14 @@ export default function AdminUsersPage() {
 
       {showDialog && <UserDialog onClose={() => setShowDialog(false)} onCreate={createMutation.mutate} />}
       {editUser && <EditUserDialog user={editUser} groups={groups as Group[]} onClose={() => setEditUser(null)} />}
+      {deleteUser && (
+        <DeleteConfirmDialog
+          user={deleteUser}
+          onClose={() => setDeleteUser(null)}
+          onConfirm={() => deleteMutation.mutate(deleteUser.id)}
+          isDeleting={deleteMutation.isPending}
+        />
+      )}
     </div>
   );
 }
@@ -304,6 +355,29 @@ function UserDialog({ onClose, onCreate }: { onClose: () => void; onCreate: (dat
   );
 }
 
+function DeleteConfirmDialog({ user, onClose, onConfirm, isDeleting }: { user: User; onClose: () => void; onConfirm: () => void; isDeleting: boolean }) {
+  const t = useTranslations('users.confirmDelete');
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50" onClick={onClose}>
+      <div className="bg-card border border-border rounded-lg p-6 w-full max-w-md shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <h2 className="text-lg font-semibold mb-4">{t('title')}</h2>
+        <p className="text-sm text-muted-foreground mb-6">
+          {t('message', { name: user.name || user.email })}
+        </p>
+        <div className="flex justify-end gap-2">
+          <Button type="button" variant="outline" onClick={onClose} size="sm" disabled={isDeleting}>
+            {t('cancel')}
+          </Button>
+          <Button type="button" variant="destructive" onClick={onConfirm} size="sm" disabled={isDeleting}>
+            {isDeleting ? '...' : t('confirm')}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function EditUserDialog({ user, groups, onClose }: { user: User; groups: Group[]; onClose: () => void }) {
   const t = useTranslations('users.editDialog');
   const tCreate = useTranslations('users.createDialog');
@@ -312,14 +386,14 @@ function EditUserDialog({ user, groups, onClose }: { user: User; groups: Group[]
     email: user.email,
     password: '',
     role: user.role,
-    groupId: user.groupId || '',
+    groupId: user.groupId?.toString() || '',
     isActive: user.isActive,
     dailyPageLimit: user.dailyPageLimit,
   });
   const [error, setError] = useState<string | null>(null);
 
   const updateMutation = useMutation({
-    mutationFn: (data: { name?: string; email?: string; password?: string; role?: 'admin' | 'user'; groupId?: string; isActive?: boolean; dailyPageLimit?: number }) => adminUsersAPI.update(user.id, data),
+    mutationFn: (data: { name?: string; email?: string; password?: string; role?: 'admin' | 'user'; groupId?: number; isActive?: boolean; dailyPageLimit?: number }) => adminUsersAPI.update(user.id, data),
     onSuccess: () => {
       onClose();
       // WebSocket 会自动更新数据，无需手动 invalidate
@@ -338,8 +412,13 @@ function EditUserDialog({ user, groups, onClose }: { user: User; groups: Group[]
       return;
     }
 
-    const { password, ...rest } = formData;
-    updateMutation.mutate(password ? formData : rest);
+    const { password, groupId, ...rest } = formData;
+    const updateData = {
+      ...rest,
+      groupId: groupId ? parseInt(groupId, 10) : undefined,
+      ...(password && { password }),
+    };
+    updateMutation.mutate(updateData);
   };
 
   return (

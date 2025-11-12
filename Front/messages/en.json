@@ -30,6 +30,14 @@
     "deleteError": "Failed to delete user",
     "updateSuccess": "User updated successfully",
     "updateError": "Failed to update user",
+    "cannotDeleteSelf": "Cannot delete your own account",
+    "cannotDeleteLastAdmin": "Cannot delete the last active admin user",
+    "confirmDelete": {
+      "title": "Confirm Delete User",
+      "message": "Are you sure you want to delete user \"{name}\"? This action cannot be undone.",
+      "confirm": "Delete",
+      "cancel": "Cancel"
+    },
     "createDialog": {
       "title": "Create User",
       "name": "Name",
@@ -347,6 +355,8 @@
     "testing": "Testing...",
     "saveConfiguration": "Save Configuration",
     "saving": "Saving...",
+    "sendingTestEmail": "Sending test email...",
+    "sendTestEmail": "Send Test Email",
     "success": "✓ Success",
     "failed": "✗ Failed",
     "testResult": "Test result will appear here",

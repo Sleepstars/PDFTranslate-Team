@@ -557,6 +557,24 @@ echo $PDF_APP_REDIS_URL
 - 检查浏览器控制台是否有错误
 - 清除浏览器缓存和 Cookie
 
+#### 6. ImportError: libGL.so.1（导入 cv2 失败）
+出现如下错误时：
+
+```
+ImportError: libGL.so.1: cannot open shared object file: No such file or directory
+```
+
+原因：OpenCV 在运行时需要系统级 OpenGL 运行库（libGL）。
+
+解决：本仓库已在 `Dockerfile.backend` 安装所需运行库（`libgl1`, `libglib2.0-0`, `libsm6`, `libxext6`, `libxrender1`）。请重新构建后端镜像：
+
+```bash
+docker compose build pdfbackend
+docker compose up -d
+```
+
+如果使用自定义镜像，请确保基础镜像已安装上述包（Ubuntu/Debian 系：`apt-get install -y libgl1 libglib2.0-0 libsm6 libxext6 libxrender1`）。
+
 ### 调试模式
 ```bash
 # 启用详细日志

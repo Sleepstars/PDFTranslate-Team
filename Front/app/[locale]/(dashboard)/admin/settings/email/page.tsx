@@ -181,7 +181,7 @@ export default function AdminSettingsEmailPage() {
             onClick={handleTestEmail}
             disabled={testEmailMutation.isPending}
           >
-            {testEmailMutation.isPending ? '发送中...' : '发送测试邮件'}
+            {testEmailMutation.isPending ? t('sendingTestEmail') : t('sendTestEmail')}
           </Button>
         </div>
       </form>

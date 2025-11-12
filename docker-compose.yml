@@ -27,6 +27,9 @@ services:
 
   pdfbackend:
     image: ghcr.io/sleepstars/pdftranslate-team-backend:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
     environment:
       PDF_APP_ADMIN_EMAIL: admin@example.com
       PDF_APP_ADMIN_PASSWORD: changeme

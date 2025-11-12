@@ -30,6 +30,14 @@
     "deleteError": "删除失败",
     "updateSuccess": "用户信息已更新",
     "updateError": "更新失败",
+    "cannotDeleteSelf": "无法删除自己的账号",
+    "cannotDeleteLastAdmin": "无法删除最后一个活跃的管理员",
+    "confirmDelete": {
+      "title": "确认删除用户",
+      "message": "确定要删除用户 \"{name}\" 吗？此操作无法撤销。",
+      "confirm": "删除",
+      "cancel": "取消"
+    },
     "createDialog": {
       "title": "创建用户",
       "name": "姓名",
@@ -347,6 +355,8 @@
     "testing": "测试中...",
     "saveConfiguration": "保存配置",
     "saving": "保存中...",
+    "sendingTestEmail": "发送中...",
+    "sendTestEmail": "发送测试邮件",
     "success": "✓ 成功",
     "failed": "✗ 失败",
     "testResult": "测试结果将在这里显示",

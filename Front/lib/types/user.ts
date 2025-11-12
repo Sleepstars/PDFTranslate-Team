@@ -1,9 +1,9 @@
 export interface User {
-  id: string;
+  id: number;
   name: string;
   email: string;
   role: 'admin' | 'user';
-  groupId?: string;
+  groupId?: number;
   isActive: boolean;
   dailyPageLimit: number;
   dailyPageUsed: number;
@@ -24,7 +24,7 @@ export interface UpdateUserRequest {
   email?: string;
   password?: string;
   role?: 'admin' | 'user';
-  groupId?: string;
+  groupId?: number;
   isActive?: boolean;
   dailyPageLimit?: number;
 }
