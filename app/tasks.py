@@ -21,12 +21,54 @@ logger = logging.getLogger(__name__)
 class TaskManager:
     def __init__(self) -> None:
         self.jobs: Dict[int, asyncio.Task] = {}
-        # 并发控制信号量
+        # 并发控制信号量 - 默认值，将从数据库加载
         self.max_concurrent_tasks = 3
+        self.translation_threads = 4
+        self.queue_monitor_interval = 5
         self.task_semaphore = asyncio.Semaphore(self.max_concurrent_tasks)
         # 优先级队列配置
         self.priority_weights = {"high": 3, "normal": 2, "low": 1}
         self._monitor_task: Optional[asyncio.Task] = None
+        self._config_loaded = False
+
+    async def _load_config_from_db(self) -> None:
+        """从数据库加载性能配置"""
+        try:
+            from .models import SystemSetting
+            async with AsyncSessionLocal() as db:
+                async def get_setting(key: str, default: int) -> int:
+                    result = await db.execute(select(SystemSetting).where(SystemSetting.key == key))
+                    row = result.scalar_one_or_none()
+                    if row and row.value:
+                        try:
+                            return int(row.value)
+                        except ValueError:
+                            return default
+                    return default
+
+                self.max_concurrent_tasks = await get_setting("max_concurrent_tasks", 3)
+                self.translation_threads = await get_setting("translation_threads", 4)
+                self.queue_monitor_interval = await get_setting("queue_monitor_interval", 5)
+
+                # 更新信号量
+                self.task_semaphore = asyncio.Semaphore(self.max_concurrent_tasks)
+                self._config_loaded = True
+
+                logger.info(f"Loaded performance config: max_concurrent_tasks={self.max_concurrent_tasks}, "
+                           f"translation_threads={self.translation_threads}, "
+                           f"queue_monitor_interval={self.queue_monitor_interval}")
+        except Exception as e:
+            logger.warning(f"Failed to load config from database, using defaults: {e}")
+
+    async def reload_config(self) -> None:
+        """重新加载配置（用于配置更新后热更新）"""
+        logger.info("Reloading performance configuration...")
+        await self._load_config_from_db()
+
+    @property
+    def active_tasks(self) -> Dict[int, asyncio.Task]:
+        """返回当前活跃的任务字典（用于监控）"""
+        return self.jobs
         
     async def _check_concurrent_limit(self) -> bool:
         """检查是否达到并发限制"""
@@ -99,6 +141,11 @@ class TaskManager:
         """启动队列监控任务"""
         if self._monitor_task and not self._monitor_task.done():
             return
+
+        # 首次启动时加载配置
+        if not self._config_loaded:
+            await self._load_config_from_db()
+
         self._monitor_task = asyncio.create_task(self._queue_monitor_loop())
 
     async def _queue_monitor_loop(self):
@@ -110,7 +157,8 @@ class TaskManager:
         while True:
             try:
                 await self._process_pending_tasks()
-                await asyncio.sleep(5)  # 每5秒检查一次
+                # 使用动态配置的监控间隔
+                await asyncio.sleep(self.queue_monitor_interval)
             except asyncio.CancelledError:
                 logger.info("Queue monitor loop cancelled")
                 break
@@ -658,10 +706,15 @@ class TaskManager:
         model_config = {**provider_settings, **task_model_config}
         service = provider_service or (task.engine if task.engine != 'babeldoc' else settings.babeldoc_service)
         model = model_config.get('model') or settings.babeldoc_model or None
+
+        # 优先使用 TaskManager 的动态配置，然后是任务配置，最后是系统默认值
         try:
-            threads = int(model_config.get('threads', settings.babeldoc_threads))
+            if 'threads' in model_config:
+                threads = int(model_config['threads'])
+            else:
+                threads = self.translation_threads
         except (TypeError, ValueError):
-            threads = settings.babeldoc_threads
+            threads = self.translation_threads
 
         await self._update_task(task_id, progress=25)
 

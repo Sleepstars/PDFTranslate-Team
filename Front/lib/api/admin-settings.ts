@@ -58,6 +58,27 @@ export interface EmailTestResponse {
   message: string;
 }
 
+export interface PerformanceSettings {
+  maxConcurrentTasks: number;
+  translationThreads: number;
+  queueMonitorInterval: number;
+}
+
+export interface UpdatePerformanceSettingsRequest {
+  maxConcurrentTasks?: number;
+  translationThreads?: number;
+  queueMonitorInterval?: number;
+}
+
+export interface PerformanceMetrics {
+  activeTasks: number;
+  queuedTasks: number;
+  highPriorityQueue: number;
+  normalPriorityQueue: number;
+  lowPriorityQueue: number;
+  currentConfig: PerformanceSettings;
+}
+
 async function fetchAPI(url: string, options?: RequestInit) {
   const res = await fetch(url, { ...options, credentials: 'include' });
   if (!res.ok) {
@@ -111,4 +132,18 @@ export const adminSettingsAPI = {
     fetchAPI('/api/admin/settings/email/test', {
       method: 'POST',
     }),
+
+  // Performance
+  getPerformance: (): Promise<PerformanceSettings> =>
+    fetchAPI('/api/admin/settings/performance'),
+
+  updatePerformance: (data: UpdatePerformanceSettingsRequest): Promise<{ message: string }> =>
+    fetchAPI('/api/admin/settings/performance', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    }),
+
+  getPerformanceMetrics: (): Promise<PerformanceMetrics> =>
+    fetchAPI('/api/admin/settings/performance/metrics'),
 };

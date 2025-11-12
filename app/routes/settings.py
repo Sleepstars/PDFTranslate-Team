@@ -12,6 +12,9 @@ from ..schemas import (
     UpdateSystemSettingsRequest,
     EmailSettingsResponse,
     UpdateEmailSettingsRequest,
+    PerformanceSettingsResponse,
+    UpdatePerformanceSettingsRequest,
+    PerformanceMetricsResponse,
 )
 
 router = APIRouter(prefix="/admin/settings", tags=["settings"])
@@ -275,11 +278,119 @@ async def test_s3_connection(
             "region": request.region,
             "ttl_days": request.ttl_days
         }
-        
+
         s3_client = S3Client(config)
         # Try to list objects to verify connection
         s3_client.s3.head_bucket(Bucket=request.bucket)
-        
+
         return {"success": True, "message": "S3 connection successful"}
     except Exception as e:
         return {"success": False, "message": f"S3 connection failed: {str(e)}"}
+
+
+# -----------------
+# Performance Settings
+# -----------------
+
+@router.get("/performance", response_model=PerformanceSettingsResponse)
+async def get_performance_settings(
+    admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """Get performance configuration (admin only)"""
+    async def get_setting(key: str, default: str) -> str:
+        result = await db.execute(select(SystemSetting).where(SystemSetting.key == key))
+        row = result.scalar_one_or_none()
+        return row.value if row and row.value is not None else default
+
+    max_concurrent_tasks = int(await get_setting("max_concurrent_tasks", "3"))
+    translation_threads = int(await get_setting("translation_threads", "4"))
+    queue_monitor_interval = int(await get_setting("queue_monitor_interval", "5"))
+
+    return PerformanceSettingsResponse(
+        maxConcurrentTasks=max_concurrent_tasks,
+        translationThreads=translation_threads,
+        queueMonitorInterval=queue_monitor_interval
+    )
+
+
+@router.put("/performance")
+async def update_performance_settings(
+    request: UpdatePerformanceSettingsRequest,
+    admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """Update performance configuration (admin only)"""
+    settings_map: dict[str, str] = {}
+
+    if request.maxConcurrentTasks is not None:
+        settings_map["max_concurrent_tasks"] = str(request.maxConcurrentTasks)
+    if request.translationThreads is not None:
+        settings_map["translation_threads"] = str(request.translationThreads)
+    if request.queueMonitorInterval is not None:
+        settings_map["queue_monitor_interval"] = str(request.queueMonitorInterval)
+
+    for key, value in settings_map.items():
+        result = await db.execute(select(SystemSetting).where(SystemSetting.key == key))
+        setting = result.scalar_one_or_none()
+        if setting:
+            setting.value = value
+        else:
+            db.add(SystemSetting(key=key, value=value))
+
+    await db.commit()
+
+    # Notify TaskManager to reload configuration
+    from ..websocket_manager import admin_ws_manager
+    await admin_ws_manager.broadcast("settings.performance.updated", {})
+
+    # Trigger TaskManager config reload
+    from ..tasks import task_manager
+    if task_manager:
+        await task_manager.reload_config()
+
+    return {"message": "Performance settings updated"}
+
+
+@router.get("/performance/metrics", response_model=PerformanceMetricsResponse)
+async def get_performance_metrics(
+    admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """Get current performance metrics (admin only)"""
+    from ..tasks import task_manager
+    from ..redis_client import redis_client
+
+    # Get current configuration
+    async def get_setting(key: str, default: str) -> str:
+        result = await db.execute(select(SystemSetting).where(SystemSetting.key == key))
+        row = result.scalar_one_or_none()
+        return row.value if row and row.value is not None else default
+
+    max_concurrent_tasks = int(await get_setting("max_concurrent_tasks", "3"))
+    translation_threads = int(await get_setting("translation_threads", "4"))
+    queue_monitor_interval = int(await get_setting("queue_monitor_interval", "5"))
+
+    current_config = PerformanceSettingsResponse(
+        maxConcurrentTasks=max_concurrent_tasks,
+        translationThreads=translation_threads,
+        queueMonitorInterval=queue_monitor_interval
+    )
+
+    # Get queue lengths
+    high_queue = await redis_client.get_queue_length("high")
+    normal_queue = await redis_client.get_queue_length("normal")
+    low_queue = await redis_client.get_queue_length("low")
+    total_queued = high_queue + normal_queue + low_queue
+
+    # Get active tasks count
+    active_tasks = len(task_manager.active_tasks) if task_manager else 0
+
+    return PerformanceMetricsResponse(
+        activeTasks=active_tasks,
+        queuedTasks=total_queued,
+        highPriorityQueue=high_queue,
+        normalPriorityQueue=normal_queue,
+        lowPriorityQueue=low_queue,
+        currentConfig=current_config
+    )

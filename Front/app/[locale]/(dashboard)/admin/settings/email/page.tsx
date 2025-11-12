@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminSettingsAPI, type EmailSettings, type UpdateEmailSettingsRequest } from '@/lib/api/admin-settings';
 import { useTranslations } from 'next-intl';
@@ -16,41 +16,38 @@ export default function AdminSettingsEmailPage() {
     queryFn: adminSettingsAPI.getEmail,
   });
 
-  // Initialize form with data or defaults
-  const [form, setForm] = useState<UpdateEmailSettingsRequest>(() => {
-    if (data) {
-      return {
-        smtpHost: data.smtpHost || '',
-        smtpPort: data.smtpPort || 587,
-        smtpUsername: data.smtpUsername || '',
-        smtpPassword: '',
-        smtpUseTLS: data.smtpUseTLS,
-        smtpFromEmail: data.smtpFromEmail || '',
-        allowedEmailSuffixes: data.allowedEmailSuffixes || [],
-      };
-    }
-    return {
-      smtpHost: '',
-      smtpPort: 587,
-      smtpUsername: '',
-      smtpPassword: '',
-      smtpUseTLS: true,
-      smtpFromEmail: '',
-      allowedEmailSuffixes: [],
-    };
+  // Initialize form with defaults
+  const [form, setForm] = useState<UpdateEmailSettingsRequest>({
+    smtpHost: '',
+    smtpPort: 587,
+    smtpUsername: '',
+    smtpPassword: '',
+    smtpUseTLS: true,
+    smtpFromEmail: '',
+    allowedEmailSuffixes: [],
   });
 
-  // Sync form state with fetched data
+  // Track the previous data ID to detect when it changes
+  const prevDataIdRef = useRef<string | null>(null);
+
+  // Update form when data changes (using effect with proper dependency)
   useEffect(() => {
-    if (data) {
-      setForm({
-        smtpHost: data.smtpHost || '',
-        smtpPort: data.smtpPort || 587,
-        smtpUsername: data.smtpUsername || '',
-        smtpPassword: '',
-        smtpUseTLS: data.smtpUseTLS,
-        smtpFromEmail: data.smtpFromEmail || '',
-        allowedEmailSuffixes: data.allowedEmailSuffixes || [],
+    // Create a unique ID for the data to track changes
+    const dataId = data ? JSON.stringify(data) : null;
+
+    if (data && dataId !== prevDataIdRef.current) {
+      prevDataIdRef.current = dataId;
+      // Schedule state update for next render
+      queueMicrotask(() => {
+        setForm({
+          smtpHost: data.smtpHost || '',
+          smtpPort: data.smtpPort || 587,
+          smtpUsername: data.smtpUsername || '',
+          smtpPassword: '',
+          smtpUseTLS: data.smtpUseTLS,
+          smtpFromEmail: data.smtpFromEmail || '',
+          allowedEmailSuffixes: data.allowedEmailSuffixes || [],
+        });
       });
     }
   }, [data]);

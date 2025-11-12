@@ -15,6 +15,7 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
     { href: `${base}/system`, label: t('systemConfig') },
     { href: `${base}/email`, label: t('emailConfig') },
     { href: `${base}/s3`, label: t('s3Config') },
+    { href: `${base}/performance`, label: t('performanceConfig') },
   ];
 
   return (

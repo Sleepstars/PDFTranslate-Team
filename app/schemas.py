@@ -337,3 +337,25 @@ class TopUserItem(BaseModel):
 
 class TopUsersResponse(BaseModel):
     users: list[TopUserItem]
+
+
+# Performance Settings
+class PerformanceSettingsResponse(BaseModel):
+    maxConcurrentTasks: int
+    translationThreads: int
+    queueMonitorInterval: int
+
+
+class UpdatePerformanceSettingsRequest(BaseModel):
+    maxConcurrentTasks: Optional[int] = Field(default=None, ge=1, le=50)
+    translationThreads: Optional[int] = Field(default=None, ge=1, le=32)
+    queueMonitorInterval: Optional[int] = Field(default=None, ge=1, le=10)
+
+
+class PerformanceMetricsResponse(BaseModel):
+    activeTasks: int
+    queuedTasks: int
+    highPriorityQueue: int
+    normalPriorityQueue: int
+    lowPriorityQueue: int
+    currentConfig: PerformanceSettingsResponse
