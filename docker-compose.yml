@@ -43,7 +43,9 @@ services:
         condition: service_healthy
 
   pdffrontend:
-    image: ghcr.io/sleepstars/pdftranslate-team-frontend:latest
+    build:
+      context: ./Front
+      dockerfile: Dockerfile
     environment:
       NODE_ENV: production
       API_BASE_URL: http://pdfbackend:8000/api

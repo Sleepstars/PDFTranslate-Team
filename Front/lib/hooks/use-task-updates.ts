@@ -15,19 +15,6 @@ const DEFAULT_FILTERS = {
 function buildWebSocketUrl(): string | null {
   if (typeof window === 'undefined') return null;
 
-  const envBase = process.env.NEXT_PUBLIC_API_BASE_URL;
-  if (envBase) {
-    try {
-      const baseUrl = new URL(envBase);
-      baseUrl.protocol = baseUrl.protocol === 'https:' ? 'wss:' : 'ws:';
-      baseUrl.pathname = `${baseUrl.pathname.replace(/\/$/, '')}/tasks/ws`;
-      baseUrl.search = '';
-      return baseUrl.toString();
-    } catch {
-      // fall through to window origin
-    }
-  }
-
   const { protocol, host } = window.location;
   const wsProtocol = protocol === 'https:' ? 'wss:' : 'ws:';
   return `${wsProtocol}//${host}/api/tasks/ws`;

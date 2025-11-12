@@ -87,7 +87,8 @@ PDF_APP_PORT=8000
 PDF_APP_HOST=0.0.0.0
 
 # Frontend Configuration
-NEXT_PUBLIC_API_BASE_URL=https://api.your-domain.com
+# Must point to the backend API root (include trailing /api)
+NEXT_PUBLIC_API_BASE_URL=https://api.your-domain.com/api
 
 # CORS Configuration (if frontend on different domain)
 PDF_APP_CORS_ORIGINS=https://your-domain.com,https://www.your-domain.com

@@ -1,7 +1,7 @@
 import { Task } from '@/lib/types/task';
 
-// Unified API base. Must point to backend API root, including "/api".
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000/api';
+// Unified API base. Use relative path for proxy in production, localhost for dev.
+const API_BASE = '/api';
 
 export interface AnalyticsOverview {
   todayTranslations: number;
