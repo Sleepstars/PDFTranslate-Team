@@ -49,6 +49,8 @@ services:
     environment:
       NODE_ENV: production
       API_BASE_URL: http://pdfbackend:8000/api
+      PORT: 3000
+      HOSTNAME: "0.0.0.0"
     ports:
       - "3000:3000"
     depends_on:
