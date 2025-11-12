@@ -179,6 +179,38 @@ async def update_email_settings(
     return {"message": "Email settings updated"}
 
 
+@router.post("/email/test")
+async def send_test_email(
+    admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """Send a test email to the admin's email address"""
+    try:
+        from ..emailer import send_email
+
+        # Get admin's email
+        admin_email = admin.email
+
+        # Send test email
+        subject = "测试邮件"
+        text = """这是一封测试邮件。
+
+如果您收到这封邮件，说明您的 SMTP 配置已经正确设置。
+
+此邮件由系统自动发送，无需回复。
+"""
+
+        await send_email(db, admin_email, subject, text)
+
+        return {"success": True, "message": f"测试邮件已发送到 {admin_email}"}
+    except ValueError as e:
+        # SMTP configuration is incomplete
+        return {"success": False, "message": f"SMTP 配置不完整: {str(e)}"}
+    except Exception as e:
+        # SMTP connection or sending failed
+        return {"success": False, "message": f"发送失败: {str(e)}"}
+
+
 @router.get("/s3", response_model=S3ConfigResponse)
 async def get_s3_settings(
     admin: User = Depends(require_admin),

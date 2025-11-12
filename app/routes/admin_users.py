@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status, WebSocket, WebSocketDisconnect
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 import uuid
 
@@ -157,6 +157,21 @@ async def update_user(
     if request.password is not None and request.password != "":
         user.password_hash = hash_password(request.password)
     if request.role is not None:
+        # Prevent changing the last admin's role to non-admin
+        if user.role == "admin" and request.role != "admin":
+            admin_count_result = await db.execute(
+                select(func.count(User.id)).where(
+                    User.role == "admin",
+                    User.is_active == True
+                )
+            )
+            active_admin_count = admin_count_result.scalar()
+
+            if active_admin_count <= 1:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Cannot change role of the last active admin user"
+                )
         user.role = request.role
     if request.groupId is not None:
         # group assignment is optional; ensure group exists or allow clearing
@@ -169,6 +184,21 @@ async def update_user(
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Group not found")
             user.group_id = request.groupId
     if request.isActive is not None:
+        # Prevent deactivating the last active admin
+        if user.role == "admin" and user.is_active and not request.isActive:
+            admin_count_result = await db.execute(
+                select(func.count(User.id)).where(
+                    User.role == "admin",
+                    User.is_active == True
+                )
+            )
+            active_admin_count = admin_count_result.scalar()
+
+            if active_admin_count <= 1:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Cannot deactivate the last active admin user"
+                )
         user.is_active = request.isActive
     if request.dailyPageLimit is not None:
         user.daily_page_limit = request.dailyPageLimit
@@ -215,6 +245,22 @@ async def delete_user(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Cannot deactivate your own account"
         )
+
+    # Prevent deleting the last active admin
+    if user.role == "admin":
+        admin_count_result = await db.execute(
+            select(func.count(User.id)).where(
+                User.role == "admin",
+                User.is_active == True
+            )
+        )
+        active_admin_count = admin_count_result.scalar()
+
+        if active_admin_count <= 1:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot deactivate the last active admin user"
+            )
 
     user.is_active = False
     await db.commit()

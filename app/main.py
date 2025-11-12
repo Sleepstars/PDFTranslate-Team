@@ -68,9 +68,12 @@ async def lifespan(app: FastAPI):
             except Exception:
                 logger.exception("Failed to ensure default group exists")
 
-            result = await db.execute(select(User).where(User.email == settings.admin_email))
+            # Check if any active admin exists (not just specific email)
+            result = await db.execute(
+                select(User).where(User.role == "admin", User.is_active == True)
+            )
             if not result.scalar_one_or_none():
-                logger.info("Creating default admin user...")
+                logger.info("No active admin found, creating default admin user...")
                 await create_user(
                     db,
                     settings.admin_email,
@@ -80,7 +83,7 @@ async def lifespan(app: FastAPI):
                 )
                 logger.info("✅ Admin user created")
             else:
-                logger.info("✅ Admin user exists")
+                logger.info("✅ Active admin user exists, skipping creation")
 
             # Ensure admin is assigned to default group
             if default_group:
