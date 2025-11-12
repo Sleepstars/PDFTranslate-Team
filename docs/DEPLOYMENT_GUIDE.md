@@ -534,6 +534,31 @@ asyncio.run(engine.connect())
 "
 ```
 
+### ImportError: libGL.so.1 (cv2 import fails)
+
+Symptoms:
+
+```
+ImportError: libGL.so.1: cannot open shared object file: No such file or directory
+```
+
+Cause: OpenCV requires OpenGL runtime libraries (libGL) at runtime.
+
+Fix (Docker, Ubuntu/Debian base): the backend image now installs the required libs in `Dockerfile.backend`. Rebuild and restart:
+
+```bash
+docker compose build pdfbackend
+docker compose up -d
+```
+
+If maintaining a custom base image, ensure these packages are installed:
+
+```bash
+apt-get update && \
+DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+  libgl1 libglib2.0-0 libsm6 libxext6 libxrender1
+```
+
 ### High Memory Usage
 
 ```bash

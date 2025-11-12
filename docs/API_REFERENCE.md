@@ -667,13 +667,13 @@ Update user information.
 
 ### DELETE /api/admin/users/{id}
 
-Delete a user.
+Permanently delete a user. Requires another active admin account to remain enabled.
 
 **Response (204 No Content)**
 
 **Errors:**
 - `404 Not Found`: User not found
-- `400 Bad Request`: Cannot delete yourself
+- `400 Bad Request`: Cannot delete yourself or remove the last active admin user
 
 ---
 
@@ -762,7 +762,10 @@ Provider-specific settings:
 - **ollama**: `endpoint`, `model`, `max_concurrency`, `requests_per_minute`
 - **tencent**: `secret_id`, `secret_key`, `max_concurrency`, `requests_per_minute`
 - **mineru**: `api_token` (required), `model_version` (defaults to `vlm`), `max_concurrency`, `requests_per_minute`
-- **gemini, deepseek, zhipu, siliconflow, grok, groq**: `api_key`, `endpoint`, `model`, `max_concurrency`, `requests_per_minute`
+- **gemini**: `api_key`, `model`, `max_concurrency`, `requests_per_minute`
+- **deepseek, zhipu, siliconflow, grok, groq**: `api_key`, `model`, `max_concurrency`, `requests_per_minute`, optional `endpoint`/`base_url`
+
+> **默认 Base URL** – DeepSeek、Zhipu、Grok、Groq、SiliconFlow 走统一的 Chat Completions 协议，若未在 `settings` 中提供 `endpoint/base_url`，后端会自动注入厂商默认地址（`https://api.deepseek.com/v1`、`https://open.bigmodel.cn/api/paas/v4`、`https://api.x.ai/v1`、`https://api.groq.com/openai/v1`、`https://api.siliconflow.cn/v1`）。需要接入自建代理时，可在配置里覆盖，或通过环境变量 `DEEPSEEK_API_BASE`、`ZHIPU_API_BASE`、`GROK_API_BASE`、`GROQ_API_BASE`、`SILICONFLOW_BASE_URL` 进行全局替换。
 
 > **2025-11-10** – MinerU provider settings now persist `api_token`/`model_version`. After updating the backend, open **Admin → Provider**, edit your MinerU entry, and re-save to ensure the token is stored。
 

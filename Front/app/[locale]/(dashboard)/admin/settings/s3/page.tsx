@@ -92,14 +92,13 @@ export default function AdminSettingsS3Page() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <div className="max-w-3xl">
       <h1 className="text-2xl font-bold mb-6">{t('s3Config')}</h1>
 
       {isLoading ? (
         <SkeletonForm fields={6} />
       ) : (
-        <div className="bg-card border border-border rounded-lg shadow p-6">
-          <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-6 bg-card border border-border rounded-lg p-6">
             <div>
               <label className="block text-sm font-medium mb-1">
                 {t('s3Endpoint')}
@@ -222,7 +221,6 @@ export default function AdminSettingsS3Page() {
               </Button>
             </div>
           </form>
-        </div>
       )}
     </div>
   );

@@ -1,5 +1,31 @@
 # Changelog
 
+## 2025-11-13 (Markdown Provider Defaults)
+
+### Fixed
+- Parse-and-translate markdown jobs now respect DeepSeek/Zhipu/Grok/Groq/SiliconFlow providers even when no `endpoint/base_url` is provided; the backend injects the official vendor base URL instead of silently falling back to Google/`googletrans`.
+
+### Changed
+- Added `DEEPSEEK_API_BASE`, `ZHIPU_API_BASE`, `GROK_API_BASE`, `GROQ_API_BASE`, and `SILICONFLOW_BASE_URL` overrides for markdown translation so operators can point these providers at private gateways.
+- Missing credentials now raise a clear `MarkdownTranslationError` instead of starting a Google fallback that required the `googletrans` module.
+
+### Docs
+- `README.md` and `docs/API_REFERENCE.md` explain the default endpoints and how to override them per provider.
+
+## 2025-11-13 (Admin User Delete & Realtime Fixes)
+
+### Fixed
+- Admin user deletion now only blocks when removing the final *active* admin and allows deleting previously deactivated admins. WebSocket payloads for admin user/provider events now include the fields (`user`, `userId`, `provider`, `providerId`) that the Next.js dashboard consumes, so realtime tables update correctly.
+
+### Changed
+- `DELETE /api/admin/users/{id}` permanently removes the user record instead of silently deactivating it. The endpoint still returns `204 No Content` and records the deletion over the admin websocket stream.
+
+### Frontend
+- `Front/lib/api/admin-users.ts` now tolerates 204 responses by parsing the response body once, ensuring successful deletes do not throw JSON parse errors.
+
+### Docs
+- Clarified the admin delete contract in `docs/API_REFERENCE.md`, noting the permanent removal and the last-active-admin safeguard.
+
 ## 2025-11-12 (Backend OpenCV Runtime Fix)
 
 ### Fixed

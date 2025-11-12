@@ -272,13 +272,15 @@ v1.0.0 开始，推荐通过 Web 界面管理翻译服务：
 | Gemini | `gemini` | `{"api_key": "..."}` |
 | Ollama | `ollama` | `{"host": "http://localhost:11434", "model": "llama2"}` |
 | DeepSeek | `deepseek` | `{"api_key": "..."}` |
-| Zhipu (智谱) | `zhipu` | `{"api_key": "..."}` |
+| Zhipu (智谱) | `zhipu` | `{"api_key": "...", "model": "glm-4-flash"}` |
 | SiliconFlow | `siliconflow` | `{"api_key": "..."}` |
 | Tencent | `tencent` | `{"secret_id": "...", "secret_key": "..."}` |
 | Grok | `grok` | `{"api_key": "..."}` |
 | Groq | `groq` | `{"api_key": "..."}` |
 
 完整配置说明请参考：[docs/MULTI_USER_GUIDE.md](docs/MULTI_USER_GUIDE.md)
+
+> **提示**：DeepSeek、Zhipu、Grok、Groq、SiliconFlow 会自动注入默认的 OpenAI 兼容 Base URL（如 `https://open.bigmodel.cn/api/paas/v4`）。只有在接入自建代理或厂商私有域名时，才需要在配置 JSON 中显式提供 `endpoint/base_url`，或设置对应环境变量（`DEEPSEEK_API_BASE`、`ZHIPU_API_BASE`、`GROK_API_BASE`、`GROQ_API_BASE`、`SILICONFLOW_BASE_URL`）。
 
 ### 基于分组的访问控制
 
