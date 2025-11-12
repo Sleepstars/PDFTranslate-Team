@@ -108,7 +108,7 @@ async def create_task(
     priority: str = Form("normal"),
     notes: str = Form(None),
     modelConfig: str = Form(None),
-    providerConfigId: str = Form(None),
+    providerConfigId: int = Form(None),
     user_obj: User = Depends(get_current_user_from_db),
     db: AsyncSession = Depends(get_db)
 ):
@@ -220,7 +220,7 @@ async def create_batch_tasks(
     priority: str = Form("normal"),
     notes: str = Form(None),
     modelConfig: str = Form(None),
-    providerConfigId: str = Form(None),
+    providerConfigId: int = Form(None),
     user_obj: User = Depends(get_current_user_from_db),
     db: AsyncSession = Depends(get_db)
 ):

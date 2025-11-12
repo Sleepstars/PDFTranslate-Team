@@ -9,14 +9,14 @@ from .models import (
 )
 
 
-async def _active_provider_ids(db: AsyncSession) -> Set[str]:
+async def _active_provider_ids(db: AsyncSession) -> Set[int]:
     result = await db.execute(
         select(TranslationProviderConfig.id).where(TranslationProviderConfig.is_active == True)
     )
     return {row[0] for row in result.all()}
 
 
-async def _active_mineru_provider_ids(db: AsyncSession) -> Set[str]:
+async def _active_mineru_provider_ids(db: AsyncSession) -> Set[int]:
     result = await db.execute(
         select(TranslationProviderConfig.id).where(
             TranslationProviderConfig.is_active == True,
@@ -26,7 +26,7 @@ async def _active_mineru_provider_ids(db: AsyncSession) -> Set[str]:
     return {row[0] for row in result.all()}
 
 
-async def get_allowed_provider_ids(user: User, db: AsyncSession) -> Set[str]:
+async def get_allowed_provider_ids(user: User, db: AsyncSession) -> Set[int]:
     """Compute allowed provider IDs for a user.
 
     Rules:
@@ -39,7 +39,7 @@ async def get_allowed_provider_ids(user: User, db: AsyncSession) -> Set[str]:
         return await _active_provider_ids(db)
 
     # Group-based allowlist
-    allowed: Set[str] = set()
+    allowed: Set[int] = set()
     if getattr(user, "group_id", None):
         result = await db.execute(
             select(GroupProviderAccess.provider_config_id)
@@ -52,7 +52,7 @@ async def get_allowed_provider_ids(user: User, db: AsyncSession) -> Set[str]:
 
 async def assert_provider_access(
     user: User,
-    provider_id: Optional[str],
+    provider_id: Optional[int],
     task_type: str,
     db: AsyncSession,
 ) -> TranslationProviderConfig:
