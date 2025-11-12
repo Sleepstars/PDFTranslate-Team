@@ -226,6 +226,15 @@ docker compose logs -f
 
 > ⚠️ **注意**：v1.0.0 开始，推荐通过管理后台的"服务配置"界面管理翻译引擎，而不是环境变量。
 
+#### 前端环境变量（统一）
+- `NEXT_PUBLIC_API_BASE_URL`：后端 API 的基地址，必须包含 `/api` 路径。例如：
+  - 本地开发（Compose 内部）：`http://pdfbackend:8000/api`
+  - 生产环境（公网域名）：`https://api.your-domain.com/api`
+
+说明：
+- 前端所有 HTTP 与 WebSocket 调用均以该基地址为准；Next.js 的 `rewrites` 也使用该变量进行代理。
+- 该变量在构建时生效（NEXT_PUBLIC_* 会被编译进前端代码），修改后需要重新构建镜像或应用。
+
 ### Docker 镜像发布
 `.github/workflows/docker-publish.yml` 会在以下情况触发自动发布：
 - 推送到 `main` 分支

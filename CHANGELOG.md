@@ -1,5 +1,18 @@
 # Changelog
 
+## 2025-11-12 (Frontend API Env Unification)
+
+### Changed
+- Unified frontend API base environment variable to `NEXT_PUBLIC_API_BASE_URL` (must include `/api`).
+- Next.js rewrites now read `NEXT_PUBLIC_API_BASE_URL` to proxy `/api/*` and `/auth/*` routes.
+
+### Removed
+- Deprecated `NEXT_PUBLIC_API_URL` and `API_BASE_URL` usages in the frontend; code now consistently reads `NEXT_PUBLIC_API_BASE_URL`.
+
+### Docs
+- Updated `README.md` and `docs/DEPLOYMENT_GUIDE.md` to document the single frontend env and examples.
+- Cleaned `docker-compose.yml` to remove unused `API_BASE_URL` and point `NEXT_PUBLIC_API_BASE_URL` at `http://pdfbackend:8000/api` in the default stack.
+
 ## 2025-11-11 (DB Auto‑migrate & UUIDv7)
 
 ### Fixed

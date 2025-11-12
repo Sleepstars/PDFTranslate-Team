@@ -37,8 +37,6 @@ jobs:
 
       - name: Build
         run: bun run build
-        env:
-          NEXT_PUBLIC_API_BASE_URL: http://localhost:8000/api
 
   docker:
     runs-on: ubuntu-latest
@@ -83,8 +81,6 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: Front
-          build-args: |
-            NEXT_PUBLIC_API_BASE_URL=http://localhost:8000/api
           push: true
           tags: |
             ${{ env.FRONTEND_IMAGE }}:latest
