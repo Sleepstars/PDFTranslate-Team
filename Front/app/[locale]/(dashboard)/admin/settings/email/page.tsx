@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminSettingsAPI, type EmailSettings, type UpdateEmailSettingsRequest } from '@/lib/api/admin-settings';
 import { useTranslations } from 'next-intl';
@@ -40,6 +40,21 @@ export default function AdminSettingsEmailPage() {
     };
   });
 
+  // Sync form state with fetched data
+  useEffect(() => {
+    if (data) {
+      setForm({
+        smtpHost: data.smtpHost || '',
+        smtpPort: data.smtpPort || 587,
+        smtpUsername: data.smtpUsername || '',
+        smtpPassword: '',
+        smtpUseTLS: data.smtpUseTLS,
+        smtpFromEmail: data.smtpFromEmail || '',
+        allowedEmailSuffixes: data.allowedEmailSuffixes || [],
+      });
+    }
+  }, [data]);
+
   const updateMutation = useMutation({
     mutationFn: adminSettingsAPI.updateEmail,
     onSuccess: () => {
@@ -49,12 +64,28 @@ export default function AdminSettingsEmailPage() {
     onError: (e: Error) => alert(e.message),
   });
 
+  const testEmailMutation = useMutation({
+    mutationFn: adminSettingsAPI.sendTestEmail,
+    onSuccess: (response) => {
+      if (response.success) {
+        alert(response.message);
+      } else {
+        alert(`发送失败: ${response.message}`);
+      }
+    },
+    onError: (e: Error) => alert(`发送失败: ${e.message}`),
+  });
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     // Do not send empty password field
     const payload: Partial<UpdateEmailSettingsRequest> = { ...form };
     if (!payload.smtpPassword) delete payload.smtpPassword;
     updateMutation.mutate(payload as UpdateEmailSettingsRequest);
+  };
+
+  const handleTestEmail = () => {
+    testEmailMutation.mutate();
   };
 
   if (isLoading) return <SkeletonForm fields={6} />;
@@ -143,8 +174,18 @@ export default function AdminSettingsEmailPage() {
           <p className="text-xs text-muted-foreground mt-1">{t('allowedEmailSuffixesHelp')}</p>
         </div>
 
-        <div className="pt-2">
-          <Button type="submit">{t('saveConfiguration')}</Button>
+        <div className="pt-2 flex gap-3">
+          <Button type="submit" disabled={updateMutation.isPending}>
+            {updateMutation.isPending ? t('saving') : t('saveConfiguration')}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={handleTestEmail}
+            disabled={testEmailMutation.isPending}
+          >
+            {testEmailMutation.isPending ? '发送中...' : '发送测试邮件'}
+          </Button>
         </div>
       </form>
     </div>

@@ -53,6 +53,11 @@ export interface UpdateEmailSettingsRequest {
   allowedEmailSuffixes?: string[];
 }
 
+export interface EmailTestResponse {
+  success: boolean;
+  message: string;
+}
+
 async function fetchAPI(url: string, options?: RequestInit) {
   const res = await fetch(url, { ...options, credentials: 'include' });
   if (!res.ok) {
@@ -100,5 +105,10 @@ export const adminSettingsAPI = {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
+    }),
+
+  sendTestEmail: (): Promise<EmailTestResponse> =>
+    fetchAPI('/api/admin/settings/email/test', {
+      method: 'POST',
     }),
 };
