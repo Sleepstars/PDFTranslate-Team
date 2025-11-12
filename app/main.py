@@ -134,7 +134,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(auth.router, prefix=settings.api_prefix)
+app.include_router(auth.router)
 app.include_router(tasks.router, prefix=settings.api_prefix)
 app.include_router(settings_route.router, prefix=settings.api_prefix)
 app.include_router(admin_users.router)
