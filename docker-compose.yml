@@ -25,7 +25,7 @@ services:
       timeout: 5s
       retries: 5
 
-  backend:
+  pdfbackend:
     image: ghcr.io/sleepstars/pdftranslate-team-backend:latest
     environment:
       PDF_APP_ADMIN_EMAIL: admin@example.com
@@ -42,13 +42,12 @@ services:
       redis:
         condition: service_healthy
 
-  frontend:
+  pdffrontend:
     image: ghcr.io/sleepstars/pdftranslate-team-frontend:latest
     environment:
       NODE_ENV: production
-      API_BASE_URL: http://backend:8000/api
-      NEXT_PUBLIC_API_BASE_URL: http://localhost:8000/api
+      NEXT_PUBLIC_API_BASE_URL: http://pdfbackend:8000/api
     ports:
       - "3000:3000"
     depends_on:
-      - backend
+      - pdfbackend

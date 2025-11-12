@@ -6,14 +6,16 @@ const withNextIntl = createNextIntlPlugin('./i18n/request.ts');
 const nextConfig = {
   output: 'standalone',
   async rewrites() {
+    const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000/api';
+    const base = API_BASE.replace(/\/$/, '');
     return [
       {
         source: '/api/:path*',
-        destination: 'http://localhost:8000/api/:path*',
+        destination: `${base}/:path*`,
       },
       {
         source: '/auth/:path*',
-        destination: 'http://localhost:8000/api/auth/:path*',
+        destination: `${base}/auth/:path*`,
       },
     ];
   },

@@ -1,6 +1,7 @@
 import { Task } from '@/lib/types/task';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+// Unified API base. Must point to backend API root, including "/api".
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000/api';
 
 export interface AnalyticsOverview {
   todayTranslations: number;
@@ -47,7 +48,7 @@ export interface AdminTasksResponse {
 }
 
 export async function getAnalyticsOverview(): Promise<AnalyticsOverview> {
-  const res = await fetch(`${API_BASE}/api/admin/analytics/overview`, {
+  const res = await fetch(`${API_BASE}/admin/analytics/overview`, {
     credentials: 'include',
   });
   if (!res.ok) throw new Error('Failed to fetch analytics overview');
@@ -55,7 +56,7 @@ export async function getAnalyticsOverview(): Promise<AnalyticsOverview> {
 }
 
 export async function getDailyStats(days: number = 30): Promise<DailyStatsResponse> {
-  const res = await fetch(`${API_BASE}/api/admin/analytics/daily-stats?days=${days}`, {
+  const res = await fetch(`${API_BASE}/admin/analytics/daily-stats?days=${days}`, {
     credentials: 'include',
   });
   if (!res.ok) throw new Error('Failed to fetch daily stats');
@@ -66,7 +67,7 @@ export async function getTopUsers(limit: number = 10, days?: number): Promise<To
   const params = new URLSearchParams({ limit: limit.toString() });
   if (days) params.append('days', days.toString());
 
-  const res = await fetch(`${API_BASE}/api/admin/analytics/top-users?${params}`, {
+  const res = await fetch(`${API_BASE}/admin/analytics/top-users?${params}`, {
     credentials: 'include',
   });
   if (!res.ok) throw new Error('Failed to fetch top users');
@@ -91,7 +92,7 @@ export async function getAdminTasks(params: {
     }
   });
 
-  const res = await fetch(`${API_BASE}/api/admin/tasks?${searchParams}`, {
+  const res = await fetch(`${API_BASE}/admin/tasks?${searchParams}`, {
     credentials: 'include',
   });
   if (!res.ok) throw new Error('Failed to fetch admin tasks');
@@ -99,7 +100,7 @@ export async function getAdminTasks(params: {
 }
 
 export async function cancelAdminTask(taskId: string): Promise<{ task: Task }> {
-  const res = await fetch(`${API_BASE}/api/tasks/${taskId}`, {
+  const res = await fetch(`${API_BASE}/tasks/${taskId}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action: 'cancel' }),
@@ -110,7 +111,7 @@ export async function cancelAdminTask(taskId: string): Promise<{ task: Task }> {
 }
 
 export async function retryAdminTask(taskId: string): Promise<{ task: Task }> {
-  const res = await fetch(`${API_BASE}/api/tasks/${taskId}`, {
+  const res = await fetch(`${API_BASE}/tasks/${taskId}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action: 'retry' }),
@@ -121,7 +122,7 @@ export async function retryAdminTask(taskId: string): Promise<{ task: Task }> {
 }
 
 export async function deleteAdminTask(taskId: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/api/tasks/${taskId}`, {
+  const res = await fetch(`${API_BASE}/tasks/${taskId}`, {
     method: 'DELETE',
     credentials: 'include',
   });
