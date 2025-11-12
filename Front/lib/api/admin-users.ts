@@ -1,38 +1,56 @@
-import type { CreateUserRequest, UpdateUserRequest } from '../types/user';
+import type { CreateUserRequest, UpdateUserRequest, User } from '../types/user';
 
-async function fetchAPI(url: string, options?: RequestInit) {
+async function fetchAPI<T = unknown>(url: string, options?: RequestInit): Promise<T> {
   const res = await fetch(url, { ...options, credentials: 'include' });
-  if (!res.ok) {
-    const error = await res.json().catch(() => ({ detail: 'Request failed' }));
-    throw new Error(error.detail || 'Request failed');
+  const rawBody = res.status === 204 ? '' : await res.text();
+  const trimmed = rawBody.trim();
+  let data: unknown = null;
+
+  if (trimmed) {
+    try {
+      data = JSON.parse(trimmed);
+    } catch {
+      data = trimmed;
+    }
   }
-  return res.json();
+
+  if (!res.ok) {
+    const detail =
+      (typeof data === 'object' && data !== null && 'detail' in data && typeof (data as Record<string, unknown>).detail === 'string'
+        ? (data as Record<string, string>).detail
+        : typeof data === 'string'
+          ? data
+          : null) || 'Request failed';
+    throw new Error(detail);
+  }
+
+  return data as T;
 }
 
 export const adminUsersAPI = {
-  list: () => fetchAPI('/api/admin/users'),
+  list: (): Promise<User[]> => fetchAPI<User[]>('/api/admin/users'),
 
   create: (data: CreateUserRequest) =>
-    fetchAPI('/api/admin/users', {
+    fetchAPI<User>('/api/admin/users', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     }),
 
-  get: (id: number) => fetchAPI(`/api/admin/users/${id}`),
+  get: (id: number): Promise<User> => fetchAPI<User>(`/api/admin/users/${id}`),
 
   update: (id: number, data: UpdateUserRequest) =>
-    fetchAPI(`/api/admin/users/${id}`, {
+    fetchAPI<User>(`/api/admin/users/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     }),
 
   delete: (id: number) =>
-    fetchAPI(`/api/admin/users/${id}`, { method: 'DELETE' }),
+    fetchAPI<null>(`/api/admin/users/${id}`, { method: 'DELETE' }),
 
   updateQuota: (id: number, dailyPageLimit: number) =>
-    fetchAPI(`/api/admin/users/${id}/quota`, {
+    fetchAPI<User>(`/api/admin/users/${id}/quota`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ dailyPageLimit }),

@@ -120,7 +120,7 @@ async def create_provider(
         updatedAt=provider.updated_at
     )
 
-    await admin_ws_manager.broadcast("provider.created", response.model_dump())
+    await admin_ws_manager.broadcast("provider.created", {"provider": response.model_dump()})
     return response
 
 
@@ -201,7 +201,7 @@ async def update_provider(
         updatedAt=provider.updated_at
     )
 
-    await admin_ws_manager.broadcast("provider.updated", response.model_dump())
+    await admin_ws_manager.broadcast("provider.updated", {"provider": response.model_dump()})
     return response
 
 
@@ -225,7 +225,7 @@ async def delete_provider(
 
     await db.delete(provider)
     await db.commit()
-    await admin_ws_manager.broadcast("provider.deleted", {"id": provider_id})
+    await admin_ws_manager.broadcast("provider.deleted", {"providerId": provider_id})
 
 
 @router.websocket("/ws")

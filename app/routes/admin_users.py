@@ -94,7 +94,7 @@ async def create_user(
         createdAt=user.created_at
     )
 
-    await admin_ws_manager.broadcast("user.created", response.model_dump())
+    await admin_ws_manager.broadcast("user.created", {"user": response.model_dump()})
     return response
 
 
@@ -219,7 +219,7 @@ async def update_user(
         createdAt=user.created_at
     )
 
-    await admin_ws_manager.broadcast("user.updated", response.model_dump())
+    await admin_ws_manager.broadcast("user.updated", {"user": response.model_dump()})
     return response
 
 
@@ -247,24 +247,25 @@ async def delete_user(
         )
 
     # Prevent deleting the last active admin
-    if user.role == "admin":
+    if user.role == "admin" and user.is_active:
         admin_count_result = await db.execute(
             select(func.count(User.id)).where(
                 User.role == "admin",
-                User.is_active == True
+                User.is_active == True,
+                User.id != user.id
             )
         )
-        active_admin_count = admin_count_result.scalar()
+        remaining_active_admins = admin_count_result.scalar() or 0
 
-        if active_admin_count <= 1:
+        if remaining_active_admins == 0:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Cannot deactivate the last active admin user"
             )
 
-    user.is_active = False
+    await db.delete(user)
     await db.commit()
-    await admin_ws_manager.broadcast("user.deleted", {"id": user_id})
+    await admin_ws_manager.broadcast("user.deleted", {"userId": user_id})
 
 
 @router.patch("/{user_id}/quota", response_model=UserResponse)

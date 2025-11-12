@@ -1,5 +1,5 @@
 import asyncio
-from typing import Dict, Set
+from typing import Dict, Optional, Set
 from fastapi import WebSocket
 
 
@@ -63,14 +63,16 @@ class AdminWebSocketManager:
         async with self._lock:
             self._connections.discard(websocket)
 
-    async def broadcast(self, message_type: str, payload: dict) -> None:
+    async def broadcast(self, message_type: str, payload: Optional[dict] = None) -> None:
         async with self._lock:
             connections = list(self._connections)
 
         if not connections:
             return
 
-        message = {"type": message_type, "data": payload}
+        message = {"type": message_type}
+        if payload:
+            message.update(payload)
         dead_connections = []
 
         for ws in connections:
