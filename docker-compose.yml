@@ -27,9 +27,6 @@ services:
 
   pdfbackend:
     image: ghcr.io/sleepstars/pdftranslate-team-backend:latest
-    build:
-      context: .
-      dockerfile: Dockerfile.backend
     environment:
       PDF_APP_ADMIN_EMAIL: admin@example.com
       PDF_APP_ADMIN_PASSWORD: changeme
@@ -46,9 +43,7 @@ services:
         condition: service_healthy
 
   pdffrontend:
-    build:
-      context: ./Front
-      dockerfile: Dockerfile
+    image: ghcr.io/sleepstars/pdftranslate-team-frontend:latest
     environment:
       NODE_ENV: production
       API_BASE_URL: http://pdfbackend:8000/api

@@ -1,592 +1,168 @@
 # Production Deployment Guide
 
-**Project:** PDFTranslate Team Multi-User System  
-**Version:** 1.0.0  
-**Date:** 2025-11-08
+**Project:** PDFTranslate Team  
+**Last Updated:** 2025-11-13
+
+本指南覆盖单体服务器或小型集群的部署要点，目标是以最少步骤让多用户 PDF 翻译平台在生产环境稳定运行。推荐部署栈：Docker Compose + Traefik/Nginx 反向代理 + 托管 PostgreSQL/Redis（或 Compose 容器）。
 
 ---
 
-## Table of Contents
+## 1. 准备条件
 
-1. [Prerequisites](#prerequisites)
-2. [Environment Setup](#environment-setup)
-3. [Database Setup](#database-setup)
-4. [Docker Deployment](#docker-deployment)
-5. [Manual Deployment](#manual-deployment)
-6. [Security Configuration](#security-configuration)
-7. [Monitoring & Maintenance](#monitoring--maintenance)
-8. [Backup & Recovery](#backup--recovery)
-9. [Troubleshooting](#troubleshooting)
+### 1.1 基础设施
+- Ubuntu 22.04 LTS（或等效 x86_64 Linux），≥4 vCPU、8 GB RAM、50 GB SSD。
+- 打开端口：80/443（HTTP/HTTPS），3000（前端），8000（后端），5432（PostgreSQL），6379（Redis）。
+- 绑定域名（例如 `app.example.com`、`api.example.com`），证书建议使用 Let's Encrypt。
 
----
+### 1.2 软件依赖
+- Docker 24+ 与 Docker Compose v2。
+- Pixi（仅当需要在宿主机跑 Python/Node 管理脚本）。
+- Bun 1.1+（编译前端时使用）。
+- Git、OpenSSL、psql、redis-cli（便于排查）。
 
-## Prerequisites
-
-### System Requirements
-
-**Minimum:**
-- CPU: 2 cores
-- RAM: 4 GB
-- Disk: 20 GB SSD
-- OS: Linux (Ubuntu 22.04 LTS recommended)
-
-**Recommended:**
-- CPU: 4+ cores
-- RAM: 8+ GB
-- Disk: 50+ GB SSD
-- OS: Linux (Ubuntu 22.04 LTS)
-
-### Software Requirements
-
-- Docker 24.0+ and Docker Compose 2.0+
-- PostgreSQL 16+ (if not using Docker)
-- Redis 7+ (if not using Docker)
-- Node.js 18+ (for manual deployment)
-- Python 3.11+ (for manual deployment)
-
-### Network Requirements
-
-- Ports: 80 (HTTP), 443 (HTTPS), 8000 (Backend API), 3000 (Frontend)
-- Outbound internet access for translation APIs
-- Domain name (recommended for production)
-- SSL/TLS certificate (Let's Encrypt recommended)
+### 1.3 凭据
+- PostgreSQL 用户名与强密码。
+- Redis 密码（如启用 AUTH）。
+- S3/对象存储访问凭据。
+- 邮件发送方配置（SMTP 主机、端口、账户、允许的邮箱后缀）。
+- 管理员初始密码（部署完成后立即修改）。
 
 ---
 
-## Environment Setup
+## 2. 配置环境
 
-### 1. Clone Repository
+1. **克隆代码**
+   ```bash
+   git clone https://github.com/your-org/PDFTranslate-Team.git
+   cd PDFTranslate-Team
+   cp .env.example .env
+   ```
 
-```bash
-git clone https://github.com/your-org/PDFTranslate-Team.git
-cd PDFTranslate-Team
-```
+2. **设置 `.env`**（表格列出主要变量）
 
-### 2. Create Environment File
+| 变量 | 示例 | 说明 |
+| --- | --- | --- |
+| `PDF_APP_DATABASE_URL` | `postgresql+asyncpg://pdftranslate:STRONG@postgres:5432/pdftranslate` | 支持外部或 Compose 内数据库 |
+| `PDF_APP_REDIS_URL` | `redis://redis:6379/0` | 可追加 `?ssl=true` 等参数 |
+| `PDF_APP_SESSION_SECRET` | `python -c "import secrets; print(secrets.token_urlsafe(32))"` | 必须为高熵值 |
+| `PDF_APP_PORT` / `PDF_APP_HOST` | `8000` / `0.0.0.0` | 后端监听端口 |
+| `NEXT_PUBLIC_API_BASE_URL` | `https://api.example.com/api` | 前端访问 API 的公共 URL，必须含 `/api` |
+| `PDF_APP_CORS_ORIGINS` | `https://app.example.com` | 多域使用逗号分隔 |
+| `ALLOWED_EMAIL_SUFFIXES` | `example.com,partner.com` | 限制注册邮件域（可选） |
+| `SMTP_*` | 视环境而定 | 邮件/通知配置 |
+| `S3_REGION / S3_BUCKET / S3_ENDPOINT / S3_ACCESS_KEY / S3_SECRET_KEY` | —— | 可以改为在后台“设置 → S3”界面填写 |
 
-```bash
-cp .env.example .env
-```
-
-### 3. Configure Environment Variables
-
-Edit `.env` file with production values:
-
-```bash
-# Database Configuration
-PDF_APP_DATABASE_URL=postgresql+asyncpg://pdftranslate:STRONG_PASSWORD@postgres:5432/pdftranslate
-
-# Redis Configuration
-PDF_APP_REDIS_URL=redis://redis:6379/0
-
-# Session Security (MUST CHANGE)
-PDF_APP_SESSION_SECRET=GENERATE_RANDOM_SECRET_HERE
-
-# Server Configuration
-PDF_APP_PORT=8000
-PDF_APP_HOST=0.0.0.0
-
-# Frontend Configuration
-# Must point to the backend API root (include trailing /api)
-NEXT_PUBLIC_API_BASE_URL=https://api.your-domain.com/api
-
-# CORS Configuration (if frontend on different domain)
-PDF_APP_CORS_ORIGINS=https://your-domain.com,https://www.your-domain.com
-
-# Logging
-PDF_APP_LOG_LEVEL=INFO
-```
-
-> ⚠️ **Object Storage**: All S3 credentials are now stored inside the database. After the stack is up, log in as an admin and configure them via **Admin → Settings → S3**. The legacy `PDF_APP_S3_*` environment variables are ignored.
-
-### 4. Generate Secure Secrets
-
-```bash
-# Generate session secret
-python3 -c "import secrets; print(secrets.token_urlsafe(32))"
-
-# Generate database password
-python3 -c "import secrets; print(secrets.token_urlsafe(16))"
-```
+3. **生成 TLS 证书与 DNS 记录**，推荐将 API 与前端置于独立子域，后续代理配置更清晰。
 
 ---
 
-## Database Setup
+## 3. 使用 Docker Compose 部署（推荐）
 
-### Option 1: Using Docker (Recommended)
+1. **启动全部服务**
+   ```bash
+   docker compose pull              # 如需预拉镜像
+   docker compose up -d             # 启动 postgres、redis、backend、frontend
+   ```
 
-Database will be automatically created by Docker Compose.
+2. **检查服务状态**
+   ```bash
+   docker compose ps
+   docker compose logs -f backend
+   docker compose logs -f frontend
+   ```
+   - 后端启动时会自动运行 Alembic 迁移，并恢复重启前 `processing` 状态的任务。
+   - 前端容器通过 `NEXT_PUBLIC_API_BASE_URL` 连接后端。
 
-### Option 2: External PostgreSQL
+3. **配置反向代理**
+   - 将 `api.example.com` 代理到后端容器端口 `8000`，开启 HTTPS。
+   - 将 `app.example.com` 代理到前端容器端口 `3000`。
+   - 确保 WebSocket（任务实时推送）透传 `Upgrade`/`Connection` 头。
 
-```bash
-# Connect to PostgreSQL
-psql -U postgres
+4. **初始化系统**
+   - 登录管理员账号，进入 **系统设置 → S3** 配置对象存储。
+   - 配置 **邮件** 和 **配额策略**。
+   - 创建普通用户或导入现有用户，并为每个用户分配配额/分组。
 
-# Create database and user
-CREATE DATABASE pdftranslate;
-CREATE USER pdftranslate WITH ENCRYPTED PASSWORD 'STRONG_PASSWORD';
-GRANT ALL PRIVILEGES ON DATABASE pdftranslate TO pdftranslate;
-
-# Exit psql
-\q
-```
-
-Update `.env` with external database URL:
-```bash
-PDF_APP_DATABASE_URL=postgresql+asyncpg://pdftranslate:STRONG_PASSWORD@your-db-host:5432/pdftranslate
-```
-
----
-
-## Docker Deployment
-
-### 1. Build and Start Services
-
-```bash
-# Build images
-docker compose build
-
-# Start services in detached mode
-docker compose up -d
-
-# Check service status
-docker compose ps
-```
-
-### 2. Run Database Migrations (optional)
-
-The backend now applies Alembic migrations automatically at startup. You can still run them manually for troubleshooting:
-
-```bash
-docker compose exec backend pixi run alembic upgrade head
-```
-
-### 3. Configure Object Storage
-
-1. Visit the frontend (default `http://localhost:3000`) and sign in with the admin account.
-2. Navigate to **Admin → Settings → S3**.
-3. Fill in the endpoint, access key, secret, bucket, region, and TTL values.
-4. Save the form to persist the configuration into the database; the backend immediately starts using these values for uploads/downloads.
-
-### 4. Initialize Default Data
-
-```bash
-docker compose exec backend pixi run python scripts/init_db.py
-```
-
-This creates:
-- Default admin user: `admin@example.com` / `admin123`
-- Default Google Translate provider
-
-**⚠️ IMPORTANT: Change the default admin password immediately!**
-
-### 5. Verify Deployment
-
-```bash
-# Check backend health
-curl http://localhost:8000/health
-
-# Check frontend
-curl http://localhost:3000
-
-# View logs
-docker compose logs -f
-```
-
-### 6. Configure Reverse Proxy (Nginx)
-
-Create `/etc/nginx/sites-available/pdftranslate`:
-
-```nginx
-# Backend API
-server {
-    listen 80;
-    server_name api.your-domain.com;
-
-    location / {
-        proxy_pass http://localhost:8000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-    }
-}
-
-# Frontend
-server {
-    listen 80;
-    server_name your-domain.com www.your-domain.com;
-
-    location / {
-        proxy_pass http://localhost:3000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-}
-```
-
-Enable site and reload Nginx:
-```bash
-sudo ln -s /etc/nginx/sites-available/pdftranslate /etc/nginx/sites-enabled/
-sudo nginx -t
-sudo systemctl reload nginx
-```
-
-### 7. Setup SSL with Let's Encrypt
-
-```bash
-# Install Certbot
-sudo apt install certbot python3-certbot-nginx
-
-# Obtain certificates
-sudo certbot --nginx -d your-domain.com -d www.your-domain.com -d api.your-domain.com
-
-# Auto-renewal is configured automatically
-sudo certbot renew --dry-run
-```
+5. **滚动更新**
+   ```bash
+   git pull origin main
+   docker compose pull && docker compose up -d
+   ```
+   使用 `docker compose logs --tail=200 backend` 观察迁移或任务恢复情况。
 
 ---
 
-## Manual Deployment
+## 4. 不使用 Docker 的部署（概览）
 
-### 1. Install Dependencies
+1. **Python 进程**
+   ```bash
+   pixi install
+   pixi run start-backend  # 或者 uvicorn app.main:app --host 0.0.0.0 --port 8000
+   ```
+   推荐在生产中改为 `gunicorn -k uvicorn.workers.UvicornWorker -w 4`.
 
-```bash
-# Install Pixi
-curl -fsSL https://pixi.sh/install.sh | bash
+2. **前端构建**
+   ```bash
+   pixi run install-frontend
+   pixi run build-frontend
+   bun run start --cwd Front
+   ```
 
-# Install project dependencies
-pixi install
-pixi run install-frontend
-```
+3. **静态资源托管**
+   - 将 `Front/.next` 输出交由 Nginx/Node 进程或 Vercel/SWR 托管。
+   - 设置 `NEXT_PUBLIC_API_BASE_URL` 指向后端公开域名。
 
-### 2. Build Frontend
+4. **系统服务**
+   - 使用 systemd/supervisor 管理后端与前端进程，注意覆盖环境变量。
 
-```bash
-cd Front
-bun run build
-cd ..
-```
-
-### 3. Run Database Migrations (optional)
-
-Migrations are applied automatically on backend startup. To run manually:
-
-```bash
-pixi run alembic upgrade head
-pixi run python scripts/init_db.py
-```
-
-### 4. Start Services
-
-```bash
-# Start backend (use process manager like systemd or supervisor)
-pixi run uvicorn app.main:app --host 0.0.0.0 --port 8000
-
-# Start frontend
-cd Front && npm start
-```
-
-### 5. Setup Systemd Services
-
-Create `/etc/systemd/system/pdftranslate-backend.service`:
-
-```ini
-[Unit]
-Description=PDFTranslate Backend
-After=network.target postgresql.service redis.service
-
-[Service]
-Type=simple
-User=pdftranslate
-WorkingDirectory=/opt/pdftranslate
-Environment="PATH=/home/pdftranslate/.pixi/bin:/usr/local/bin:/usr/bin:/bin"
-ExecStart=/home/pdftranslate/.pixi/bin/pixi run uvicorn app.main:app --host 0.0.0.0 --port 8000
-Restart=always
-RestartSec=10
-
-[Install]
-WantedBy=multi-user.target
-```
-
-Create `/etc/systemd/system/pdftranslate-frontend.service`:
-
-```ini
-[Unit]
-Description=PDFTranslate Frontend
-After=network.target
-
-[Service]
-Type=simple
-User=pdftranslate
-WorkingDirectory=/opt/pdftranslate/Front
-Environment="PATH=/home/pdftranslate/.pixi/bin:/usr/local/bin:/usr/bin:/bin"
-Environment="NODE_ENV=production"
-ExecStart=/usr/bin/npm start
-Restart=always
-RestartSec=10
-
-[Install]
-WantedBy=multi-user.target
-```
-
-Enable and start services:
-```bash
-sudo systemctl daemon-reload
-sudo systemctl enable pdftranslate-backend pdftranslate-frontend
-sudo systemctl start pdftranslate-backend pdftranslate-frontend
-sudo systemctl status pdftranslate-backend pdftranslate-frontend
-```
+> 该方案需要自行处理日志轮转、自动重启与安全更新，除非有现有运维体系，否则建议优先使用 Docker。
 
 ---
 
-## Security Configuration
+## 5. 安全与稳定性
 
-### 1. Change Default Credentials
-
-```bash
-# Login as admin
-# Navigate to user management
-# Change admin password
-```
-
-### 2. Configure HTTPS
-
-- Use Let's Encrypt for SSL certificates
-- Enforce HTTPS redirects in Nginx
-- Set `Secure` flag on cookies (automatic in production)
-
-### 3. Configure CORS
-
-Update `.env`:
-```bash
-PDF_APP_CORS_ORIGINS=https://your-domain.com
-```
-
-### 4. Setup Firewall
-
-```bash
-# Allow SSH, HTTP, HTTPS
-sudo ufw allow 22/tcp
-sudo ufw allow 80/tcp
-sudo ufw allow 443/tcp
-
-# Deny direct access to backend/database ports from outside
-sudo ufw deny 8000/tcp
-sudo ufw deny 5432/tcp
-sudo ufw deny 6379/tcp
-
-# Enable firewall
-sudo ufw enable
-```
-
-### 5. Database Security
-
-```bash
-# Restrict PostgreSQL to localhost
-# Edit /etc/postgresql/16/main/postgresql.conf
-listen_addresses = 'localhost'
-
-# Restart PostgreSQL
-sudo systemctl restart postgresql
-```
-
-### 6. Implement Rate Limiting
-
-Add to Nginx configuration:
-```nginx
-limit_req_zone $binary_remote_addr zone=api_limit:10m rate=10r/s;
-
-server {
-    location /api/ {
-        limit_req zone=api_limit burst=20 nodelay;
-        # ... rest of config
-    }
-}
-```
+- **Secret 管理**：使用 Vault/KMS/Secrets Manager 注入 `.env`，避免硬编码。
+- **TLS**：全站 HTTPS，禁用 TLS 1.0/1.1。
+- **网络**：限制数据库、Redis 对外访问；生产环境中给 Compose 网络配置 `traefik_public` 或自定义网段。
+- **访问控制**：管理员账号最小化、定期轮换密码，启用双因素（若代理层支持）。
+- **资源限制**：在 `docker-compose.yml` 中添加 `deploy.resources.limits`（CPU/内存），防止单任务耗尽资源。
 
 ---
 
-## Monitoring & Maintenance
+## 6. 运维与备份
 
-### 1. Health Checks
-
-```bash
-# Backend health
-curl https://api.your-domain.com/health
-
-# Database connection
-docker compose exec backend pixi run python scripts/test_migration.py
-
-# Redis connection
-docker compose exec redis redis-cli ping
-```
-
-### 2. Log Management
-
-```bash
-# View logs
-docker compose logs -f backend
-docker compose logs -f frontend
-
-# Rotate logs (configure in docker-compose.yml)
-logging:
-  driver: "json-file"
-  options:
-    max-size: "10m"
-    max-file: "3"
-```
-
-### 3. Performance Monitoring
-
-- Monitor CPU, RAM, disk usage
-- Monitor database query performance
-- Monitor Redis memory usage
-- Monitor API response times
-
-### 4. Quota Reset Verification
-
-Quota resets automatically at UTC midnight. Verify:
-```bash
-# Check quota reset logs
-docker compose logs backend | grep "quota reset"
-
-# Manually check user quotas
-docker compose exec backend pixi run python -c "
-from app.database import AsyncSessionLocal
-from app.models import User
-import asyncio
-
-async def check_quotas():
-    async with AsyncSessionLocal() as db:
-        result = await db.execute('SELECT email, daily_page_used, daily_page_limit FROM users')
-        for row in result:
-            print(f'{row.email}: {row.daily_page_used}/{row.daily_page_limit}')
-
-asyncio.run(check_quotas())
-"
-```
+| 任务 | 频率 | 推荐方式 |
+| --- | --- | --- |
+| 数据库备份 | 每日 | `docker compose exec postgres pg_dump -U pdftranslate pdftranslate > backup_$(date +%Y%m%d).sql` |
+| S3 归档 | 每日/每周 | 启用桶版本控制与生命周期策略，定期导出到冷备 |
+| 配置备份 | 每次更新 | 打包 `.env`、`docker-compose.yml`、Traefik/Nginx 配置 |
+| 日志收集 | 实时 | 采集 Compose 容器日志到 Loki/ELK |
+| 健康检查 | 实时 | Prometheus/Grafana 或第三方监控，重点关注队列延迟、失败任务数、磁盘占用 |
 
 ---
 
-## Backup & Recovery
+## 7. 常见问题速查
 
-### 1. Database Backup
-
-```bash
-# Automated daily backup
-docker compose exec postgres pg_dump -U pdftranslate pdftranslate > backup_$(date +%Y%m%d).sql
-
-# Restore from backup
-docker compose exec -T postgres psql -U pdftranslate pdftranslate < backup_20251108.sql
-```
-
-### 2. S3 Storage Backup
-
-Configure S3 bucket versioning and lifecycle policies.
-
-### 3. Configuration Backup
-
-```bash
-# Backup environment and configs
-tar -czf config_backup_$(date +%Y%m%d).tar.gz .env docker-compose.yml
-```
+| 症状 | 排查 |
+| --- | --- |
+| 前端 404 或无法登录 | 检查 `NEXT_PUBLIC_API_BASE_URL` 是否指向正确域名并包含 `/api`，确保代理透传 Cookie。 |
+| Redis 连接失败 | `docker compose ps redis`，确认 `PDF_APP_REDIS_URL` 与实际密码一致。 |
+| OpenCV 报 `libGL.so.1` | 后端镜像已预装，如自定义镜像需安装 `libgl1 libglib2.0-0 libsm6 libxext6 libxrender1`。 |
+| `processing` 任务长时间未完成 | 查看 `docker compose logs backend`，必要时在管理员界面重新排队或删除任务。 |
+| 邮件发送失败 | 验证 SMTP 端口/SSL 模式、发件人白名单、`ALLOWED_EMAIL_SUFFIXES` 配置。 |
 
 ---
 
-## Troubleshooting
+## 8. 部署后检查清单
 
-### Service Won't Start
-
-```bash
-# Check logs
-docker compose logs backend
-docker compose logs frontend
-
-# Check port conflicts
-sudo netstat -tulpn | grep :8000
-sudo netstat -tulpn | grep :3000
-
-# Restart services
-docker compose restart
-```
-
-### Database Connection Errors
-
-```bash
-# Check PostgreSQL status
-docker compose ps postgres
-
-# Check connection string
-docker compose exec backend env | grep DATABASE_URL
-
-# Test connection
-docker compose exec backend pixi run python -c "
-from app.database import engine
-import asyncio
-asyncio.run(engine.connect())
-"
-```
-
-### ImportError: libGL.so.1 (cv2 import fails)
-
-Symptoms:
-
-```
-ImportError: libGL.so.1: cannot open shared object file: No such file or directory
-```
-
-Cause: OpenCV requires OpenGL runtime libraries (libGL) at runtime.
-
-Fix (Docker, Ubuntu/Debian base): the backend image now installs the required libs in `Dockerfile.backend`. Rebuild and restart:
-
-```bash
-docker compose build pdfbackend
-docker compose up -d
-```
-
-If maintaining a custom base image, ensure these packages are installed:
-
-```bash
-apt-get update && \
-DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-  libgl1 libglib2.0-0 libsm6 libxext6 libxrender1
-```
-
-### High Memory Usage
-
-```bash
-# Check container stats
-docker stats
-
-# Restart services
-docker compose restart
-
-# Increase memory limits in docker-compose.yml
-```
+- [ ] 管理员密码已重置，禁用默认账号。
+- [ ] S3、SMTP、第三方翻译服务凭据配置完成。
+- [ ] 观察 30 分钟运行日志无错误。
+- [ ] 任务创建/翻译/下载流程通过。
+- [ ] 备份策略落地并验证恢复流程。
+- [ ] 防火墙与 WAF 规则生效，证书自动续期。
+- [ ] 记录部署版本、环境变量与自定义脚本，方便回滚。
 
 ---
 
-## Post-Deployment Checklist
-
-- [ ] Change default admin password
-- [ ] Configure SSL/TLS certificates
-- [ ] Setup firewall rules
-- [ ] Configure automated backups
-- [ ] Setup monitoring and alerts
-- [ ] Test all critical user flows
-- [ ] Document custom configurations
-- [ ] Setup log rotation
-- [ ] Configure rate limiting
-- [ ] Review security audit checklist
-
----
-
-**Deployment Guide Version:** 1.0  
-**Last Updated:** 2025-11-08
+本部署手册仅与 `README.md` 共同维护，任何新的发布流程或配置约定请同步更新此文件，确保唯一事实来源。
